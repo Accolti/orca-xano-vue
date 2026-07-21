@@ -199,7 +199,6 @@ async function buscarCNPJ() {
   try {
     const headers = {
       Accept: 'application/json',
-      Authorization: import.meta.env.VITE_CNJP_JA,
     }
 
     const [officeResp, cccResp] = await Promise.all([

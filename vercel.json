@@ -1,0 +1,8 @@
+{
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/office/:cnpj", "destination": "/api/office/:cnpj" },
+    { "source": "/ccc", "destination": "/api/ccc" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
