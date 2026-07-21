@@ -1,42 +1,96 @@
-# .
+# Orca Xano Vue
 
-This template should help get you started developing with Vue 3 in Vite.
+Sistema de gestão de clientes (Orca Systems) com autenticação, CRUD de clientes com busca por CNPJ/CEP via integrações externas, e backend Xano.
 
-## Recommended IDE Setup
+## Stack
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **Vue 3.5** + **TypeScript 6** com `<script setup lang="ts">`
+- **Vite 8** (Rolndown bundler)
+- **Pinia 3** — stores com Composition API
+- **Vue Router 5** — HTML5 history, navigation guard (rotas autenticadas)
+- **Xano SDK** (`@xano/js-sdk`) — cliente HTTP para o backend
+- **Prettier** — formatação (sem ponto e vírgula, aspas simples, 100 colunas)
+- Path alias `@/` → `./src/*`
 
-## Recommended Browser Setup
+## Funcionalidades
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- **Autenticação** — login/signup com token persistido no `localStorage`
+- **Sidebar** — menu lateral com navegação (Home, Clientes, demais itens desabilitados)
+- **CRUD de Clientes** — modal de criação/edição com formulário completo
+- **Busca por CNPJ** — consulta automática via API CNPJA (`/office/{cnpj}`) e `/ccc` (inscrição estadual)
+- **Busca por CEP** — consulta automática via ViaCEP
+- **Busca de clientes** — server-side com debounce de 350ms, mínimo 3 caracteres
+- **Exclusão** com confirmação e exibição de erros da SDK
 
-## Type Support for `.vue` Imports in TS
+## Rotas
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+| Path | View | Protegida |
+|---|---|---|
+| `/` | HomeView | Sim |
+| `/clientes` | ClientesView | Sim |
+| `/login` | LoginView | Não (redireciona se logado) |
+| `/signup` | SignupView | Não (redireciona se logado) |
+| `/about` | AboutView | Sim |
 
-## Customize configuration
+## Endpoints Xano
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+Todos usam o prefixo de API group `/api:-qqRIakp`:
 
-## Project Setup
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `POST` | `/api:-qqRIakp/auth/login` | Login |
+| `POST` | `/api:-qqRIakp/auth/signup` | Cadastro |
+| `GET` | `/api:-qqRIakp/auth/me` | Dados do usuário logado |
+| `GET` | `/api:-qqRIakp/cliente_user_busca?busca={termo}` | Busca de clientes |
+| `POST` | `/api:-qqRIakp/Cliente_Endereco_Telefone` | Criar cliente |
+| `PATCH` | `/api:-qqRIakp/Cliente_Endereco_Telefone` | Atualizar cliente |
+| `GET` | `/api:-qqRIakp/cliente/{id}` | Ler um cliente |
+| `DELETE` | `/api:-qqRIakp/cliente/{id}` | Excluir cliente |
+
+## APIs externas
+
+- **CNPJA** — consulta de dados de CNPJ (`/office/{cnpj}`) e inscrição estadual (`/ccc?states=SP&taxId={cnpj}`)
+- **ViaCEP** — `https://viacep.com.br/ws/{cep}/json/`
+
+## Proxy (dev)
+
+O Vite faz proxy para evitar CORS em desenvolvimento:
+
+| Prefixo | Target |
+|---|---|
+| `/auth`, `/api` | Xano |
+| `/office`, `/ccc` | CNPJA |
+
+## Variáveis de ambiente
+
+| Variável | Descrição |
+|---|---|
+| `VITE_XANO_BASE_URL` | Base URL da instância Xano |
+| `VITE_CNJP_JA` | Chave de API do CNPJA |
+
+> `.env` é versionado. Crie `.env.local` para override em produção.
+
+## Comandos
 
 ```sh
-npm install
+npm install        # instalar dependências
+npm run dev        # servidor dev com HMR
+npm run build      # type-check + build em paralelo
+npm run preview    # preview do build
+npm run type-check # apenas type-check
+npm run format     # formatar src/ com Prettier
 ```
 
-### Compile and Hot-Reload for Development
+## Projeto
 
-```sh
-npm run dev
 ```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
+src/
+├── assets/         # CSS global
+├── components/     # SidebarNav, ClienteModal
+├── data/           # mappings.ts (dropdowns)
+├── router/         # Vue Router + navigation guard
+├── services/       # XanoClient singleton
+├── stores/         # Pinia (auth, cliente)
+├── types/          # Interfaces (Cliente, ClienteForm)
+└── views/          # Home, Login, Signup, Clientes, About
 ```
