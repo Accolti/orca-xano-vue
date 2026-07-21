@@ -101,65 +101,87 @@ function limparBusca() {
       </p>
     </div>
 
-    <table v-else class="tabela-clientes">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Nome Fantasia / Razão Social</th>
-          <th>CPF/CNPJ</th>
-          <th>Contato</th>
-          <th>E-mail</th>
-          <th class="th-acoes">Ações</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="cliente in clienteStore.clientes" :key="cliente.id">
-          <td>
-            <strong>#{{ cliente.id }}</strong>
-          </td>
-          <td>
-            <div class="nome-fantasia">
-              {{ cliente.nome_fantasia || 'Sem Nome Fantasia' }}
-            </div>
-            <small class="razao-social">{{ cliente.razao_social }}</small>
-          </td>
-          <td>{{ cliente.cnpj || '-' }}</td>
-          <td>{{ cliente.contato || '-' }}</td>
-          <td>{{ cliente['e-mail'] || '-' }}</td>
-          <td class="td-acoes">
-            <button class="btn-icon" title="Editar" @click="abrirEdicao(cliente)">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              >
+    <div v-else class="resultados">
+      <div class="tabela-wrapper">
+        <table class="tabela-clientes">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome Fantasia / Razão Social</th>
+              <th>CPF/CNPJ</th>
+              <th>Contato</th>
+              <th>E-mail</th>
+              <th class="th-acoes">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="cliente in clienteStore.clientes" :key="cliente.id">
+              <td>
+                <strong>#{{ cliente.id }}</strong>
+              </td>
+              <td>
+                <div class="nome-fantasia">
+                  {{ cliente.nome_fantasia || 'Sem Nome Fantasia' }}
+                </div>
+                <small class="razao-social">{{ cliente.razao_social }}</small>
+              </td>
+              <td>{{ cliente.cnpj || '-' }}</td>
+              <td>{{ cliente.contato || '-' }}</td>
+              <td>{{ cliente['e-mail'] || '-' }}</td>
+              <td class="td-acoes">
+                <button class="btn-icon" title="Editar" @click="abrirEdicao(cliente)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M17 3l4 4L7 21H3v-4L17 3z" />
+                  </svg>
+                </button>
+                <button class="btn-icon btn-icon-danger" title="Excluir" @click="excluirCliente(cliente)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-list">
+        <div v-for="cliente in clienteStore.clientes" :key="cliente.id" class="cliente-card">
+          <div class="card-header">
+            <strong class="card-nome">{{ cliente.nome_fantasia || cliente.razao_social || '—' }}</strong>
+            <span class="card-id">#{{ cliente.id }}</span>
+          </div>
+          <div class="card-info">
+            <span class="card-label">CPF/CNPJ</span>
+            <span>{{ cliente.cnpj || '-' }}</span>
+          </div>
+          <div class="card-info">
+            <span class="card-label">Contato</span>
+            <span>{{ cliente.contato || '-' }}</span>
+          </div>
+          <div class="card-info">
+            <span class="card-label">E-mail</span>
+            <span>{{ cliente['e-mail'] || '-' }}</span>
+          </div>
+          <div class="card-acoes">
+            <button class="btn-card" title="Editar" @click="abrirEdicao(cliente)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M17 3l4 4L7 21H3v-4L17 3z" />
               </svg>
+              Editar
             </button>
-            <button
-              class="btn-icon btn-icon-danger"
-              title="Excluir"
-              @click="excluirCliente(cliente)"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              >
+            <button class="btn-card btn-card-danger" title="Excluir" @click="excluirCliente(cliente)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <polyline points="3 6 5 6 21 6" />
-                <path
-                  d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                />
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
               </svg>
+              Excluir
             </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <p v-if="erroExcluir" class="erro-excluir" @click="erroExcluir = null">{{ erroExcluir }}</p>
 
@@ -297,8 +319,13 @@ function limparBusca() {
   padding: 2rem 0;
 }
 
+.tabela-wrapper {
+  overflow-x: auto;
+}
+
 .tabela-clientes {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-family: sans-serif;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -311,6 +338,7 @@ function limparBusca() {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid #eee;
+  white-space: nowrap;
 }
 
 .tabela-clientes th {
@@ -373,6 +401,91 @@ function limparBusca() {
   height: 17px;
 }
 
+.card-list {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cliente-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.card-nome {
+  font-size: 1rem;
+  color: #1f2937;
+}
+
+.card-id {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.card-info {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin-bottom: 0.2rem;
+}
+
+.card-label {
+  color: #9ca3af;
+  min-width: 5rem;
+  flex-shrink: 0;
+}
+
+.card-acoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.btn-card {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-card:hover {
+  background: #f3f4f6;
+  color: #2563eb;
+}
+
+.btn-card-danger:hover {
+  color: #dc2626;
+}
+
+.btn-card svg {
+  width: 16px;
+  height: 16px;
+}
+
 .erro-excluir {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
@@ -382,5 +495,15 @@ function limparBusca() {
   color: #b91c1c;
   font-size: 0.875rem;
   cursor: pointer;
+}
+
+@media (max-width: 639px) {
+  .tabela-wrapper {
+    display: none;
+  }
+
+  .card-list {
+    display: flex;
+  }
 }
 </style>

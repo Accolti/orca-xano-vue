@@ -48,14 +48,14 @@ onMounted(async () => {
 <style scoped>
 .menu-toggle {
   position: fixed;
-  top: 1rem;
-  left: 1rem;
+  top: 0.75rem;
+  left: 0.75rem;
   z-index: 100;
   background: #2d3036;
   border: none;
   border-radius: 8px;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -71,5 +71,14 @@ onMounted(async () => {
 .menu-toggle svg {
   width: 22px;
   height: 22px;
+}
+
+@media (min-width: 768px) {
+  .menu-toggle {
+    top: 1rem;
+    left: 1rem;
+    width: 40px;
+    height: 40px;
+  }
 }
 </style>

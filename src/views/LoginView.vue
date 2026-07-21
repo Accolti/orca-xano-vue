@@ -82,6 +82,12 @@ async function handleSubmit() {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 1.5rem 1.25rem;
+  }
+}
+
 .auth-card h1 {
   margin-bottom: 1.5rem;
   font-size: 1.5rem;

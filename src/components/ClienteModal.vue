@@ -851,4 +851,52 @@ async function buscarCEP() {
 .modal-leave-to .modal-card {
   transform: translateY(-20px);
 }
+
+@media (max-width: 639px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    max-height: 95vh;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .modal-footer {
+    padding: 0.75rem 1rem;
+  }
+
+  .field-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .phone-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .phone-fields {
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .field-row {
+    gap: 0.5rem;
+  }
+
+  .modal-overlay {
+    padding: 1.5rem 0.75rem;
+  }
+}
 </style>
