@@ -1,6 +1,6 @@
 # Orca Xano Vue
 
-Sistema de gestão de clientes (Orca Systems) com autenticação, CRUD de clientes com busca por CNPJ/CEP via integrações externas, e backend Xano.
+Sistema de gestão de clientes (Orca Systems) com autenticação, CRUD de clientes com busca por CNPJ (via Xano) e CEP (via ViaCEP), e backend Xano.
 
 ## Stack
 
@@ -17,7 +17,7 @@ Sistema de gestão de clientes (Orca Systems) com autenticação, CRUD de client
 - **Autenticação** — login/signup com token persistido no `localStorage`
 - **Sidebar** — menu lateral com navegação (Home, Clientes, demais itens desabilitados)
 - **CRUD de Clientes** — modal de criação/edição com formulário completo
-- **Busca por CNPJ** — consulta automática via API CNPJA (`/office/{cnpj}`) e `/ccc` (inscrição estadual)
+- **Busca por CNPJ** — consulta via endpoint Xano `/capturarDados_CNPJ_IE`
 - **Busca por CEP** — consulta automática via ViaCEP
 - **Busca de clientes** — server-side com debounce de 350ms, mínimo 3 caracteres
 - **Exclusão** com confirmação e exibição de erros da SDK
@@ -42,6 +42,7 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `POST` | `/api:-qqRIakp/auth/signup` | Cadastro |
 | `GET` | `/api:-qqRIakp/auth/me` | Dados do usuário logado |
 | `GET` | `/api:-qqRIakp/cliente_user_busca?busca={termo}` | Busca de clientes |
+| `GET` | `/api:-qqRIakp/capturarDados_CNPJ_IE?cnpj={cnpj}` | Buscar CNPJ |
 | `POST` | `/api:-qqRIakp/Cliente_Endereco_Telefone` | Criar cliente |
 | `PATCH` | `/api:-qqRIakp/Cliente_Endereco_Telefone` | Atualizar cliente |
 | `GET` | `/api:-qqRIakp/cliente/{id}` | Ler um cliente |
@@ -49,7 +50,6 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 
 ## APIs externas
 
-- **CNPJA** — consulta de dados de CNPJ (`/office/{cnpj}`) e inscrição estadual (`/ccc?states=SP&taxId={cnpj}`)
 - **ViaCEP** — `https://viacep.com.br/ws/{cep}/json/`
 
 ## Proxy (dev)
@@ -59,14 +59,12 @@ O Vite faz proxy para evitar CORS em desenvolvimento:
 | Prefixo | Target |
 |---|---|
 | `/auth`, `/api` | Xano |
-| `/office`, `/ccc` | CNPJA |
 
 ## Variáveis de ambiente
 
 | Variável | Descrição |
 |---|---|
 | `VITE_XANO_BASE_URL` | Base URL da instância Xano |
-| `VITE_CNJP_JA` | Chave de API do CNPJA |
 
 > `.env` é versionado. Crie `.env.local` para override em produção.
 

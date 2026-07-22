@@ -31,6 +31,7 @@ const buscandoCNPJ = ref(false)
 const buscandoCEP = ref(false)
 const salvando = ref(false)
 const erroSalvar = ref<string | null>(null)
+const erroCNPJ = ref<string | null>(null)
 
 const isCNPJ = computed(() => form.tipo_pessoa === 'CNPJ')
 const editando = computed(() => editandoId.value !== null)
@@ -196,50 +197,41 @@ async function buscarCNPJ() {
   if (raw.length !== 14) return
 
   buscandoCNPJ.value = true
+  erroCNPJ.value = null
   try {
-    const headers = {
-      Accept: 'application/json',
+    const response = await xano.get('/api:-qqRIakp/capturarDados_CNPJ_IE', { cnpj: raw })
+    const data = response.getBody() as any
+
+    if (data?.razaoSocial) form.razao_social = data.razaoSocial
+    if (data?.nomeFantasia) form.nome_fantasia = data.nomeFantasia
+
+    if (data?.enderecoCompleto) {
+      const a = data.enderecoCompleto
+      if (a.cep) form.cep = a.cep
+      if (a.rua) form.logradouro = a.rua
+      if (a.numero) form.numero = String(a.numero)
+      if (a.complemento) form.complemento = a.complemento
+      if (a.bairro) form.bairro = a.bairro
+      if (a.cidade) form.cidade = a.cidade
+      if (a.estado) form.uf = a.estado
     }
 
-    const [officeResp, cccResp] = await Promise.all([
-      fetch(`/office/${raw}`, { headers }),
-      fetch(`/ccc?states=SP&taxId=${raw}`, { headers }),
-    ])
+    if (data?.IE) form.inscricao_estadual = data.IE
 
-    const office = await officeResp.json()
-    const ccc = await cccResp.json()
-
-    if (office.company?.name) form.razao_social = office.company.name
-    if (office.alias) form.nome_fantasia = office.alias
-
-    if (office.address) {
-      const a = office.address
-      if (a.zip) form.cep = a.zip
-      if (a.street) form.logradouro = a.street
-      if (a.number) form.numero = String(a.number)
-      if (a.details) form.complemento = a.details
-      if (a.district) form.bairro = a.district
-      if (a.city) form.cidade = a.city
-      if (a.state) form.uf = a.state
-    }
-
-    if (ccc?.registrations) {
-      const ativa = ccc.registrations.find((r: any) => r.enabled === true)
-      if (ativa?.number) form.inscricao_estadual = ativa.number
-    }
-
-    if (office.phones?.length > 0) {
-      form.telefones = office.phones.map((p: any) => ({
-        tipo: p.type || '',
-        numero: (p.area || '') + p.number,
+    if (data?.telefones?.length > 0) {
+      form.telefones = data.telefones.map((p: any) => ({
+        tipo: p.tipo || '',
+        numero: (p.ddd || '') + p.numero,
       }))
     }
 
-    if (office.emails?.length > 0) {
-      form.email = office.emails[0].address || office.emails[0]
+    if (data?.emails?.length > 0) {
+      form.email = data.emails[0]
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Erro ao buscar CNPJ:', err)
+    const body = err?.getResponse?.()?.getBody?.()
+    erroCNPJ.value = body?.message || err?.message || 'Erro ao buscar CNPJ'
   } finally {
     buscandoCNPJ.value = false
   }
@@ -383,6 +375,7 @@ async function buscarCEP() {
                 >
                   {{ buscandoCNPJ ? 'Buscando…' : 'Buscar' }}
                 </button>
+                <p v-if="erroCNPJ" class="cnpj-error">{{ erroCNPJ }}</p>
               </div>
 
               <template v-if="isCNPJ">
@@ -699,6 +692,12 @@ async function buscarCEP() {
 .btn-search:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.cnpj-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
 }
 
 .phone-row {
