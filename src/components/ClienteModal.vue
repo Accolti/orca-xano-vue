@@ -16,6 +16,7 @@ import {
 const props = defineProps<{
   modelValue: boolean
   clienteId?: number | null
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -276,6 +277,7 @@ async function buscarCEP() {
           </div>
 
           <div v-else class="modal-body">
+            <fieldset :disabled="props.readonly">
             <!-- A. Classificação e Perfil Fiscal -->
             <section class="form-section">
               <h3>Classificação e Perfil Fiscal</h3>
@@ -516,13 +518,14 @@ async function buscarCEP() {
             </section>
 
             <p v-if="erroSalvar" class="error-msg">{{ erroSalvar }}</p>
+            </fieldset>
           </div>
 
           <footer class="modal-footer">
             <button type="button" class="btn btn-cancel" :disabled="salvando" @click="close">
-              Cancelar
+              {{ props.readonly ? 'Fechar' : 'Cancelar' }}
             </button>
-            <button type="button" class="btn btn-primary" :disabled="salvando" @click="submit">
+            <button v-if="!props.readonly" type="button" class="btn btn-primary" :disabled="salvando" @click="submit">
               {{ salvando ? 'Salvando…' : editando ? 'Alterar' : 'Inserir' }}
             </button>
           </footer>

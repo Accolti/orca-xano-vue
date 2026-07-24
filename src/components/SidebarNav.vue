@@ -19,7 +19,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { icon: '\u{1F3E0}', label: 'Home', path: '/' },
   { icon: '\u{1F464}', label: 'Clientes', path: '/clientes' },
-  { icon: '\u{1F4C4}', label: 'Orçamentos', disabled: true },
+  { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
   { icon: '\u{1F6D2}', label: 'Pedidos', disabled: true },
   { icon: '\u{1F4CB}', label: 'Controle de Pedidos', disabled: true },
   { icon: '\u{1F4B3}', label: 'Boletos', disabled: true },

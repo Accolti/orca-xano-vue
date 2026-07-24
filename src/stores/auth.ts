@@ -55,9 +55,9 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await xano.post('/api:-qqRIakp/auth/login', { email, password })
       const data = response.getBody()
       token.value = data.authToken
-      user.value = data.user
       localStorage.setItem('authToken', data.authToken)
       xano.setAuthToken(data.authToken)
+      await fetchMe()
     } catch (err) {
       console.error('[auth/login]', err)
       if (err instanceof XanoRequestError) {
@@ -111,8 +111,12 @@ export const useAuthStore = defineStore('auth', () => {
         console.error('[auth/me] status:', err.getResponse().getStatusCode())
         console.error('[auth/me] body:', err.getResponse().getBody())
       }
+      if (err instanceof XanoRequestError && err.getResponse().getStatusCode() === 401) {
+        logout()
+        throw new Error('Sessão expirada. Faça login novamente.')
+      }
       logout()
-      throw new Error('Sessão expirada')
+      throw new Error('Sessão expirada. Faça login novamente.')
     }
   }
 
