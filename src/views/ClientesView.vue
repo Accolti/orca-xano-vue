@@ -209,18 +209,22 @@ function limparBusca() {
 
 .btn-novo {
   padding: 0.5rem 1rem;
-  background: #2563eb;
+  background: #3366cc;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.2s, transform 0.15s;
 }
 
 .btn-novo:hover {
-  background: #1d4ed8;
+  background: #2a52a3;
+}
+
+.btn-novo:active {
+  transform: scale(0.97);
 }
 
 .barra-busca {
@@ -325,24 +329,23 @@ function limparBusca() {
 
 .tabela-clientes {
   width: 100%;
-  min-width: 640px;
   border-collapse: collapse;
   font-family: sans-serif;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .tabela-clientes th,
 .tabela-clientes td {
-  padding: 12px 15px;
+  padding: 12px 12px;
   text-align: left;
   border-bottom: 1px solid #eee;
   white-space: nowrap;
 }
 
 .tabela-clientes th {
-  background-color: #42b883;
+  background-color: #3366cc;
   color: white;
   font-weight: 600;
 }
@@ -409,10 +412,9 @@ function limparBusca() {
 
 .cliente-card {
   background: #fff;
-  border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .card-header {

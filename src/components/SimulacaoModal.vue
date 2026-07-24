@@ -130,13 +130,13 @@ const opcoesPagamento = computed(() => {
 
 .modal-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   width: 100%;
   max-width: 520px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {

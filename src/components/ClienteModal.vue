@@ -550,14 +550,14 @@ async function buscarCEP() {
 
 .modal-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   width: 100%;
   max-width: 600px;
   margin: auto;
   display: flex;
   flex-direction: column;
   max-height: 90vh;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -816,12 +816,12 @@ async function buscarCEP() {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: #3366cc;
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #2a52a3;
 }
 
 .btn-cancel {
@@ -862,7 +862,7 @@ async function buscarCEP() {
 
   .modal-card {
     max-height: 95vh;
-    border-radius: 12px 12px 0 0;
+    border-radius: 14px 14px 0 0;
   }
 
   .modal-header {

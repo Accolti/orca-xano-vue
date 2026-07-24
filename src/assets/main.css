@@ -1,20 +1,41 @@
 @import './base.css';
 
 :root {
-  --bg-page: #f8f9fa;
+  --bg-page: #f4f5f7;
   --card-bg: #ffffff;
-  --primary: #2563eb;
-  --primary-light: #3b82f6;
+  --primary: #3366cc;
+  --primary-light: #5280db;
   --secondary: #6b7280;
-  --danger: #ef4444;
+  --danger: #dc2626;
   --danger-light: #fca5a5;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-light: #e5e7eb;
+  --border-subtle: #f3f4f6;
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
+  width: 100%;
   padding: 0;
   font-weight: normal;
   background: var(--bg-page);
   min-height: 100vh;
+}
+
+/* Transições globais */
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
 }

@@ -45,7 +45,7 @@ const authStore = useAuthStore()
   justify-content: space-between;
   height: 56px;
   padding: 0 1rem;
-  background: #2d3036;
+  background: #1e1f24;
   color: #e5e7eb;
   position: sticky;
   top: 0;

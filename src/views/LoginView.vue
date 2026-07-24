@@ -118,7 +118,8 @@ async function handleSubmit() {
 }
 
 .field input:focus {
-  border-color: #42b883;
+  border-color: #3366cc;
+  box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.12);
 }
 
 .error-msg {
@@ -157,7 +158,7 @@ async function handleSubmit() {
 }
 
 .switch-link a {
-  color: #42b883;
+  color: #3366cc;
   font-weight: 600;
   text-decoration: none;
 }

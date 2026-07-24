@@ -135,10 +135,10 @@ function handleLogout() {
 .drawer {
   width: 280px;
   height: 100%;
-  background: #2d3036;
+  background: #1e1f24;
   display: flex;
   flex-direction: column;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.25);
 }
 
 .drawer-header {
@@ -223,7 +223,7 @@ function handleLogout() {
 }
 
 .drawer-nav a.active {
-  background: #2563eb;
+  background: #3366cc;
   color: #fff;
 }
 

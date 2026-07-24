@@ -104,6 +104,7 @@ function selecionarSimulacao(item: SimulacaoItem) {
 const inserirOk = ref(false)
 const mostrarResumo = ref(false)
 const finalizando = ref(false)
+const resumoAberto = ref(true)
 
 const validadeCalculada = computed(() => {
   const dias = authStore.user?.DiasVencimentoOrcamento ?? 15
@@ -236,64 +237,6 @@ function formatarMoeda(valor: number): string {
         <div class="cliente-actions">
           <button class="btn btn-sm" @click="verCliente">👁 Ver dados</button>
           <button class="btn btn-sm btn-outline" @click="limparCliente">✕ Limpar</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Totais do Orçamento -->
-    <section v-if="orcamentoStore.itensInseridos.length" class="card card-totais">
-      <div class="totais-header">
-        <span class="orc-num">{{ orcamentoStore.numeroOrcamento }}</span>
-        <span class="totais-cliente">{{ clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social }}</span>
-      </div>
-      <div class="totais-grid">
-        <div class="totais-item">
-          <span class="totais-label">Total Venda</span>
-          <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0) }}</span>
-        </div>
-        <div class="totais-item">
-          <span class="totais-label">Total B2B</span>
-          <span class="totais-valor totais-b2b">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
-        </div>
-        <div class="totais-item">
-          <span class="totais-label">Custo Total</span>
-          <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
-        </div>
-        <div class="totais-item">
-          <span class="totais-label">Lucro Total</span>
-          <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
-        </div>
-        <div class="totais-item">
-          <span class="totais-label">Itens</span>
-          <span class="totais-valor">{{ orcamentoStore.itensInseridos.length }}</span>
-        </div>
-        <div class="totais-item">
-          <span class="totais-label">Margem</span>
-          <span class="totais-valor">{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
-        </div>
-      </div>
-      <div class="totais-validade">
-        Validade: {{ orcamentoStore.orcamentoHeader?.validade ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US') : validadeCalculada }}
-      </div>
-    </section>
-
-    <!-- Itens do Orçamento -->
-    <section v-if="orcamentoStore.itensInseridos.length" class="card">
-      <h3 class="section-title">Itens do Orçamento ({{ orcamentoStore.itensInseridos.length }})</h3>
-      <div class="itens-tabela">
-        <div class="itens-header">
-          <span class="itens-col-num">#</span>
-          <span class="itens-col-desc">Descrição</span>
-          <span class="itens-col-dim">Dimensões</span>
-          <span class="itens-col-qtd">Qtd</span>
-          <span class="itens-col-vlr">Valor</span>
-        </div>
-        <div v-for="(item, idx) in orcamentoStore.itensInseridos" :key="item.id" class="itens-row">
-          <span class="itens-col-num">{{ idx + 1 }}</span>
-          <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
-          <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
-          <span class="itens-col-qtd">{{ item.qtd }}</span>
-          <span class="itens-col-vlr">{{ formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) }}</span>
         </div>
       </div>
     </section>
@@ -571,17 +514,80 @@ function formatarMoeda(valor: number): string {
         </button>
       </div>
 
-      <div v-if="orcamentoStore.itensInseridos.length" class="btn-row" style="margin-top: 0.75rem">
-        <button
-          class="btn btn-success btn-lg"
-          @click="handleFinalizar"
-        >
-          Finalizar Orçamento
-        </button>
-      </div>
-
       <p v-if="inserirOk" class="success-msg">Item adicionado ao orçamento {{ orcamentoStore.numeroOrcamento }}!</p>
       <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
+    </section>
+
+    <!-- Resumo do Orçamento (itens inseridos) -->
+    <section v-if="orcamentoStore.itensInseridos.length" class="summary-section">
+      <div class="summary-header" @click="resumoAberto = !resumoAberto">
+        <h3 class="summary-title">Resumo do Orçamento</h3>
+        <span class="summary-toggle">{{ resumoAberto ? '▲' : '▼' }}</span>
+      </div>
+
+      <template v-if="resumoAberto">
+        <div class="card card-totais">
+          <div class="totais-header">
+            <span class="orc-num">{{ orcamentoStore.numeroOrcamento }}</span>
+            <span class="totais-cliente">{{ clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social }}</span>
+          </div>
+          <div class="totais-grid">
+            <div class="totais-item">
+              <span class="totais-label">Total Venda</span>
+              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0) }}</span>
+            </div>
+            <div class="totais-item">
+              <span class="totais-label">Total B2B</span>
+              <span class="totais-valor totais-b2b">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
+            </div>
+            <div class="totais-item">
+              <span class="totais-label">Custo Total</span>
+              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
+            </div>
+            <div class="totais-item">
+              <span class="totais-label">Lucro Total</span>
+              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
+            </div>
+            <div class="totais-item">
+              <span class="totais-label">Itens</span>
+              <span class="totais-valor">{{ orcamentoStore.itensInseridos.length }}</span>
+            </div>
+            <div class="totais-item">
+              <span class="totais-label">Margem</span>
+              <span class="totais-valor">{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
+            </div>
+          </div>
+          <div class="totais-validade">
+            Validade: {{ orcamentoStore.orcamentoHeader?.validade ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US') : validadeCalculada }}
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
+          <div class="itens-tabela">
+            <div class="itens-header">
+              <span class="itens-col-num">#</span>
+              <span class="itens-col-desc">Descrição</span>
+              <span class="itens-col-dim">Dimensões</span>
+              <span class="itens-col-qtd">Qtd</span>
+              <span class="itens-col-vlr">Valor</span>
+            </div>
+            <div v-for="(item, idx) in orcamentoStore.itensInseridos" :key="item.id" class="itens-row">
+              <span class="itens-col-num">{{ idx + 1 }}</span>
+              <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
+              <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
+              <span class="itens-col-qtd">{{ item.qtd }}</span>
+              <span class="itens-col-vlr">{{ formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-success btn-lg" @click="handleFinalizar">
+            Finalizar Orçamento
+          </button>
+        </div>
+      </template>
     </section>
 
     <!-- Modal de Simulação -->
@@ -611,7 +617,7 @@ function formatarMoeda(valor: number): string {
         </div>
         <div class="resumo-total-item">
           <span class="resumo-label">Total B2B</span>
-          <span class="resumo-preco" style="color: var(--danger)">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
+          <span class="resumo-preco resumo-b2b">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
         </div>
         <div class="resumo-total-item">
           <span class="resumo-label">Custo Total</span>
@@ -670,11 +676,25 @@ function formatarMoeda(valor: number): string {
   gap: 1rem;
 }
 
+.mt-075 {
+  margin-top: 0.75rem;
+}
+
 .card {
   background: var(--card-bg, #fff);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.25rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid transparent;
+}
+
+.card-totais {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.resumo-b2b {
+  color: var(--danger) !important;
 }
 
 .welcome-card .welcome-top {
@@ -726,14 +746,14 @@ function formatarMoeda(valor: number): string {
 }
 
 .section-title {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   color: var(--secondary);
   margin: 0 0 1rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .field {
@@ -766,7 +786,7 @@ function formatarMoeda(valor: number): string {
 .field select:focus,
 .field textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.12);
 }
 
 .field textarea {
@@ -846,17 +866,21 @@ function formatarMoeda(valor: number): string {
 
 .btn {
   padding: 0.55rem 1.25rem;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: background 0.15s;
+  transition: background 0.2s, transform 0.15s;
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn-primary {
@@ -865,7 +889,7 @@ function formatarMoeda(valor: number): string {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #2a52a3;
 }
 
 .btn-secondary {
@@ -1125,6 +1149,40 @@ function formatarMoeda(valor: number): string {
 
 .btn-outline {
   border-color: #d1d5db;
+}
+
+.summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  user-select: none;
+}
+
+.summary-header:hover {
+  background: #f9fafb;
+}
+
+.summary-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.summary-toggle {
+  font-size: 0.75rem;
+  color: var(--secondary);
 }
 
 .btn-success {
