@@ -343,6 +343,14 @@ async function recalcularPorNovoLucroTotal() {
   }
 }
 
+function editarItem(item: any) {
+  // TODO: implementar com API do endpoint de atualização de item
+}
+
+function removerItem(item: any, idx: number) {
+  // TODO: implementar com API do endpoint de exclusão de item
+}
+
 function formatarMoeda(valor: number): string {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`
 }
@@ -852,20 +860,33 @@ function formatarMoeda(valor: number): string {
                 <span class="itens-col-desc">Descrição</span>
                 <span class="itens-col-dim">Dimensões</span>
                 <span class="itens-col-qtd">Qtd</span>
-                <span class="itens-col-vlr">Valor</span>
+                <span class="itens-col-vlr">Valor Unit</span>
+                <span class="itens-col-total">Total</span>
+                <span class="itens-col-actions"></span>
               </div>
               <div
                 v-for="(item, idx) in orcamentoStore.itensInseridos"
                 :key="item.id"
                 class="itens-row"
               >
-                <span class="itens-col-num">{{ idx + 1 }}</span>
-                <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
-                <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
-                <span class="itens-col-qtd">{{ item.qtd }}</span>
-                <span class="itens-col-vlr">{{
+                <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
+                <span class="itens-col-desc" data-label="Descrição">{{ item.Descricao || item.descricao }}</span>
+                <span class="itens-col-dim" data-label="Dimensões">{{ item.larg }} x {{ item.comp }} m</span>
+                <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
+                <span class="itens-col-vlr" data-label="Valor Unit">{{
                   formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
                 }}</span>
+                <span class="itens-col-total" data-label="Total">{{
+                  formatarMoeda((item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1))
+                }}</span>
+                <span class="itens-col-actions">
+                  <button class="btn-icon" title="Editar item" @click="editarItem(item)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  </button>
+                  <button class="btn-icon btn-icon-danger" title="Remover item" @click="removerItem(item, idx)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  </button>
+                </span>
               </div>
             </div>
           </div>
@@ -932,27 +953,40 @@ function formatarMoeda(valor: number): string {
         <div class="resumo-itens">
           <h3>Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
           <div class="itens-tabela">
-            <div class="itens-header">
-              <span class="itens-col-num">#</span>
-              <span class="itens-col-desc">Descrição</span>
-              <span class="itens-col-dim">Dimensões</span>
-              <span class="itens-col-qtd">Qtd</span>
-              <span class="itens-col-vlr">Valor</span>
+              <div class="itens-header">
+                <span class="itens-col-num">#</span>
+                <span class="itens-col-desc">Descrição</span>
+                <span class="itens-col-dim">Dimensões</span>
+                <span class="itens-col-qtd">Qtd</span>
+                <span class="itens-col-vlr">Valor Unit</span>
+                <span class="itens-col-total">Total</span>
+                <span class="itens-col-actions"></span>
+              </div>
+              <div
+                v-for="(item, idx) in orcamentoStore.itensInseridos"
+                :key="item.id"
+                class="itens-row"
+              >
+                <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
+                <span class="itens-col-desc" data-label="Descrição">{{ item.Descricao || item.descricao }}</span>
+                <span class="itens-col-dim" data-label="Dimensões">{{ item.larg }} x {{ item.comp }} m</span>
+                <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
+                <span class="itens-col-vlr" data-label="Valor Unit">{{
+                  formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
+                }}</span>
+                <span class="itens-col-total" data-label="Total">{{
+                  formatarMoeda((item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1))
+                }}</span>
+                <span class="itens-col-actions">
+                  <button class="btn-icon" title="Editar item" @click="editarItem(item)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  </button>
+                  <button class="btn-icon btn-icon-danger" title="Remover item" @click="removerItem(item, idx)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  </button>
+                </span>
+              </div>
             </div>
-            <div
-              v-for="(item, idx) in orcamentoStore.itensInseridos"
-              :key="item.id"
-              class="itens-row"
-            >
-              <span class="itens-col-num">{{ idx + 1 }}</span>
-              <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
-              <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
-              <span class="itens-col-qtd">{{ item.qtd }}</span>
-              <span class="itens-col-vlr">{{
-                formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
-              }}</span>
-            </div>
-          </div>
         </div>
 
         <div class="btn-row resumo-actions">
@@ -1639,6 +1673,7 @@ function formatarMoeda(valor: number): string {
 }
 .itens-col-desc {
   flex: 1;
+  min-width: 0;
 }
 .itens-col-dim {
   width: 6rem;
@@ -1654,6 +1689,41 @@ function formatarMoeda(valor: number): string {
   width: 6rem;
   flex-shrink: 0;
   text-align: right;
+}
+.itens-col-total {
+  width: 6rem;
+  flex-shrink: 0;
+  text-align: right;
+}
+.itens-col-actions {
+  width: 4.5rem;
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-icon:hover {
+  background: #f3f4f6;
+  color: var(--primary);
+}
+.btn-icon-danger:hover {
+  background: #fef2f2;
+  color: var(--danger, #dc2626);
 }
 
 .resumo-totais {
@@ -1754,6 +1824,70 @@ function formatarMoeda(valor: number): string {
   .price-grid,
   .custos-grid {
     grid-template-columns: 1fr;
+  }
+
+  .itens-header {
+    display: none;
+  }
+
+  .itens-tabela {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .itens-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .itens-row + .itens-row {
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .itens-col-num { display: none; }
+
+  .itens-col-desc {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .itens-col-dim,
+  .itens-col-qtd,
+  .itens-col-vlr,
+  .itens-col-total {
+    width: auto;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .itens-col-dim::before,
+  .itens-col-qtd::before,
+  .itens-col-vlr::before,
+  .itens-col-total::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--secondary);
+    min-width: 4.5rem;
+    flex-shrink: 0;
+  }
+
+  .itens-col-actions {
+    width: auto;
+    justify-content: flex-start;
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid #f3f4f6;
   }
 
   .btn-row {
