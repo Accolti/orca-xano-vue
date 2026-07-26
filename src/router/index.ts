@@ -18,6 +18,16 @@ const router = createRouter({
     {
       path: '/orcamentos',
       name: 'orcamentos',
+      component: () => import('../views/OrcamentosListView.vue'),
+    },
+    {
+      path: '/orcamentos/novo',
+      name: 'orcamentos-novo',
+      component: () => import('../views/OrcamentosView.vue'),
+    },
+    {
+      path: '/orcamentos/:codOrca',
+      name: 'orcamentos-editar',
       component: () => import('../views/OrcamentosView.vue'),
     },
     {

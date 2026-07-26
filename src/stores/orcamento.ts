@@ -46,11 +46,22 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const inserindo = ref(false)
   const itensInseridos = ref<any[]>([])
   const orcamentoHeader = ref<any | null>(null)
+  const carregandoOrcamento = ref(false)
+  const margemPersonalizada = ref<number | null>(null)
+  const fretePersonalizado = ref<number | null>(null)
 
   const areaNominal = computed(() => largura.value * comprimento.value)
 
   watch(
-    [largura, comprimento, quantidade, linhaSelecionada, tipoSelecionado, nivelSelecionado, bordaSelecionada],
+    [
+      largura,
+      comprimento,
+      quantidade,
+      linhaSelecionada,
+      tipoSelecionado,
+      nivelSelecionado,
+      bordaSelecionada,
+    ],
     () => {
       resultado.value = null
     },
@@ -105,68 +116,53 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
     const cached = dropdownCache.get(material.id)
 
+    async function fetchArray<T>(url: string, params: Record<string, any>): Promise<T[]> {
+      try {
+        const response = await xano.get(url, params)
+        const body = response.getBody() as any
+        return (Array.isArray(body) ? body : body?.data ?? []) as T[]
+      } catch (err: any) {
+        console.error(`Erro ao carregar ${url}:`, err)
+        return []
+      }
+    }
+
     if (material.suc?.Linha && material.suc.Linha > 0) {
-      if (cached?.linhas) {
+      if (cached?.linhas?.length) {
         linhas.value = cached.linhas
       } else {
-        try {
-          const response = await xano.get('/api:-qqRIakp/linha', { material_id: material.id })
-          linhas.value = response.getBody() as Linha[]
-        } catch (err: any) {
-          console.error('Erro ao carregar linhas:', err)
-        }
+        linhas.value = await fetchArray<Linha>('/api:-qqRIakp/linha', { material_id: material.id })
       }
     }
     if (material.suc?.Tipo && material.suc.Tipo > 0) {
-      if (cached?.tipos) {
+      if (cached?.tipos?.length) {
         tipos.value = cached.tipos
       } else {
-        try {
-          const response = await xano.get('/api:-qqRIakp/tipo_por_material', {
-            material_id: material.id,
-          })
-          tipos.value = response.getBody() as Tipo[]
-        } catch (err: any) {
-          console.error('Erro ao carregar tipos:', err)
-        }
+        tipos.value = await fetchArray<Tipo>('/api:-qqRIakp/tipo_por_material', { material_id: material.id })
       }
     }
     if (material.suc?.Nivel && material.suc.Nivel > 0) {
-      if (cached?.niveis) {
+      if (cached?.niveis?.length) {
         niveis.value = cached.niveis
       } else {
-        try {
-          const response = await xano.get('/api:-qqRIakp/nivel_por_material', {
-            material_id: material.id,
-          })
-          niveis.value = response.getBody() as Nivel[]
-        } catch (err: any) {
-          console.error('Erro ao carregar niveis:', err)
-        }
+        niveis.value = await fetchArray<Nivel>('/api:-qqRIakp/nivel_por_material', { material_id: material.id })
       }
     }
     if (material.suc?.Borda && material.suc.Borda > 0) {
-      if (cached?.bordas) {
+      if (cached?.bordas?.length) {
         bordas.value = cached.bordas
       } else {
-        try {
-          const response = await xano.get('/api:-qqRIakp/borda_por_material', {
-            material_id: material.id,
-          })
-          bordas.value = response.getBody() as Borda[]
-        } catch (err: any) {
-          console.error('Erro ao carregar bordas:', err)
-        }
+        bordas.value = await fetchArray<Borda>('/api:-qqRIakp/borda_por_material', { material_id: material.id })
       }
     }
 
     if (!cached) {
-      dropdownCache.set(material.id, {
-        linhas: linhas.value,
-        tipos: tipos.value,
-        niveis: niveis.value,
-        bordas: bordas.value,
-      })
+      const entry: DropdownCacheEntry = { linhas: [], tipos: [], niveis: [], bordas: [] }
+      if (linhas.value.length) entry.linhas = linhas.value
+      if (tipos.value.length) entry.tipos = tipos.value
+      if (niveis.value.length) entry.niveis = niveis.value
+      if (bordas.value.length) entry.bordas = bordas.value
+      dropdownCache.set(material.id, entry)
     }
   }
 
@@ -205,14 +201,38 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   async function calcular(bSimulaMargens: boolean) {
     const material = materialSelecionado.value
-    if (!material) { error.value = 'Selecione um material'; return }
-    if (!largura.value || largura.value <= 0) { error.value = 'Preencha a largura'; return }
-    if (!comprimento.value || comprimento.value <= 0) { error.value = 'Preencha o comprimento'; return }
-    if (!quantidade.value || quantidade.value < 1) { error.value = 'Informe a quantidade'; return }
-    if (mostrarLinha.value && linhas.value.length && !linhaSelecionada.value) { error.value = 'Selecione a linha'; return }
-    if (mostrarTipo.value && tipos.value.length && !tipoSelecionado.value) { error.value = 'Selecione o tipo'; return }
-    if (mostrarNivel.value && niveis.value.length && !nivelSelecionado.value) { error.value = 'Selecione o nível'; return }
-    if (mostrarBorda.value && bordas.value.length && !bordaSelecionada.value) { error.value = 'Selecione a borda'; return }
+    if (!material) {
+      error.value = 'Selecione um material'
+      return
+    }
+    if (!largura.value || largura.value <= 0) {
+      error.value = 'Preencha a largura'
+      return
+    }
+    if (!comprimento.value || comprimento.value <= 0) {
+      error.value = 'Preencha o comprimento'
+      return
+    }
+    if (!quantidade.value || quantidade.value < 1) {
+      error.value = 'Informe a quantidade'
+      return
+    }
+    if (mostrarLinha.value && linhas.value.length && !linhaSelecionada.value) {
+      error.value = 'Selecione a linha'
+      return
+    }
+    if (mostrarTipo.value && tipos.value.length && !tipoSelecionado.value) {
+      error.value = 'Selecione o tipo'
+      return
+    }
+    if (mostrarNivel.value && niveis.value.length && !nivelSelecionado.value) {
+      error.value = 'Selecione o nível'
+      return
+    }
+    if (mostrarBorda.value && bordas.value.length && !bordaSelecionada.value) {
+      error.value = 'Selecione a borda'
+      return
+    }
 
     loading.value = true
     error.value = null
@@ -229,8 +249,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         nmLinha: getNomeLinha(),
         nmNivel: getNomeNivel(),
         nmBorda: getNomeBorda(),
-        margem: String(authIns.user?.margem ?? 0),
-        frete_b2b: String(authIns.user?.frtB2B ?? 0),
+        margem: String(margemPersonalizada.value ?? authIns.user?.margem ?? 0),
+        frete_b2b: String(fretePersonalizado.value ?? authIns.user?.frtB2B ?? 0),
         quantidade: String(quantidade.value),
         IPI: String(material.ipi || 0),
         IMP: String(material.imp || 0),
@@ -259,22 +279,35 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
-  async function inserirOrcamento(cliente_id: number, descricao: string) {
-    if (!resultado.value) { error.value = 'Calcule o orçamento primeiro'; return }
+  async function inserirOrcamento(cliente_id: number, descricao: string, existingCodOrca?: string) {
+    if (!resultado.value) {
+      error.value = 'Calcule o orçamento primeiro'
+      return
+    }
 
     inserindo.value = true
     error.value = null
 
     try {
-      await gerarNumeroOrcamento()
-      if (!numeroOrcamento.value) { throw new Error('Número do orçamento não gerado') }
+      if (existingCodOrca) {
+        numeroOrcamento.value = existingCodOrca
+      } else {
+        await gerarNumeroOrcamento()
+      }
+      if (!numeroOrcamento.value) {
+        throw new Error('Número do orçamento não gerado')
+      }
 
       const authIns = useAuthStore()
       const r = resultado.value
       const produto = r.Produto_2[0]
-      if (!produto) { throw new Error('Produto não encontrado no resultado') }
+      if (!produto) {
+        throw new Error('Produto não encontrado no resultado')
+      }
       const fator = r.Tipo_Fator_1[0]
-      if (!fator) { throw new Error('Fator de corte não encontrado no resultado') }
+      if (!fator) {
+        throw new Error('Fator de corte não encontrado no resultado')
+      }
 
       const hoje = new Date()
       const dias = authIns.user?.DiasVencimentoOrcamento ?? 15
@@ -284,10 +317,14 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       const payload: OrcamentoInsertPayload = {
         cod_orca: numeroOrcamento.value!,
         cliente_id: String(cliente_id),
-        frtB2B: authIns.user?.frtB2B ?? null,
+        frtB2B: fretePersonalizado.value ?? authIns.user?.frtB2B ?? null,
         frtB2C: null,
         validade,
-        margem: authIns.user?.margem ?? 0,
+        margem:
+          (existingCodOrca ? orcamentoHeader.value?.margem : null)
+          ?? margemPersonalizada.value
+          ?? authIns.user?.margem
+          ?? 0,
         produto_id: produto.id,
         ipi: materialSelecionado.value?.ipi ?? null,
         imp: materialSelecionado.value?.imp ?? null,
@@ -354,6 +391,54 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     numeroOrcamento.value = null
     itensInseridos.value = []
     orcamentoHeader.value = null
+    carregandoOrcamento.value = false
+    limparPersonalizacoes()
+  }
+
+  async function carregarOrcamento(codOrca: string, newMargem?: number) {
+    carregandoOrcamento.value = true
+    try {
+      const response = await xano.get('/api:-qqRIakp/Orcamento_Detalhes', {
+        orca_codigo: codOrca,
+        newMargem: newMargem ?? 0,
+      })
+      const body = response.getBody() as any
+      const header = body?.ORCA_1 ?? null
+      orcamentoHeader.value = header
+      itensInseridos.value = body?.itemS ?? []
+      numeroOrcamento.value = header?.cod_orca ?? codOrca
+    } catch (err: any) {
+      console.error('Erro ao carregar orçamento:', err)
+      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao carregar orçamento')
+    } finally {
+      carregandoOrcamento.value = false
+    }
+  }
+
+  async function deleteOrcamento(orcaId: number) {
+    try {
+      await xano.delete('/api:-qqRIakp/orcamento_deletar', {
+        orca_id: orcaId,
+      })
+    } catch (err: any) {
+      console.error('Erro ao excluir orçamento:', err)
+      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao excluir orçamento')
+    }
+  }
+
+  function definirMargemPersonalizada(valor: number | null) {
+    margemPersonalizada.value = valor != null ? parseFloat(valor.toFixed(4)) : null
+    resultado.value = null
+  }
+
+  function definirFretePersonalizado(valor: number | null) {
+    fretePersonalizado.value = valor != null ? parseFloat(valor.toFixed(2)) : null
+    resultado.value = null
+  }
+
+  function limparPersonalizacoes() {
+    margemPersonalizada.value = null
+    fretePersonalizado.value = null
   }
 
   return {
@@ -377,6 +462,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     inserindo,
     itensInseridos,
     orcamentoHeader,
+    carregandoOrcamento,
+    margemPersonalizada,
+    fretePersonalizado,
     areaNominal,
     func1,
     mostrarLinha,
@@ -390,5 +478,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     gerarNumeroOrcamento,
     inserirOrcamento,
     resetar,
+    carregarOrcamento,
+    deleteOrcamento,
+    definirMargemPersonalizada,
+    definirFretePersonalizado,
+    limparPersonalizacoes,
   }
 })

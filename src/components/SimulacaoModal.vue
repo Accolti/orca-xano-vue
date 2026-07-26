@@ -28,7 +28,11 @@ function selecionar(item: SimulacaoItem) {
   emit('select', item)
 }
 
-function calcularOpcoesPagamento(valorVenda: number, valorCusto: number, bfaturar: boolean): string {
+function calcularOpcoesPagamento(
+  valorVenda: number,
+  valorCusto: number,
+  bfaturar: boolean,
+): string {
   const entradaPrazo = 5
   const intervaloParcelas = 30
 
@@ -70,11 +74,7 @@ function calcularOpcoesPagamento(valorVenda: number, valorCusto: number, bfatura
 const opcoesPagamento = computed(() => {
   const item = itemSelecionado.value
   if (!item) return ''
-  return calcularOpcoesPagamento(
-    item.Valor_Venda_Total_B2B,
-    item.Valor_Custo_Total,
-    false,
-  )
+  return calcularOpcoesPagamento(item.Valor_Venda_Total_B2B, item.Valor_Custo_Total, false)
 })
 </script>
 
@@ -91,7 +91,9 @@ const opcoesPagamento = computed(() => {
           <div class="modal-body">
             <div class="sim-header">
               <strong>Simulação (M V L)</strong>
-              <span v-if="simulacao[0]" class="sim-custo">C {{ simulacao[0].Valor_Custo_Total.toFixed(2) }}</span>
+              <span v-if="simulacao[0]" class="sim-custo"
+                >C {{ simulacao[0].Valor_Custo_Total.toFixed(2) }}</span
+              >
             </div>
 
             <button
@@ -202,7 +204,9 @@ const opcoesPagamento = computed(() => {
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   text-align: left;
   gap: 0.75rem;
 }

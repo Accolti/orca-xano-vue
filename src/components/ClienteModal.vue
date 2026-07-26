@@ -278,246 +278,251 @@ async function buscarCEP() {
 
           <div v-else class="modal-body">
             <fieldset :disabled="props.readonly">
-            <!-- A. Classificação e Perfil Fiscal -->
-            <section class="form-section">
-              <h3>Classificação e Perfil Fiscal</h3>
+              <!-- A. Classificação e Perfil Fiscal -->
+              <section class="form-section">
+                <h3>Classificação e Perfil Fiscal</h3>
 
-              <div class="field-row">
-                <div class="field half">
-                  <label for="tipo_pessoa">Tipo Pessoa</label>
-                  <select id="tipo_pessoa" v-model="form.tipo_pessoa">
-                    <option value="CNPJ">CNPJ</option>
-                    <option value="CPF">CPF</option>
-                  </select>
+                <div class="field-row">
+                  <div class="field half">
+                    <label for="tipo_pessoa">Tipo Pessoa</label>
+                    <select id="tipo_pessoa" v-model="form.tipo_pessoa">
+                      <option value="CNPJ">CNPJ</option>
+                      <option value="CPF">CPF</option>
+                    </select>
+                  </div>
+                  <div class="field half">
+                    <label for="contato">Contato</label>
+                    <input id="contato" v-model="form.contato" placeholder="Contato" />
+                  </div>
                 </div>
-                <div class="field half">
-                  <label for="contato">Contato</label>
-                  <input id="contato" v-model="form.contato" placeholder="Contato" />
-                </div>
-              </div>
 
-              <div class="field-row three">
+                <div class="field-row three">
+                  <div class="field">
+                    <label for="ramo_atividade">Ramo de Atividade</label>
+                    <select id="ramo_atividade" v-model="form.ramo_atividade">
+                      <option value="" disabled>Selecione</option>
+                      <option value="Atacado">Atacado</option>
+                      <option value="Varejo">Varejo</option>
+                      <option value="Industria">Indústria</option>
+                      <option value="Servicos">Serviços</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="tipo_mercado">Tipo de Mercado</label>
+                    <select id="tipo_mercado" v-model="form.tipo_mercado">
+                      <option value="" disabled>Selecione</option>
+                      <option value="Nacional">Nacional</option>
+                      <option value="Internacional">Internacional</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="regime_tributario">Regime Tributário</label>
+                    <select id="regime_tributario" v-model="form.regime_tributario">
+                      <option value="" disabled>Selecione</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Simples Nacional">Simples Nacional</option>
+                      <option value="MEI">MEI</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div class="field">
-                  <label for="ramo_atividade">Ramo de Atividade</label>
-                  <select id="ramo_atividade" v-model="form.ramo_atividade">
+                  <label for="beneficio_fiscal">Benefício Fiscal</label>
+                  <select id="beneficio_fiscal" v-model="form.beneficio_fiscal">
                     <option value="" disabled>Selecione</option>
-                    <option value="Atacado">Atacado</option>
-                    <option value="Varejo">Varejo</option>
-                    <option value="Industria">Indústria</option>
-                    <option value="Servicos">Serviços</option>
-                    <option value="Outro">Outro</option>
+                    <option value="Nenhum">Nenhum</option>
+                    <option value="Zona Franca de Manaus">Zona Franca de Manaus</option>
+                    <option value="Zona Franca">Zona Franca</option>
+                    <option value="Área Livre de Comércio">Área Livre de Comércio</option>
+                    <option value="Amazonia Central">Amazonia Central</option>
                   </select>
                 </div>
+              </section>
+
+              <!-- B. Dados Empresariais e Fiscais -->
+              <section class="form-section">
+                <h3>Dados Empresariais e Fiscais</h3>
+
+                <template v-if="isCNPJ">
+                  <div class="field">
+                    <label for="razao_social">Razão Social</label>
+                    <input
+                      id="razao_social"
+                      v-model="form.razao_social"
+                      placeholder="Razão Social"
+                    />
+                  </div>
+                </template>
+
                 <div class="field">
-                  <label for="tipo_mercado">Tipo de Mercado</label>
-                  <select id="tipo_mercado" v-model="form.tipo_mercado">
-                    <option value="" disabled>Selecione</option>
-                    <option value="Nacional">Nacional</option>
-                    <option value="Internacional">Internacional</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="regime_tributario">Regime Tributário</label>
-                  <select id="regime_tributario" v-model="form.regime_tributario">
-                    <option value="" disabled>Selecione</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Simples Nacional">Simples Nacional</option>
-                    <option value="MEI">MEI</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="field">
-                <label for="beneficio_fiscal">Benefício Fiscal</label>
-                <select id="beneficio_fiscal" v-model="form.beneficio_fiscal">
-                  <option value="" disabled>Selecione</option>
-                  <option value="Nenhum">Nenhum</option>
-                  <option value="Desoneração">Desoneração</option>
-                  <option value="Suspensão">Suspensão</option>
-                  <option value="Isenção">Isenção</option>
-                  <option value="Diferimento">Diferimento</option>
-                </select>
-              </div>
-            </section>
-
-            <!-- B. Dados Empresariais e Fiscais -->
-            <section class="form-section">
-              <h3>Dados Empresariais e Fiscais</h3>
-
-              <template v-if="isCNPJ">
-                <div class="field">
-                  <label for="razao_social">Razão Social</label>
-                  <input id="razao_social" v-model="form.razao_social" placeholder="Razão Social" />
-                </div>
-              </template>
-
-              <div class="field">
-                <label for="nome_fantasia">Nome Fantasia</label>
-                <input
-                  id="nome_fantasia"
-                  v-model="form.nome_fantasia"
-                  placeholder="Nome Fantasia..."
-                />
-              </div>
-
-              <div class="field">
-                <label for="cnpj_cpf">{{ isCNPJ ? 'CNPJ' : 'CPF' }}</label>
-                <input
-                  id="cnpj_cpf"
-                  v-model="form.cnpj_cpf"
-                  :placeholder="isCNPJ ? '00.000.000/0001-00' : '000.000.000-00'"
-                  maxlength="18"
-                />
-                <button
-                  v-if="isCNPJ"
-                  type="button"
-                  class="btn-search"
-                  :disabled="buscandoCNPJ || form.cnpj_cpf.replace(/\D/g, '').length !== 14"
-                  @click="buscarCNPJ"
-                >
-                  {{ buscandoCNPJ ? 'Buscando…' : 'Buscar' }}
-                </button>
-                <p v-if="erroCNPJ" class="cnpj-error">{{ erroCNPJ }}</p>
-              </div>
-
-              <template v-if="isCNPJ">
-                <div class="field">
-                  <label for="inscricao_estadual">Insc. Estadual</label>
+                  <label for="nome_fantasia">Nome Fantasia</label>
                   <input
-                    id="inscricao_estadual"
-                    v-model="form.inscricao_estadual"
-                    placeholder="Inscrição Estadual"
+                    id="nome_fantasia"
+                    v-model="form.nome_fantasia"
+                    placeholder="Nome Fantasia..."
                   />
                 </div>
-              </template>
-            </section>
 
-            <!-- C. Endereço e Localização -->
-            <section class="form-section">
-              <h3>Endereço e Localização</h3>
+                <div class="field">
+                  <label for="cnpj_cpf">{{ isCNPJ ? 'CNPJ' : 'CPF' }}</label>
+                  <input
+                    id="cnpj_cpf"
+                    v-model="form.cnpj_cpf"
+                    :placeholder="isCNPJ ? '00.000.000/0001-00' : '000.000.000-00'"
+                    maxlength="18"
+                  />
+                  <button
+                    v-if="isCNPJ"
+                    type="button"
+                    class="btn-search"
+                    :disabled="buscandoCNPJ || form.cnpj_cpf.replace(/\D/g, '').length !== 14"
+                    @click="buscarCNPJ"
+                  >
+                    {{ buscandoCNPJ ? 'Buscando…' : 'Buscar' }}
+                  </button>
+                  <p v-if="erroCNPJ" class="cnpj-error">{{ erroCNPJ }}</p>
+                </div>
 
-              <div class="field">
-                <label for="cep">CEP</label>
-                <input id="cep" v-model="form.cep" placeholder="CEP..." maxlength="9" />
-                <button
-                  type="button"
-                  class="btn-search"
-                  :disabled="buscandoCEP || form.cep.replace(/\D/g, '').length !== 8"
-                  @click="buscarCEP"
-                >
-                  {{ buscandoCEP ? 'Buscando…' : 'Buscar' }}
+                <template v-if="isCNPJ">
+                  <div class="field">
+                    <label for="inscricao_estadual">Insc. Estadual</label>
+                    <input
+                      id="inscricao_estadual"
+                      v-model="form.inscricao_estadual"
+                      placeholder="Inscrição Estadual"
+                    />
+                  </div>
+                </template>
+              </section>
+
+              <!-- C. Endereço e Localização -->
+              <section class="form-section">
+                <h3>Endereço e Localização</h3>
+
+                <div class="field">
+                  <label for="cep">CEP</label>
+                  <input id="cep" v-model="form.cep" placeholder="CEP..." maxlength="9" />
+                  <button
+                    type="button"
+                    class="btn-search"
+                    :disabled="buscandoCEP || form.cep.replace(/\D/g, '').length !== 8"
+                    @click="buscarCEP"
+                  >
+                    {{ buscandoCEP ? 'Buscando…' : 'Buscar' }}
+                  </button>
+                </div>
+
+                <div class="field">
+                  <label for="email">E-mail</label>
+                  <input id="email" v-model="form.email" type="email" placeholder="E-mail..." />
+                </div>
+
+                <div class="field-row">
+                  <div class="field flex-2">
+                    <label for="logradouro">Endereço</label>
+                    <input id="logradouro" v-model="form.logradouro" placeholder="Logradouro" />
+                  </div>
+                  <div class="field flex-1">
+                    <label for="numero">Número</label>
+                    <input id="numero" v-model="form.numero" placeholder="Número" />
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field flex-1">
+                    <label for="complemento">Complemento</label>
+                    <input id="complemento" v-model="form.complemento" placeholder="Complemento" />
+                  </div>
+                  <div class="field flex-1">
+                    <label for="bairro">Bairro</label>
+                    <input id="bairro" v-model="form.bairro" placeholder="Bairro" />
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field half">
+                    <label for="uf">UF</label>
+                    <select id="uf" v-model="form.uf">
+                      <option value="" disabled>UF</option>
+                      <option value="AC">AC</option>
+                      <option value="AL">AL</option>
+                      <option value="AP">AP</option>
+                      <option value="AM">AM</option>
+                      <option value="BA">BA</option>
+                      <option value="CE">CE</option>
+                      <option value="DF">DF</option>
+                      <option value="ES">ES</option>
+                      <option value="GO">GO</option>
+                      <option value="MA">MA</option>
+                      <option value="MT">MT</option>
+                      <option value="MS">MS</option>
+                      <option value="MG">MG</option>
+                      <option value="PA">PA</option>
+                      <option value="PB">PB</option>
+                      <option value="PR">PR</option>
+                      <option value="PE">PE</option>
+                      <option value="PI">PI</option>
+                      <option value="RJ">RJ</option>
+                      <option value="RN">RN</option>
+                      <option value="RS">RS</option>
+                      <option value="RO">RO</option>
+                      <option value="RR">RR</option>
+                      <option value="SC">SC</option>
+                      <option value="SP">SP</option>
+                      <option value="SE">SE</option>
+                      <option value="TO">TO</option>
+                    </select>
+                  </div>
+                  <div class="field half">
+                    <label for="cidade">Cidade</label>
+                    <input id="cidade" v-model="form.cidade" placeholder="Cidade" />
+                  </div>
+                </div>
+              </section>
+
+              <!-- D. Contatos Telefônicos -->
+              <section class="form-section">
+                <h3>Contatos Telefônicos</h3>
+
+                <div v-for="(tel, idx) in form.telefones" :key="idx" class="phone-row">
+                  <div class="phone-fields">
+                    <select v-model="tel.tipo">
+                      <option value="" disabled>Tipo</option>
+                      <option value="Celular">Celular</option>
+                      <option value="Comercial">Comercial</option>
+                      <option value="Residencial">Residencial</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                    </select>
+                    <input v-model="tel.numero" placeholder="Telefone" />
+                  </div>
+                  <button
+                    v-if="form.telefones.length > 1"
+                    class="btn-remove-phone"
+                    title="Remover"
+                    @click="removerTelefone(idx)"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <button type="button" class="btn-add-phone" @click="adicionarTelefone">
+                  + Adicionar Telefone
                 </button>
-              </div>
 
-              <div class="field">
-                <label for="email">E-mail</label>
-                <input id="email" v-model="form.email" type="email" placeholder="E-mail..." />
-              </div>
-
-              <div class="field-row">
-                <div class="field flex-2">
-                  <label for="logradouro">Endereço</label>
-                  <input id="logradouro" v-model="form.logradouro" placeholder="Logradouro" />
+                <div class="field">
+                  <label for="observacoes">Observações</label>
+                  <textarea
+                    id="observacoes"
+                    v-model="form.observacoes"
+                    placeholder="Obs"
+                    rows="3"
+                  ></textarea>
                 </div>
-                <div class="field flex-1">
-                  <label for="numero">Número</label>
-                  <input id="numero" v-model="form.numero" placeholder="Número" />
-                </div>
-              </div>
+              </section>
 
-              <div class="field-row">
-                <div class="field flex-1">
-                  <label for="complemento">Complemento</label>
-                  <input id="complemento" v-model="form.complemento" placeholder="Complemento" />
-                </div>
-                <div class="field flex-1">
-                  <label for="bairro">Bairro</label>
-                  <input id="bairro" v-model="form.bairro" placeholder="Bairro" />
-                </div>
-              </div>
-
-              <div class="field-row">
-                <div class="field half">
-                  <label for="uf">UF</label>
-                  <select id="uf" v-model="form.uf">
-                    <option value="" disabled>UF</option>
-                    <option value="AC">AC</option>
-                    <option value="AL">AL</option>
-                    <option value="AP">AP</option>
-                    <option value="AM">AM</option>
-                    <option value="BA">BA</option>
-                    <option value="CE">CE</option>
-                    <option value="DF">DF</option>
-                    <option value="ES">ES</option>
-                    <option value="GO">GO</option>
-                    <option value="MA">MA</option>
-                    <option value="MT">MT</option>
-                    <option value="MS">MS</option>
-                    <option value="MG">MG</option>
-                    <option value="PA">PA</option>
-                    <option value="PB">PB</option>
-                    <option value="PR">PR</option>
-                    <option value="PE">PE</option>
-                    <option value="PI">PI</option>
-                    <option value="RJ">RJ</option>
-                    <option value="RN">RN</option>
-                    <option value="RS">RS</option>
-                    <option value="RO">RO</option>
-                    <option value="RR">RR</option>
-                    <option value="SC">SC</option>
-                    <option value="SP">SP</option>
-                    <option value="SE">SE</option>
-                    <option value="TO">TO</option>
-                  </select>
-                </div>
-                <div class="field half">
-                  <label for="cidade">Cidade</label>
-                  <input id="cidade" v-model="form.cidade" placeholder="Cidade" />
-                </div>
-              </div>
-            </section>
-
-            <!-- D. Contatos Telefônicos -->
-            <section class="form-section">
-              <h3>Contatos Telefônicos</h3>
-
-              <div v-for="(tel, idx) in form.telefones" :key="idx" class="phone-row">
-                <div class="phone-fields">
-                  <select v-model="tel.tipo">
-                    <option value="" disabled>Tipo</option>
-                    <option value="Celular">Celular</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Residencial">Residencial</option>
-                    <option value="WhatsApp">WhatsApp</option>
-                  </select>
-                  <input v-model="tel.numero" placeholder="Telefone" />
-                </div>
-                <button
-                  v-if="form.telefones.length > 1"
-                  class="btn-remove-phone"
-                  title="Remover"
-                  @click="removerTelefone(idx)"
-                >
-                  &times;
-                </button>
-              </div>
-
-              <button type="button" class="btn-add-phone" @click="adicionarTelefone">
-                + Adicionar Telefone
-              </button>
-
-              <div class="field">
-                <label for="observacoes">Observações</label>
-                <textarea
-                  id="observacoes"
-                  v-model="form.observacoes"
-                  placeholder="Obs"
-                  rows="3"
-                ></textarea>
-              </div>
-            </section>
-
-            <p v-if="erroSalvar" class="error-msg">{{ erroSalvar }}</p>
+              <p v-if="erroSalvar" class="error-msg">{{ erroSalvar }}</p>
             </fieldset>
           </div>
 
@@ -525,7 +530,13 @@ async function buscarCEP() {
             <button type="button" class="btn btn-cancel" :disabled="salvando" @click="close">
               {{ props.readonly ? 'Fechar' : 'Cancelar' }}
             </button>
-            <button v-if="!props.readonly" type="button" class="btn btn-primary" :disabled="salvando" @click="submit">
+            <button
+              v-if="!props.readonly"
+              type="button"
+              class="btn btn-primary"
+              :disabled="salvando"
+              @click="submit"
+            >
               {{ salvando ? 'Salvando…' : editando ? 'Alterar' : 'Inserir' }}
             </button>
           </footer>

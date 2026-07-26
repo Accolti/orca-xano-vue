@@ -10,26 +10,46 @@ const authStore = useAuthStore()
   <header v-if="true" class="global-header">
     <div class="header-left">
       <button class="hamburger-btn" aria-label="Abrir menu" @click="$emit('toggleSidebar')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
           <line x1="3" y1="6" x2="21" y2="6" />
           <line x1="3" y1="12" x2="21" y2="12" />
           <line x1="3" y1="18" x2="21" y2="18" />
         </svg>
       </button>
       <div class="brand-wrap">
-        <span class="brand">{{ authStore.user?.fantasia || authStore.user?.name || 'Orca Systems' }}</span>
+        <span class="brand">{{
+          authStore.user?.fantasia || authStore.user?.name || 'Orca Systems'
+        }}</span>
         <span v-if="authStore.user?.name" class="brand-sub">{{ authStore.user.name }}</span>
       </div>
     </div>
     <div class="header-right">
       <button class="header-icon" title="Notificações" aria-label="Notificações">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
       </button>
       <button class="header-icon" title="Perfil" aria-label="Perfil">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
           <circle cx="12" cy="8" r="4" />
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
         </svg>
@@ -115,7 +135,9 @@ const authStore = useAuthStore()
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .header-icon:hover {

@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import { useClienteStore } from '@/stores/cliente'
+import { xano } from '@/services/xano'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
+
+const route = useRoute()
+const router = useRouter()
+const codOrcaParam = route.params.codOrca as string | undefined
+const isEditMode = computed(() => !!codOrcaParam)
+const isVinculado = computed(() => (orcamentoStore.orcamentoHeader?.pedido_id ?? 0) > 0)
 
 const orcamentoStore = useOrcamentoStore()
 const authStore = useAuthStore()
@@ -58,10 +66,26 @@ const formValido = computed(() => {
   if (!orcamentoStore.largura || orcamentoStore.largura <= 0) return false
   if (!orcamentoStore.comprimento || orcamentoStore.comprimento <= 0) return false
   if (!orcamentoStore.quantidade || orcamentoStore.quantidade < 1) return false
-  if (orcamentoStore.mostrarLinha && orcamentoStore.linhas.length && !orcamentoStore.linhaSelecionada) return false
-  if (orcamentoStore.mostrarTipo && orcamentoStore.tipos.length && !orcamentoStore.tipoSelecionado) return false
-  if (orcamentoStore.mostrarNivel && orcamentoStore.niveis.length && !orcamentoStore.nivelSelecionado) return false
-  if (orcamentoStore.mostrarBorda && orcamentoStore.bordas.length && !orcamentoStore.bordaSelecionada) return false
+  if (
+    orcamentoStore.mostrarLinha &&
+    orcamentoStore.linhas.length &&
+    !orcamentoStore.linhaSelecionada
+  )
+    return false
+  if (orcamentoStore.mostrarTipo && orcamentoStore.tipos.length && !orcamentoStore.tipoSelecionado)
+    return false
+  if (
+    orcamentoStore.mostrarNivel &&
+    orcamentoStore.niveis.length &&
+    !orcamentoStore.nivelSelecionado
+  )
+    return false
+  if (
+    orcamentoStore.mostrarBorda &&
+    orcamentoStore.bordas.length &&
+    !orcamentoStore.bordaSelecionada
+  )
+    return false
   return true
 })
 
@@ -76,8 +100,49 @@ const produtoEncontrado = computed(() => {
   return orcamentoStore.resultado?.Produto_2?.[0] ?? null
 })
 
-onMounted(() => {
+onMounted(async () => {
+  if (!isEditMode.value) {
+    orcamentoStore.resetar()
+    limparCliente()
+    observacao.value = ''
+    mostrarCustos.value = false
+    simulacaoSelecionada.value = null
+    inserirOk.value = false
+    mostrarResumo.value = false
+    finalizando.value = false
+  }
   orcamentoStore.carregarMateriais()
+  if (isEditMode.value && codOrcaParam) {
+    try {
+      await orcamentoStore.carregarOrcamento(codOrcaParam)
+      const header = orcamentoStore.orcamentoHeader
+      if (header?._cliente) {
+        const c = header._cliente
+        clienteSelecionado.value = {
+          id: c.id,
+          razao_social: c.razao_social || '',
+          nome_fantasia: c.nome_fantasia || '',
+          contato: c.contato || '',
+          cpf: c.cpf || '',
+          nome_cpf: c.nome_cpf || '',
+          cnpj: c.cnpj || '',
+          inscricao_estadual: c.inscricao_estadual || '',
+          'e-mail': c['e-mail'] || '',
+          contribui_icms: c.contribui_icms ?? false,
+          isento: c.isento ?? false,
+          observacao: c.observacao || '',
+          user_id: c.user_id ?? 0,
+          beneficio_fiscal_id: c.beneficio_fiscal_id ?? null,
+          mercado_id: c.mercado_id ?? null,
+          ramo_id: c.ramo_id ?? null,
+          regime_id: c.regime_id ?? null,
+          created_at: c.created_at ?? 0,
+        }
+      }
+    } catch {
+      /* error stays in store */
+    }
+  }
 })
 
 function toggleCustos() {
@@ -116,7 +181,11 @@ async function handleInserir() {
   if (!clienteSelecionado.value) return
   inserirOk.value = false
   try {
-    await orcamentoStore.inserirOrcamento(clienteSelecionado.value.id, observacao.value)
+    await orcamentoStore.inserirOrcamento(
+      clienteSelecionado.value.id,
+      observacao.value,
+      isEditMode.value ? codOrcaParam : undefined,
+    )
     inserirOk.value = true
     observacao.value = ''
   } catch {
@@ -138,6 +207,7 @@ function novoOrcamento() {
   inserirOk.value = false
   mostrarResumo.value = false
   finalizando.value = false
+  router.push('/orcamentos/novo')
 }
 
 const valorVendaTotalB2B = computed(() => {
@@ -175,6 +245,104 @@ const custoUnit = computed(() => {
   return orcamentoStore.func1?.Valor_Custo_Unit ?? 0
 })
 
+const margemEditavel = ref(0)
+const editandoMargem = ref(false)
+
+watch(
+  () => orcamentoStore.orcamentoHeader?.margem,
+  (val) => {
+    if (val != null) margemEditavel.value = val
+  },
+  { immediate: true },
+)
+
+async function aplicarMargem() {
+  if (!codOrcaParam) return
+  editandoMargem.value = false
+  try {
+    await orcamentoStore.carregarOrcamento(codOrcaParam, margemEditavel.value)
+  } catch {
+    /* error stays in store */
+  }
+}
+
+function voltarLista() {
+  router.push('/orcamentos')
+}
+
+const novoValorVndB2B = ref(0)
+const novaMargemInput = ref(0)
+const novoFreteInput = ref(0)
+const novoLucroTotal = ref(0)
+
+async function recalcularPorNovoValorVenda() {
+  if (!novoValorVndB2B.value || novoValorVndB2B.value <= 0) return
+  if (!orcamentoStore.resultado) return
+
+  const custoTotal = orcamentoStore.func1?.Valor_Custo_Total ?? 0
+  const freteB2B = orcamentoStore.fretePersonalizado ?? orcamentoStore.resultado.frete_b2b ?? 0
+
+  try {
+    const response = await xano.get('/api:-qqRIakp/Calc_new_Valor_Venda', {
+      new_val_venda_total: novoValorVndB2B.value,
+      valor_custo_total: custoTotal,
+      valor_frete_b2b: freteB2B,
+    })
+    const body = response.getBody() as any
+    const newMargem = parseFloat(body?.new_margem)
+    if (isNaN(newMargem)) throw new Error('new_margem inválido')
+    orcamentoStore.definirMargemPersonalizada(newMargem)
+    novoValorVndB2B.value = 0
+    await handleCalcular()
+  } catch (err: any) {
+    console.error('Erro ao recalcular:', err)
+    orcamentoStore.error = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao recalcular'
+  }
+}
+
+function aplicarMargemPersonalizada() {
+  const valor = novaMargemInput.value
+  if (valor <= 0) {
+    if (!confirm('Você deseja realmente zerar o valor da margem para este produto?')) return
+  }
+  orcamentoStore.definirMargemPersonalizada(valor)
+  novaMargemInput.value = 0
+  handleCalcular()
+}
+
+function aplicarFretePersonalizado() {
+  const valor = novoFreteInput.value
+  if (valor <= 0) {
+    if (!confirm('Você deseja realmente zerar o valor do frete B2B para este produto?')) return
+  }
+  orcamentoStore.definirFretePersonalizado(valor)
+  novoFreteInput.value = 0
+  handleCalcular()
+}
+
+async function recalcularPorNovoLucroTotal() {
+  if (!novoLucroTotal.value || novoLucroTotal.value <= 0) return
+  if (!orcamentoStore.resultado) return
+
+  const custoTotal = orcamentoStore.func1?.Valor_Custo_Total ?? 0
+
+  try {
+    const response = await xano.get('/api:-qqRIakp/Calc_new_Valor_Lucro', {
+      new_val_lucro: novoLucroTotal.value,
+      valor_de_custo: custoTotal,
+    })
+    const body = response.getBody() as any
+    const newMargem = parseFloat(body?.new_margem)
+    if (isNaN(newMargem)) throw new Error('new_margem inválido')
+    orcamentoStore.definirMargemPersonalizada(newMargem)
+    novoLucroTotal.value = 0
+    await handleCalcular()
+  } catch (err: any) {
+    console.error('Erro ao recalcular lucro:', err)
+    orcamentoStore.error = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao recalcular'
+  }
+}
+
 function formatarMoeda(valor: number): string {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`
 }
@@ -183,387 +351,586 @@ function formatarMoeda(valor: number): string {
 <template>
   <div class="orcamento-page">
     <template v-if="!mostrarResumo">
-    <!-- A. Cabeçalho e Identificação do Cliente -->
-    <section class="card welcome-card">
-      <div class="welcome-top">
-        <div>
-          <h2>Tapetes personalizados</h2>
-          <p class="subtitle">Vinil, Cleankap, Duo, Rubberkap Personalizado e etc...</p>
+      <!-- A. Cabeçalho e Identificação do Cliente -->
+      <section class="card welcome-card">
+        <div class="welcome-top">
+          <div>
+            <h2>Tapetes personalizados</h2>
+            <p class="subtitle">Vinil, Cleankap, Duo, Rubberkap Personalizado e etc...</p>
+          </div>
+          <div class="welcome-actions">
+            <span v-if="isVinculado" class="edit-badge read-only-badge">Somente Leitura</span>
+          <span v-else-if="isEditMode" class="edit-badge">Edição</span>
+            <span class="orc-num">{{ orcamentoStore.numeroOrcamento || '---' }}</span>
+            <button class="btn btn-sm btn-outline" @click="voltarLista">← Voltar</button>
+          </div>
         </div>
-        <span class="orc-num">{{ orcamentoStore.numeroOrcamento || '---' }}</span>
-      </div>
-      <div v-if="clienteSelecionado" class="welcome-cliente">
-        <strong>{{ clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social }}</strong>
-        <span>{{ clienteSelecionado.cnpj || clienteSelecionado.cpf || '' }}</span>
-      </div>
-      <div class="welcome-metrics">
-        <span class="metric"><strong>Margem:</strong> {{ margemPadrao }}%</span>
-        <span class="metric"><strong>Frete B2B:</strong> {{ formatarMoeda(fretePadrao) }}</span>
-      </div>
-    </section>
-
-    <!-- Cliente -->
-    <section class="card">
-      <h3 class="section-title">Cliente</h3>
-
-      <div v-if="!clienteSelecionado" class="cliente-busca">
-        <div class="field">
-          <label>Buscar cliente por nome, CNPJ...</label>
-          <input v-model="termoBuscaCliente" placeholder="Digite pelo menos 3 caracteres..." />
-        </div>
-
-        <div v-if="clienteStore.loading" class="cliente-loading">Buscando...</div>
-
-        <div v-if="clienteStore.clientes.length" class="cliente-resultados">
-          <button
-            v-for="c in clienteStore.clientes"
-            :key="c.id"
-            class="cliente-item"
-            @click="selecionarCliente(c)"
-          >
-            <strong>{{ c.nome_fantasia || c.razao_social }}</strong>
-            <span>{{ c.cnpj || c.cpf || '' }}</span>
-          </button>
-        </div>
-
-        <p v-if="clienteStore.error" class="error-msg">{{ clienteStore.error }}</p>
-      </div>
-
-      <div v-else class="cliente-selecionado">
-        <div class="cliente-info">
+        <div v-if="clienteSelecionado" class="welcome-cliente">
           <strong>{{ clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social }}</strong>
           <span>{{ clienteSelecionado.cnpj || clienteSelecionado.cpf || '' }}</span>
         </div>
-        <div class="cliente-actions">
-          <button class="btn btn-sm" @click="verCliente">👁 Ver dados</button>
-          <button class="btn btn-sm btn-outline" @click="limparCliente">✕ Limpar</button>
+        <div class="welcome-metrics">
+          <span class="metric"><strong>Margem:</strong> {{ orcamentoStore.margemPersonalizada ?? margemPadrao }}%</span>
+          <span class="metric"><strong>Frete B2B:</strong> {{ formatarMoeda(fretePadrao) }}</span>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- B. Especificação do Produto -->
+    <!-- Cliente -->
+    <template v-if="!isVinculado">
     <section class="card">
-      <h3 class="section-title">Especificação do Produto</h3>
+        <h3 class="section-title">Cliente</h3>
 
-      <div class="field">
-        <label>Material</label>
-        <div class="select-wrap">
-          <select
-            v-model="orcamentoStore.materialSelecionado"
-            @change="orcamentoStore.selecionarMaterial(orcamentoStore.materialSelecionado!)"
-          >
-            <option :value="null" disabled>Selecione um material</option>
-            <option
-              v-for="m in orcamentoStore.materiais"
-              :key="m.id"
-              :value="m"
-            >{{ m.nome }}</option>
-          </select>
-          <button
-            v-if="orcamentoStore.materialSelecionado"
-            class="btn-clear"
-            @click="orcamentoStore.limparMaterial()"
-          >✕</button>
+        <div v-if="!clienteSelecionado" class="cliente-busca">
+          <div class="field">
+            <label>Buscar cliente por nome, CNPJ...</label>
+            <input v-model="termoBuscaCliente" placeholder="Digite pelo menos 3 caracteres..." />
+          </div>
+
+          <div v-if="clienteStore.loading" class="cliente-loading">Buscando...</div>
+
+          <div v-if="clienteStore.clientes.length" class="cliente-resultados">
+            <button
+              v-for="c in clienteStore.clientes"
+              :key="c.id"
+              class="cliente-item"
+              @click="selecionarCliente(c)"
+            >
+              <strong>{{ c.nome_fantasia || c.razao_social }}</strong>
+              <span>{{ c.cnpj || c.cpf || '' }}</span>
+            </button>
+          </div>
+
+          <p v-if="clienteStore.error" class="error-msg">{{ clienteStore.error }}</p>
         </div>
-      </div>
 
-      <div v-if="orcamentoStore.mostrarLinha && orcamentoStore.linhas.length" class="field">
-        <label>Linha</label>
-        <div class="select-wrap">
-          <select v-model="orcamentoStore.linhaSelecionada">
-            <option :value="null" disabled>Selecione</option>
-            <option v-for="l in orcamentoStore.linhas" :key="l.id" :value="l">{{ l.nome }}</option>
-          </select>
-          <button
-            v-if="orcamentoStore.linhaSelecionada"
-            class="btn-clear"
-            @click="orcamentoStore.linhaSelecionada = null"
-          >✕</button>
+        <div v-else class="cliente-selecionado">
+          <div class="cliente-info">
+            <strong>{{
+              clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social
+            }}</strong>
+            <span>{{ clienteSelecionado.cnpj || clienteSelecionado.cpf || '' }}</span>
+          </div>
+          <div class="cliente-actions">
+            <button class="btn btn-sm" @click="verCliente">👁 Ver dados</button>
+            <button class="btn btn-sm btn-outline" @click="limparCliente">✕ Limpar</button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div v-if="orcamentoStore.mostrarTipo && orcamentoStore.tipos.length" class="field">
-        <label>Tipo</label>
-        <div class="select-wrap">
-          <select v-model="orcamentoStore.tipoSelecionado">
-            <option :value="null" disabled>Selecione</option>
-            <option v-for="t in orcamentoStore.tipos" :key="t.id" :value="t">{{ t.nome }}</option>
-          </select>
-          <button
-            v-if="orcamentoStore.tipoSelecionado"
-            class="btn-clear"
-            @click="orcamentoStore.tipoSelecionado = null"
-          >✕</button>
-        </div>
-      </div>
-
-      <div v-if="orcamentoStore.mostrarNivel && orcamentoStore.niveis.length" class="field">
-        <label>Nível</label>
-        <div class="select-wrap">
-          <select v-model="orcamentoStore.nivelSelecionado">
-            <option :value="null" disabled>Selecione</option>
-            <option v-for="n in orcamentoStore.niveis" :key="n.id" :value="n">{{ n.nome }}</option>
-          </select>
-          <button
-            v-if="orcamentoStore.nivelSelecionado"
-            class="btn-clear"
-            @click="orcamentoStore.nivelSelecionado = null"
-          >✕</button>
-        </div>
-      </div>
-
-      <div v-if="orcamentoStore.mostrarBorda && orcamentoStore.bordas.length" class="field">
-        <label>Borda</label>
-        <div class="select-wrap">
-          <select v-model="orcamentoStore.bordaSelecionada">
-            <option :value="null" disabled>Selecione</option>
-            <option v-for="b in orcamentoStore.bordas" :key="b.id" :value="b">{{ b.nome }}</option>
-          </select>
-          <button
-            v-if="orcamentoStore.bordaSelecionada"
-            class="btn-clear"
-            @click="orcamentoStore.bordaSelecionada = null"
-          >✕</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Quantidade</label>
-        <input
-          v-model.number="orcamentoStore.quantidade"
-          type="number"
-          min="1"
-          class="input-num"
-        />
-        <span class="field-suffix">unidades</span>
-      </div>
-    </section>
-
-    <!-- C. Calculadora de Dimensões -->
-    <section class="card">
-      <h3 class="section-title">Dimensões</h3>
-
-      <div class="dimensoes-row">
-        <div class="field flex-1">
-          <label>Largura (m)</label>
-          <input v-model.number="orcamentoStore.largura" type="number" step="0.01" min="0" placeholder="0,00" />
-        </div>
-        <span class="dimensoes-x">X</span>
-        <div class="field flex-1">
-          <label>Comprimento (m)</label>
-          <input v-model.number="orcamentoStore.comprimento" type="number" step="0.01" min="0" placeholder="0,00" />
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Área Nominal (m²)</label>
-        <input :value="orcamentoStore.areaNominal.toFixed(2)" readonly class="input-readonly" />
-      </div>
-
-      <div class="btn-row">
-        <button class="btn btn-secondary" :disabled="orcamentoStore.loading || !formValido" @click="handleCalcular">
-          {{ orcamentoStore.loading ? 'Calculando...' : 'Calcular' }}
-        </button>
-        <button class="btn btn-primary" :disabled="orcamentoStore.loading || !formValido" @click="handleSimular">
-          {{ orcamentoStore.loading ? 'Calculando...' : 'Simular' }}
-        </button>
-      </div>
-    </section>
-
-    <!-- Resultados -->
-    <template v-if="orcamentoStore.resultado">
-      <!-- D. FC e Dimensões Faturadas -->
+      <!-- B. Especificação do Produto -->
       <section class="card">
-        <h3 class="section-title">Fator de Conversão</h3>
+        <h3 class="section-title">Especificação do Produto</h3>
 
-        <p class="fc-display">
-          <strong>FC:</strong>
-          <span v-for="(v, i) in fcArray" :key="i" class="fc-item">{{ v }}<span v-if="i < fcArray.length - 1">, </span></span>
-        </p>
-
-        <div class="dimensoes-row">
-          <div class="field flex-1">
-            <label>Largura FC (m)</label>
-            <input :value="orcamentoStore.resultado.LargFC" readonly class="input-readonly" />
-          </div>
-          <span class="dimensoes-x">X</span>
-          <div class="field flex-1">
-            <label>Comprimento FC (m)</label>
-            <input :value="orcamentoStore.resultado.CompFC" readonly class="input-readonly" />
-          </div>
-        </div>
-
-        <div class="field area-fc-wrap">
-          <label>Área Faturada (m²)</label>
-          <div class="area-fc-input">
-            <input :value="formatarMoeda(orcamentoStore.func1?.AreaFC ?? 0).replace('R$ ', '')" readonly class="input-readonly input-big" />
-            <button class="btn-eye" :class="{ active: mostrarCustos }" @click="toggleCustos" title="Detalhamento financeiro">
-              <svg v-if="!mostrarCustos" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </svg>
+        <div class="field">
+          <label>Material</label>
+          <div class="select-wrap">
+            <select
+              v-model="orcamentoStore.materialSelecionado"
+              @change="orcamentoStore.selecionarMaterial(orcamentoStore.materialSelecionado!)"
+            >
+              <option :value="null" disabled>Selecione um material</option>
+              <option v-for="m in orcamentoStore.materiais" :key="m.id" :value="m">
+                {{ m.nome }}
+              </option>
+            </select>
+            <button
+              v-if="orcamentoStore.materialSelecionado"
+              class="btn-clear"
+              @click="orcamentoStore.limparMaterial()"
+            >
+              ✕
             </button>
           </div>
         </div>
-      </section>
 
-      <!-- E. Tabela de Preços -->
-      <section class="card">
-        <h3 class="section-title">Valores</h3>
+        <div v-if="orcamentoStore.mostrarLinha && orcamentoStore.linhas.length" class="field">
+          <label>Linha</label>
+          <div class="select-wrap">
+            <select v-model="orcamentoStore.linhaSelecionada">
+              <option :value="null" disabled>Selecione</option>
+              <option v-for="l in orcamentoStore.linhas" :key="l.id" :value="l">
+                {{ l.nome }}
+              </option>
+            </select>
+            <button
+              v-if="orcamentoStore.linhaSelecionada"
+              class="btn-clear"
+              @click="orcamentoStore.linhaSelecionada = null"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
-        <div class="price-grid">
-          <div class="price-label">Valor Vnd Unit</div>
-          <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnit) }}</div>
-          <div class="price-label">Valor Vnd Unit B2B</div>
-          <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnitB2B) }}</div>
+        <div v-if="orcamentoStore.mostrarTipo && orcamentoStore.tipos.length" class="field">
+          <label>Tipo</label>
+          <div class="select-wrap">
+            <select v-model="orcamentoStore.tipoSelecionado">
+              <option :value="null" disabled>Selecione</option>
+              <option v-for="t in orcamentoStore.tipos" :key="t.id" :value="t">{{ t.nome }}</option>
+            </select>
+            <button
+              v-if="orcamentoStore.tipoSelecionado"
+              class="btn-clear"
+              @click="orcamentoStore.tipoSelecionado = null"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
-          <div class="price-label">Valor Vnd Total</div>
-          <div class="price-value price-bg">{{ formatarMoeda(valorVendaTotal) }}</div>
-          <div class="price-label">Valor Vnd Tot B2B</div>
-          <div class="price-value price-b2b">{{ formatarMoeda(valorVendaTotalB2B) }}</div>
+        <div v-if="orcamentoStore.mostrarNivel && orcamentoStore.niveis.length" class="field">
+          <label>Nível</label>
+          <div class="select-wrap">
+            <select v-model="orcamentoStore.nivelSelecionado">
+              <option :value="null" disabled>Selecione</option>
+              <option v-for="n in orcamentoStore.niveis" :key="n.id" :value="n">
+                {{ n.nome }}
+              </option>
+            </select>
+            <button
+              v-if="orcamentoStore.nivelSelecionado"
+              class="btn-clear"
+              @click="orcamentoStore.nivelSelecionado = null"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div v-if="orcamentoStore.mostrarBorda && orcamentoStore.bordas.length" class="field">
+          <label>Borda</label>
+          <div class="select-wrap">
+            <select v-model="orcamentoStore.bordaSelecionada">
+              <option :value="null" disabled>Selecione</option>
+              <option v-for="b in orcamentoStore.bordas" :key="b.id" :value="b">
+                {{ b.nome }}
+              </option>
+            </select>
+            <button
+              v-if="orcamentoStore.bordaSelecionada"
+              class="btn-clear"
+              @click="orcamentoStore.bordaSelecionada = null"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div class="field">
-          <label>Novo Vlr de Vnd Total B2B</label>
-          <div class="novo-valor-wrap">
-            <input type="number" step="0.01" placeholder="0,00" class="input-num" />
-            <button class="btn-recalc" title="Recalcular (funcionalidade futura)">&#8635;</button>
-          </div>
-          <p class="field-hint">Função não implementada</p>
+          <label>Quantidade</label>
+          <input
+            v-model.number="orcamentoStore.quantidade"
+            type="number"
+            min="1"
+            class="input-num"
+          />
+          <span class="field-suffix">unidades</span>
         </div>
       </section>
 
-      <!-- G. Detalhamento Financeiro (Toggle) -->
-      <section v-if="mostrarCustos" class="card custos-card">
-        <h3 class="section-title">Detalhamento Financeiro</h3>
+      <!-- C. Calculadora de Dimensões -->
+      <section class="card">
+        <h3 class="section-title">Dimensões</h3>
 
-        <div class="custos-grid">
-          <span class="price-label">Cst da Mat Prima M2</span>
-          <span class="price-value price-bg">{{ formatarMoeda(orcamentoStore.resultado.Produto_2[0]?.valor ?? 0) }}</span>
-
-          <span class="price-label">Cst da Borda M2</span>
-          <span class="price-value price-bg">{{ formatarMoeda(orcamentoStore.resultado.cst_borda) }}</span>
-
-          <span class="price-label">Frete B2B</span>
-          <span class="price-value price-bg">{{ formatarMoeda(orcamentoStore.resultado.frete_b2b) }}</span>
-
-          <span class="price-label">Novo Frete B2B</span>
-          <div class="novo-valor-wrap">
-            <input type="number" step="0.01" placeholder="0,00" class="input-num" />
-            <button class="btn-recalc" title="Recalcular (funcionalidade futura)">&#8635;</button>
+        <div class="dimensoes-row">
+          <div class="field flex-1">
+            <label>Largura (m)</label>
+            <input
+              v-model.number="orcamentoStore.largura"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0,00"
+            />
           </div>
-
-          <span class="price-label">Margem</span>
-          <span class="price-value price-bg">{{ margemPadrao }}%</span>
-
-          <span class="price-label">Nova Margem</span>
-          <div class="novo-valor-wrap">
-            <input type="number" step="0.1" placeholder="0" class="input-num" />
-            <button class="btn-recalc" title="Recalcular (funcionalidade futura)">&#8635;</button>
-          </div>
-
-          <span class="price-label">Custo Unitário</span>
-          <span class="price-value price-bg">{{ formatarMoeda(custoUnit) }}</span>
-
-          <span class="price-label">Custo Total</span>
-          <span class="price-value price-bg">{{ formatarMoeda(custoTotal) }}</span>
-
-          <span class="price-label">Lucro Unitário</span>
-          <span class="price-value price-bg">{{ formatarMoeda(lucroTotal) }}</span>
-
-          <span class="price-label">Lucro Total</span>
-          <span class="price-value price-bg">{{ formatarMoeda(lucroTotal) }}</span>
-
-          <span class="price-label">Novo Lcr Total</span>
-          <div class="novo-valor-wrap">
-            <input type="number" step="0.01" placeholder="0,00" class="input-num" />
-            <button class="btn-recalc" title="Recalcular (funcionalidade futura)">&#8635;</button>
+          <span class="dimensoes-x">X</span>
+          <div class="field flex-1">
+            <label>Comprimento (m)</label>
+            <input
+              v-model.number="orcamentoStore.comprimento"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0,00"
+            />
           </div>
         </div>
+
+        <div class="field">
+          <label>Área Nominal (m²)</label>
+          <input :value="orcamentoStore.areaNominal.toFixed(2)" readonly class="input-readonly" />
+        </div>
+
+        <div class="btn-row">
+          <button
+            class="btn btn-secondary"
+            :disabled="orcamentoStore.loading || !formValido"
+            @click="handleCalcular"
+          >
+            {{ orcamentoStore.loading ? 'Calculando...' : 'Calcular' }}
+          </button>
+          <button
+            class="btn btn-primary"
+            :disabled="orcamentoStore.loading || !formValido"
+            @click="handleSimular"
+          >
+            {{ orcamentoStore.loading ? 'Calculando...' : 'Simular' }}
+          </button>
+        </div>
+      </section>
+
+      <!-- Resultados -->
+      <template v-if="orcamentoStore.resultado">
+        <!-- D. FC e Dimensões Faturadas -->
+        <section class="card">
+          <h3 class="section-title">Fator de Conversão</h3>
+
+          <p class="fc-display">
+            <strong>FC:</strong>
+            <span v-for="(v, i) in fcArray" :key="i" class="fc-item"
+              >{{ v }}<span v-if="i < fcArray.length - 1">, </span></span
+            >
+          </p>
+
+          <div class="dimensoes-row">
+            <div class="field flex-1">
+              <label>Largura FC (m)</label>
+              <input :value="orcamentoStore.resultado.LargFC" readonly class="input-readonly" />
+            </div>
+            <span class="dimensoes-x">X</span>
+            <div class="field flex-1">
+              <label>Comprimento FC (m)</label>
+              <input :value="orcamentoStore.resultado.CompFC" readonly class="input-readonly" />
+            </div>
+          </div>
+
+          <div class="field area-fc-wrap">
+            <label>Área Faturada (m²)</label>
+            <div class="area-fc-input">
+              <input
+                :value="formatarMoeda(orcamentoStore.func1?.AreaFC ?? 0).replace('R$ ', '')"
+                readonly
+                class="input-readonly input-big"
+              />
+              <button
+                class="btn-eye"
+                :class="{ active: mostrarCustos }"
+                @click="toggleCustos"
+                title="Detalhamento financeiro"
+              >
+                <svg
+                  v-if="!mostrarCustos"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"
+                  />
+                  <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- E. Tabela de Preços -->
+        <section class="card">
+          <h3 class="section-title">Valores</h3>
+
+          <div class="price-grid">
+            <div class="price-label">Valor Vnd Unit</div>
+            <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnit) }}</div>
+            <div class="price-label">Valor Vnd Unit B2B</div>
+            <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnitB2B) }}</div>
+
+            <div class="price-label">Valor Vnd Total</div>
+            <div class="price-value price-bg">{{ formatarMoeda(valorVendaTotal) }}</div>
+            <div class="price-label">Valor Vnd Tot B2B</div>
+            <div class="price-value price-b2b">{{ formatarMoeda(valorVendaTotalB2B) }}</div>
+          </div>
+
+          <div class="field">
+            <label>Novo Vlr de Vnd Total B2B</label>
+            <div class="novo-valor-wrap">
+              <input v-model.number="novoValorVndB2B" type="number" step="0.01" placeholder="0,00" class="input-num" />
+              <button class="btn-recalc" title="Recalcular margem" @click="recalcularPorNovoValorVenda">&#8635;</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- G. Detalhamento Financeiro (Toggle) -->
+        <section v-if="mostrarCustos" class="card custos-card">
+          <h3 class="section-title">Detalhamento Financeiro</h3>
+
+          <div class="custos-grid">
+            <span class="price-label">Cst da Mat Prima M2</span>
+            <span class="price-value price-bg">{{
+              formatarMoeda(orcamentoStore.resultado.Produto_2[0]?.valor ?? 0)
+            }}</span>
+
+            <span class="price-label">Cst da Borda M2</span>
+            <span class="price-value price-bg">{{
+              formatarMoeda(orcamentoStore.resultado.cst_borda)
+            }}</span>
+
+            <span class="price-label">Frete B2B</span>
+            <span class="price-value price-bg">{{
+              formatarMoeda(orcamentoStore.fretePersonalizado ?? orcamentoStore.resultado.frete_b2b)
+            }}</span>
+
+            <span class="price-label">Novo Frete B2B</span>
+            <div class="novo-valor-wrap">
+              <input v-model.number="novoFreteInput" type="number" step="0.01" placeholder="0,00" class="input-num" />
+              <button class="btn-recalc" title="Aplicar novo frete" @click="aplicarFretePersonalizado">&#8635;</button>
+            </div>
+
+            <span class="price-label">Margem</span>
+            <span class="price-value price-bg">{{ orcamentoStore.margemPersonalizada ?? margemPadrao }}%</span>
+
+            <span class="price-label">Nova Margem</span>
+            <div class="novo-valor-wrap">
+              <input v-model.number="novaMargemInput" type="number" step="0.0001" placeholder="0" class="input-num" />
+              <button class="btn-recalc" title="Aplicar nova margem" @click="aplicarMargemPersonalizada">&#8635;</button>
+            </div>
+
+            <span class="price-label">Custo Unitário</span>
+            <span class="price-value price-bg">{{ formatarMoeda(custoUnit) }}</span>
+
+            <span class="price-label">Custo Total</span>
+            <span class="price-value price-bg">{{ formatarMoeda(custoTotal) }}</span>
+
+            <span class="price-label">Lucro Unitário</span>
+            <span class="price-value price-bg">{{ formatarMoeda(lucroTotal) }}</span>
+
+            <span class="price-label">Lucro Total</span>
+            <span class="price-value price-bg">{{ formatarMoeda(lucroTotal) }}</span>
+
+            <span class="price-label">Novo Lcr Total</span>
+            <div class="novo-valor-wrap">
+              <input v-model.number="novoLucroTotal" type="number" step="0.01" placeholder="0,00" class="input-num" />
+              <button class="btn-recalc" title="Recalcular margem pelo lucro" @click="recalcularPorNovoLucroTotal">&#8635;</button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- F. Observações e Ações -->
+      <section class="card">
+        <h3 class="section-title">Finalização</h3>
+
+        <div class="field">
+          <label>Descrição / Observação</label>
+          <textarea
+            v-model="observacao"
+            placeholder="Observações do orçamento..."
+            rows="3"
+          ></textarea>
+        </div>
+
+        <div class="btn-row">
+          <button
+            class="btn btn-primary btn-lg"
+            :disabled="orcamentoStore.loading || !formValido"
+            @click="handleCalcular"
+          >
+            Calcular
+          </button>
+          <button
+            class="btn btn-primary btn-lg"
+            :disabled="
+              orcamentoStore.loading || !orcamentoStore.resultado || orcamentoStore.inserindo
+            "
+            @click="handleInserir"
+          >
+            {{ orcamentoStore.inserindo ? 'Inserindo…' : 'Adicionar Item' }}
+          </button>
+        </div>
+
+        <p v-if="inserirOk" class="success-msg">
+          Item adicionado ao orçamento {{ orcamentoStore.numeroOrcamento }}!
+        </p>
+        <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
       </section>
     </template>
 
-    <!-- F. Observações e Ações -->
-    <section class="card">
-      <h3 class="section-title">Finalização</h3>
-
-      <div class="field">
-        <label>Descrição / Observação</label>
-        <textarea v-model="observacao" placeholder="Observações do orçamento..." rows="3"></textarea>
-      </div>
-
-      <div class="btn-row">
-        <button
-          class="btn btn-primary btn-lg"
-          :disabled="orcamentoStore.loading || !formValido"
-          @click="handleCalcular"
-        >
-          Calcular
-        </button>
-        <button
-          class="btn btn-primary btn-lg"
-          :disabled="orcamentoStore.loading || !orcamentoStore.resultado || orcamentoStore.inserindo"
-          @click="handleInserir"
-        >
-          {{ orcamentoStore.inserindo ? 'Inserindo…' : 'Adicionar Item' }}
-        </button>
-      </div>
-
-      <p v-if="inserirOk" class="success-msg">Item adicionado ao orçamento {{ orcamentoStore.numeroOrcamento }}!</p>
-      <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
-    </section>
-
     <!-- Resumo do Orçamento (itens inseridos) -->
-    <section v-if="orcamentoStore.itensInseridos.length" class="summary-section">
-      <div class="summary-header" @click="resumoAberto = !resumoAberto">
-        <h3 class="summary-title">Resumo do Orçamento</h3>
-        <span class="summary-toggle">{{ resumoAberto ? '▲' : '▼' }}</span>
-      </div>
+      <section v-if="orcamentoStore.itensInseridos.length" class="summary-section">
+        <div class="summary-header" @click="resumoAberto = !resumoAberto">
+          <h3 class="summary-title">Resumo do Orçamento</h3>
+          <span class="summary-toggle">{{ resumoAberto ? '▲' : '▼' }}</span>
+        </div>
 
-      <template v-if="resumoAberto">
-        <div class="card card-totais">
-          <div class="totais-header">
-            <span class="orc-num">{{ orcamentoStore.numeroOrcamento }}</span>
-            <span class="totais-cliente">{{ clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social }}</span>
+        <template v-if="resumoAberto">
+          <div class="card card-totais">
+            <div class="totais-header">
+              <span class="orc-num">{{ orcamentoStore.numeroOrcamento }}</span>
+              <span class="totais-cliente">{{
+                clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social
+              }}</span>
+            </div>
+            <div class="totais-grid">
+              <div class="totais-item">
+                <span class="totais-label">Total Venda</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0)
+                }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Total B2B</span>
+                <span class="totais-valor totais-b2b">{{
+                  formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0)
+                }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Custo Total</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0)
+                }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Lucro Total</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0)
+                }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Itens</span>
+                <span class="totais-valor">{{ orcamentoStore.itensInseridos.length }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Margem</span>
+                <span v-if="isVinculado || !isEditMode || !editandoMargem" class="totais-valor">
+                  {{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%
+                  <button v-if="isEditMode && !isVinculado" class="btn-edit-margem" @click="editandoMargem = true">
+                    ✎
+                  </button>
+                </span>
+                <div v-else class="margem-edit-row">
+                  <input
+                    v-model.number="margemEditavel"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    class="input-num margem-input"
+                  />
+                  <button class="btn btn-sm btn-primary" @click="aplicarMargem">OK</button>
+                  <button class="btn btn-sm btn-outline" @click="editandoMargem = false">✕</button>
+                </div>
+              </div>
+            </div>
+            <div class="totais-validade">
+              Validade:
+              {{
+                orcamentoStore.orcamentoHeader?.validade
+                  ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US')
+                  : validadeCalculada
+              }}
+            </div>
           </div>
-          <div class="totais-grid">
-            <div class="totais-item">
-              <span class="totais-label">Total Venda</span>
-              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0) }}</span>
-            </div>
-            <div class="totais-item">
-              <span class="totais-label">Total B2B</span>
-              <span class="totais-valor totais-b2b">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
-            </div>
-            <div class="totais-item">
-              <span class="totais-label">Custo Total</span>
-              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
-            </div>
-            <div class="totais-item">
-              <span class="totais-label">Lucro Total</span>
-              <span class="totais-valor">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
-            </div>
-            <div class="totais-item">
-              <span class="totais-label">Itens</span>
-              <span class="totais-valor">{{ orcamentoStore.itensInseridos.length }}</span>
-            </div>
-            <div class="totais-item">
-              <span class="totais-label">Margem</span>
-              <span class="totais-valor">{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
+
+          <div class="card">
+            <h3 class="section-title">Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
+            <div class="itens-tabela">
+              <div class="itens-header">
+                <span class="itens-col-num">#</span>
+                <span class="itens-col-desc">Descrição</span>
+                <span class="itens-col-dim">Dimensões</span>
+                <span class="itens-col-qtd">Qtd</span>
+                <span class="itens-col-vlr">Valor</span>
+              </div>
+              <div
+                v-for="(item, idx) in orcamentoStore.itensInseridos"
+                :key="item.id"
+                class="itens-row"
+              >
+                <span class="itens-col-num">{{ idx + 1 }}</span>
+                <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
+                <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
+                <span class="itens-col-qtd">{{ item.qtd }}</span>
+                <span class="itens-col-vlr">{{
+                  formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
+                }}</span>
+              </div>
             </div>
           </div>
-          <div class="totais-validade">
-            Validade: {{ orcamentoStore.orcamentoHeader?.validade ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US') : validadeCalculada }}
+
+          <div v-if="!isVinculado" class="btn-row">
+            <button class="btn btn-success btn-lg" @click="handleFinalizar">
+              Finalizar Orçamento
+            </button>
+          </div>
+        </template>
+      </section>
+
+      <!-- Modal de Simulação -->
+      <SimulacaoModal
+        v-if="orcamentoStore.resultado"
+        v-model="simulacaoModalOpen"
+        :simulacao="orcamentoStore.resultado.simulacao"
+        :custo-total="custoTotal"
+        @select="selecionarSimulacao"
+      />
+
+      <ClienteModal v-model="clienteModalOpen" :cliente-id="clienteModalId" :readonly="true" />
+    </template>
+
+    <template v-else>
+      <section class="card resumo-card">
+        <h2>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</h2>
+
+        <div class="resumo-totais">
+          <div class="resumo-total-item">
+            <span class="resumo-label">Total Venda</span>
+            <span class="resumo-preco">{{
+              formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0)
+            }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Total B2B</span>
+            <span class="resumo-preco resumo-b2b">{{
+              formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0)
+            }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Custo Total</span>
+            <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Lucro Total</span>
+            <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Margem</span>
+            <span>{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Validade</span>
+            <span>{{
+              orcamentoStore.orcamentoHeader?.validade
+                ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US')
+                : validadeCalculada
+            }}</span>
           </div>
         </div>
 
-        <div class="card">
-          <h3 class="section-title">Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
+        <div class="resumo-itens">
+          <h3>Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
           <div class="itens-tabela">
             <div class="itens-header">
               <span class="itens-col-num">#</span>
@@ -572,98 +939,29 @@ function formatarMoeda(valor: number): string {
               <span class="itens-col-qtd">Qtd</span>
               <span class="itens-col-vlr">Valor</span>
             </div>
-            <div v-for="(item, idx) in orcamentoStore.itensInseridos" :key="item.id" class="itens-row">
+            <div
+              v-for="(item, idx) in orcamentoStore.itensInseridos"
+              :key="item.id"
+              class="itens-row"
+            >
               <span class="itens-col-num">{{ idx + 1 }}</span>
               <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
               <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
               <span class="itens-col-qtd">{{ item.qtd }}</span>
-              <span class="itens-col-vlr">{{ formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) }}</span>
+              <span class="itens-col-vlr">{{
+                formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
+              }}</span>
             </div>
           </div>
         </div>
 
-        <div class="btn-row">
-          <button class="btn btn-success btn-lg" @click="handleFinalizar">
-            Finalizar Orçamento
-          </button>
+        <div class="btn-row resumo-actions">
+          <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
+          <button class="btn btn-secondary btn-lg" disabled>Imprimir (em breve)</button>
         </div>
-      </template>
-    </section>
-
-    <!-- Modal de Simulação -->
-    <SimulacaoModal
-      v-if="orcamentoStore.resultado"
-      v-model="simulacaoModalOpen"
-      :simulacao="orcamentoStore.resultado.simulacao"
-      :custo-total="custoTotal"
-      @select="selecionarSimulacao"
-    />
-
-    <ClienteModal
-      v-model="clienteModalOpen"
-      :cliente-id="clienteModalId"
-      :readonly="true"
-    />
-  </template>
-
-  <template v-else>
-    <section class="card resumo-card">
-      <h2>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</h2>
-
-      <div class="resumo-totais">
-        <div class="resumo-total-item">
-          <span class="resumo-label">Total Venda</span>
-          <span class="resumo-preco">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_tot ?? 0) }}</span>
-        </div>
-        <div class="resumo-total-item">
-          <span class="resumo-label">Total B2B</span>
-          <span class="resumo-preco resumo-b2b">{{ formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_tot ?? 0) }}</span>
-        </div>
-        <div class="resumo-total-item">
-          <span class="resumo-label">Custo Total</span>
-          <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
-        </div>
-        <div class="resumo-total-item">
-          <span class="resumo-label">Lucro Total</span>
-          <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
-        </div>
-        <div class="resumo-total-item">
-          <span class="resumo-label">Margem</span>
-          <span>{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
-        </div>
-        <div class="resumo-total-item">
-          <span class="resumo-label">Validade</span>
-          <span>{{ orcamentoStore.orcamentoHeader?.validade ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US') : validadeCalculada }}</span>
-        </div>
-      </div>
-
-      <div class="resumo-itens">
-        <h3>Itens ({{ orcamentoStore.itensInseridos.length }})</h3>
-        <div class="itens-tabela">
-          <div class="itens-header">
-            <span class="itens-col-num">#</span>
-            <span class="itens-col-desc">Descrição</span>
-            <span class="itens-col-dim">Dimensões</span>
-            <span class="itens-col-qtd">Qtd</span>
-            <span class="itens-col-vlr">Valor</span>
-          </div>
-          <div v-for="(item, idx) in orcamentoStore.itensInseridos" :key="item.id" class="itens-row">
-            <span class="itens-col-num">{{ idx + 1 }}</span>
-            <span class="itens-col-desc">{{ item.Descricao || item.descricao }}</span>
-            <span class="itens-col-dim">{{ item.larg }} x {{ item.comp }} m</span>
-            <span class="itens-col-qtd">{{ item.qtd }}</span>
-            <span class="itens-col-vlr">{{ formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="btn-row resumo-actions">
-        <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
-        <button class="btn btn-secondary btn-lg" disabled>Imprimir (em breve)</button>
-      </div>
-    </section>
-  </template>
-</div>
+      </section>
+    </template>
+  </div>
 </template>
 
 <style scoped>
@@ -684,7 +982,9 @@ function formatarMoeda(valor: number): string {
   background: var(--card-bg, #fff);
   border-radius: 10px;
   padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04);
   border: 1px solid transparent;
 }
 
@@ -871,7 +1171,9 @@ function formatarMoeda(valor: number): string {
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: background 0.2s, transform 0.15s;
+  transition:
+    background 0.2s,
+    transform 0.15s;
 }
 
 .btn:disabled {
@@ -942,7 +1244,10 @@ function formatarMoeda(valor: number): string {
   cursor: pointer;
   color: var(--primary);
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .btn-eye:hover {
@@ -1039,8 +1344,14 @@ function formatarMoeda(valor: number): string {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .error-msg {
@@ -1236,6 +1547,55 @@ function formatarMoeda(valor: number): string {
   font-size: 1rem;
   font-weight: 700;
   color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-edit-margem {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--primary);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.btn-edit-margem:hover {
+  background: #eff6ff;
+}
+
+.margem-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.margem-input {
+  max-width: 80px !important;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.read-only-badge {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.edit-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
 }
 
 .totais-b2b {
@@ -1272,11 +1632,29 @@ function formatarMoeda(valor: number): string {
   border-top: 1px solid #f3f4f6;
 }
 
-.itens-col-num { width: 2rem; flex-shrink: 0; text-align: center; }
-.itens-col-desc { flex: 1; }
-.itens-col-dim { width: 6rem; flex-shrink: 0; text-align: center; }
-.itens-col-qtd { width: 3rem; flex-shrink: 0; text-align: center; }
-.itens-col-vlr { width: 6rem; flex-shrink: 0; text-align: right; }
+.itens-col-num {
+  width: 2rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+.itens-col-desc {
+  flex: 1;
+}
+.itens-col-dim {
+  width: 6rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+.itens-col-qtd {
+  width: 3rem;
+  flex-shrink: 0;
+  text-align: center;
+}
+.itens-col-vlr {
+  width: 6rem;
+  flex-shrink: 0;
+  text-align: right;
+}
 
 .resumo-totais {
   display: grid;

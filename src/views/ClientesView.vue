@@ -56,7 +56,6 @@ function limparBusca() {
   termoBusca.value = ''
   clienteStore.buscarClientes()
 }
-
 </script>
 
 <template>
@@ -96,7 +95,9 @@ function limparBusca() {
     <div v-else-if="clienteStore.clientes.length === 0" class="vazio-bloco">
       <p class="status">
         {{
-          termoBusca ? 'Nenhum cliente encontrado para esta busca.' : 'Digite um termo na busca acima para encontrar clientes.'
+          termoBusca
+            ? 'Nenhum cliente encontrado para esta busca.'
+            : 'Digite um termo na busca acima para encontrar clientes.'
         }}
       </p>
     </div>
@@ -130,14 +131,32 @@ function limparBusca() {
               <td>{{ cliente['e-mail'] || '-' }}</td>
               <td class="td-acoes">
                 <button class="btn-icon" title="Editar" @click="abrirEdicao(cliente)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  >
                     <path d="M17 3l4 4L7 21H3v-4L17 3z" />
                   </svg>
                 </button>
-                <button class="btn-icon btn-icon-danger" title="Excluir" @click="excluirCliente(cliente)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <button
+                  class="btn-icon btn-icon-danger"
+                  title="Excluir"
+                  @click="excluirCliente(cliente)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  >
                     <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    <path
+                      d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
+                    />
                   </svg>
                 </button>
               </td>
@@ -149,7 +168,9 @@ function limparBusca() {
       <div class="card-list">
         <div v-for="cliente in clienteStore.clientes" :key="cliente.id" class="cliente-card">
           <div class="card-header">
-            <strong class="card-nome">{{ cliente.nome_fantasia || cliente.razao_social || '—' }}</strong>
+            <strong class="card-nome">{{
+              cliente.nome_fantasia || cliente.razao_social || '—'
+            }}</strong>
             <span class="card-id">#{{ cliente.id }}</span>
           </div>
           <div class="card-info">
@@ -166,15 +187,33 @@ function limparBusca() {
           </div>
           <div class="card-acoes">
             <button class="btn-card" title="Editar" @click="abrirEdicao(cliente)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              >
                 <path d="M17 3l4 4L7 21H3v-4L17 3z" />
               </svg>
               Editar
             </button>
-            <button class="btn-card btn-card-danger" title="Excluir" @click="excluirCliente(cliente)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <button
+              class="btn-card btn-card-danger"
+              title="Excluir"
+              @click="excluirCliente(cliente)"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              >
                 <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                <path
+                  d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
+                />
               </svg>
               Excluir
             </button>
@@ -216,7 +255,9 @@ function limparBusca() {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
+  transition:
+    background 0.2s,
+    transform 0.15s;
 }
 
 .btn-novo:hover {
@@ -331,7 +372,9 @@ function limparBusca() {
   width: 100%;
   border-collapse: collapse;
   font-family: sans-serif;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -414,7 +457,9 @@ function limparBusca() {
   background: #fff;
   border-radius: 10px;
   padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .card-header {

@@ -11,29 +11,30 @@ export function reverseLookup(
 
 export const ramoMap: Record<string, number> = {
   Atacado: 1,
-  Varejo: 1,
-  Industria: 1,
-  Servicos: 1,
-  Outro: 1,
+  Varejo: 2,
+  Industria: 3,
+  Servicos: 4,
+  Outro: 5,
 }
 
 export const mercadoMap: Record<string, number> = {
   Nacional: 1,
-  Internacional: 1,
+  Internacional: 2,
+  Outro: 3,
 }
 
 export const regimeMap: Record<string, number> = {
   Normal: 1,
-  'Simples Nacional': 1,
-  MEI: 1,
+  'Simples Nacional': 2,
+  MEI: 3,
 }
 
 export const beneficioMap: Record<string, number> = {
   Nenhum: 1,
-  Desoneração: 1,
-  Suspensão: 1,
-  Isenção: 1,
-  Diferimento: 1,
+  'Zona Franca de Manaus': 2,
+  'Zona Franca': 3,
+  'Área Livre de Comércio': 4,
+  'Amazonia Central': 5,
 }
 
 export const tipoTelMap: Record<string, number> = {
