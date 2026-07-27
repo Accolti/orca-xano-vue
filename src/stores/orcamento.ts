@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
 import { useAuthStore } from './auth'
+import { useCatalogoStore } from './catalogo'
 import type {
   Material,
   Linha,
@@ -13,21 +14,22 @@ import type {
   OrcamentoInsertPayload,
 } from '@/types/orcamento'
 
-interface DropdownCacheEntry {
-  linhas: Linha[]
-  tipos: Tipo[]
-  niveis: Nivel[]
-  bordas: Borda[]
-}
-
-const dropdownCache = new Map<number, DropdownCacheEntry>()
-
 export const useOrcamentoStore = defineStore('orcamento', () => {
-  const materiais = ref<Material[]>([])
-  const linhas = ref<Linha[]>([])
-  const tipos = ref<Tipo[]>([])
-  const niveis = ref<Nivel[]>([])
-  const bordas = ref<Borda[]>([])
+  const catalogo = useCatalogoStore()
+
+  const materiais = computed(() => catalogo.materiais)
+  const linhas = computed(() =>
+    materialSelecionado.value?.suc?.Linha ? catalogo.linhasFiltradas : [],
+  )
+  const tipos = computed(() =>
+    materialSelecionado.value?.suc?.Tipo ? catalogo.tiposFiltrados : [],
+  )
+  const niveis = computed(() =>
+    materialSelecionado.value?.suc?.Nivel ? catalogo.niveisFiltrados : [],
+  )
+  const bordas = computed(() =>
+    materialSelecionado.value?.suc?.Borda ? catalogo.bordasFiltradas : [],
+  )
 
   const materialSelecionado = ref<Material | null>(null)
   const linhaSelecionada = ref<Linha | null>(null)
@@ -80,8 +82,24 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   })
 
   const mostrarNivel = computed(() => {
-    if (!materialSelecionado.value?.suc) return false
-    return materialSelecionado.value.suc.Nivel > 0
+    const m = materialSelecionado.value
+    if (!m?.suc) return false
+    if (m.suc.Nivel <= 0) return false
+
+    const linhaNome = linhaSelecionada.value?.nome ?? ''
+    const tipoNome = tipoSelecionado.value?.nome ?? ''
+
+    const isVinil = /vinil/i.test(m.nome)
+    const isGoldOuAltTrafego = /^(gold|alto\s*tr[áa]fego)$/i.test(linhaNome)
+    const isLiso = /^liso$/i.test(tipoNome)
+
+    if (isVinil && isGoldOuAltTrafego && isLiso) return false
+
+    return true
+  })
+
+  watch(mostrarNivel, (val) => {
+    if (!val) nivelSelecionado.value = null
   })
 
   const mostrarBorda = computed(() => {
@@ -90,92 +108,26 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   })
 
   async function carregarMateriais() {
-    try {
-      const response = await xano.get('/api:-qqRIakp/material')
-      const body = response.getBody() as any
-      const data: Material[] = body?.material ?? body
-      materiais.value = (Array.isArray(data) ? data : [])
-        .filter((m) => m.ativo)
-        .sort((a, b) => a.Ordenacao - b.Ordenacao)
-    } catch (err: any) {
-      console.error('Erro ao carregar materiais:', err)
-    }
+    await catalogo.fetchCatalogo()
   }
 
-  async function selecionarMaterial(material: Material) {
+  function selecionarMaterial(material: Material) {
     materialSelecionado.value = material
+    catalogo.selectedMaterialId = material.id
     linhaSelecionada.value = null
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
-    linhas.value = []
-    tipos.value = []
-    niveis.value = []
-    bordas.value = []
     resultado.value = null
-
-    const cached = dropdownCache.get(material.id)
-
-    async function fetchArray<T>(url: string, params: Record<string, any>): Promise<T[]> {
-      try {
-        const response = await xano.get(url, params)
-        const body = response.getBody() as any
-        return (Array.isArray(body) ? body : body?.data ?? []) as T[]
-      } catch (err: any) {
-        console.error(`Erro ao carregar ${url}:`, err)
-        return []
-      }
-    }
-
-    if (material.suc?.Linha && material.suc.Linha > 0) {
-      if (cached?.linhas?.length) {
-        linhas.value = cached.linhas
-      } else {
-        linhas.value = await fetchArray<Linha>('/api:-qqRIakp/linha', { material_id: material.id })
-      }
-    }
-    if (material.suc?.Tipo && material.suc.Tipo > 0) {
-      if (cached?.tipos?.length) {
-        tipos.value = cached.tipos
-      } else {
-        tipos.value = await fetchArray<Tipo>('/api:-qqRIakp/tipo_por_material', { material_id: material.id })
-      }
-    }
-    if (material.suc?.Nivel && material.suc.Nivel > 0) {
-      if (cached?.niveis?.length) {
-        niveis.value = cached.niveis
-      } else {
-        niveis.value = await fetchArray<Nivel>('/api:-qqRIakp/nivel_por_material', { material_id: material.id })
-      }
-    }
-    if (material.suc?.Borda && material.suc.Borda > 0) {
-      if (cached?.bordas?.length) {
-        bordas.value = cached.bordas
-      } else {
-        bordas.value = await fetchArray<Borda>('/api:-qqRIakp/borda_por_material', { material_id: material.id })
-      }
-    }
-
-    if (!cached) {
-      const entry: DropdownCacheEntry = { linhas: [], tipos: [], niveis: [], bordas: [] }
-      if (linhas.value.length) entry.linhas = linhas.value
-      if (tipos.value.length) entry.tipos = tipos.value
-      if (niveis.value.length) entry.niveis = niveis.value
-      if (bordas.value.length) entry.bordas = bordas.value
-      dropdownCache.set(material.id, entry)
-    }
   }
 
   function limparMaterial() {
     materialSelecionado.value = null
+    catalogo.selectedMaterialId = null
     linhaSelecionada.value = null
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
-    linhas.value = []
-    tipos.value = []
-    niveis.value = []
-    bordas.value = []
     resultado.value = null
   }
 
@@ -371,14 +323,11 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   function limparFormItem() {
     materialSelecionado.value = null
+    catalogo.selectedMaterialId = null
     linhaSelecionada.value = null
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
-    linhas.value = []
-    tipos.value = []
-    niveis.value = []
-    bordas.value = []
     largura.value = 0
     comprimento.value = 0
     quantidade.value = 1

@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
+import { useCatalogoStore } from './catalogo'
 
 export interface User {
   id: number
@@ -125,6 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     localStorage.removeItem('authToken')
     xano.setAuthToken(null)
+    useCatalogoStore().resetarSessao()
   }
 
   return {
