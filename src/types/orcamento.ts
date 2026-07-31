@@ -4,6 +4,7 @@ export interface Material {
   Ordenacao: number
   created_at: number
   material_id: number
+  material_filho_id: number
   ativo: boolean
   descricao: string
   ncm: string
@@ -19,6 +20,7 @@ export interface Material {
     Tipo: number
     Nivel: number
     Borda: number
+    Variacao: number
   } | null
 }
 
@@ -52,6 +54,46 @@ export interface Borda {
   valor: number
   Unidade: string
   created_at: number
+}
+
+export interface Variacao {
+  id: number
+  created_at: number
+  detalhe_id: number
+  tipo_variacao_id: number
+  comp: number
+  larg: number
+  modelo_id: number
+  LxC: string
+  qtd_kit: number
+  valor_custo: number
+  cor_id: number
+  fator_de_corte: number
+  ordem: number
+  modelo: string | null
+  variacao: string | null
+  cor: string | null
+  descricao: string
+}
+
+export interface ProdutoCatalogo {
+  material_id: number
+  classificacao_id: number
+  linha_id: number
+  tipo_id: number
+  nivel_id: number
+  valor: number
+  Unidade: string
+  Base_de_Calculo: string
+  detalhe_id: number
+  classificacao: string
+  descricao: string
+  produto_id: number
+  material_nome: string
+  linha_nome: string | null
+  tipo_nome: string | null
+  nivel_nome: string | null
+  _variacao: Variacao[]
 }
 
 export interface Func1 {

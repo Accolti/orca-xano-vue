@@ -86,6 +86,7 @@ const formValido = computed(() => {
     !orcamentoStore.bordaSelecionada
   )
     return false
+  if (orcamentoStore.mostrarVariacao && !orcamentoStore.variacaoSelecionada) return false
   return true
 })
 
@@ -500,6 +501,25 @@ function formatarMoeda(valor: number): string {
               v-if="orcamentoStore.nivelSelecionado"
               class="btn-clear"
               @click="orcamentoStore.nivelSelecionado = null"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div v-if="orcamentoStore.mostrarVariacao" class="field">
+          <label>Variação</label>
+          <div class="select-wrap">
+            <select v-model="orcamentoStore.variacaoSelecionada">
+              <option :value="null" disabled>Selecione</option>
+              <option v-for="v in orcamentoStore.variacoes" :key="v.id" :value="v">
+                {{ v.descricao }}
+              </option>
+            </select>
+            <button
+              v-if="orcamentoStore.variacaoSelecionada"
+              class="btn-clear"
+              @click="orcamentoStore.variacaoSelecionada = null"
             >
               ✕
             </button>

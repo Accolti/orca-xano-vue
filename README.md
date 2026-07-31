@@ -25,7 +25,9 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Recálculo em tempo real** — 4 mecanismos (Novo Vlr Venda B2B, Nova Margem, Novo Frete B2B, Novo Lcr Total)
 - **Simulação** — condições de pagamento (Pix/boleto)
 - **Edição de orçamento** — suporte a `/orcamentos/:codOrca` com modo read-only se vinculado
-- **Catálogo versionado** — cache localStorage com controle por versão via `/configuracoes`
+- **Catálogo versionado** — cache localStorage com controle por versão (`versao_materiais` + `versao_produtos`) via `/configuracoes`; baixa produtos mães/filhos e variações (`/produtos_all`)
+- **Variação** — listbox com `_variacao` do produto quando o produto tem `detalhe_id > 0`
+- **Versões no header** — badge `M2P1` com popover mostrando as versões (badge de versão no cabeçalho)
 - **Exceção Vinil+Liso** — oculta campo Nível quando Material=Vinil, Linha=Gold/Alto Tráfego, Tipo=Liso
 
 ## Rotas
@@ -50,8 +52,9 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `POST` | `/auth/login` | Login |
 | `POST` | `/auth/signup` | Cadastro |
 | `GET` | `/auth/me` | Dados do usuário logado |
-| `GET` | `/configuracoes` | Versão atual das tabelas de catálogo (~200 bytes) |
-| `GET` | `/produtos_para_selecao` | Catálogo completo (Material, Linha, Tipo, Nivel, Borda) |
+| `GET` | `/configuracoes` | Versões atuais do catálogo (`versao_materiais` + `versao_produtos`, ~200 bytes) |
+| `GET` | `/produtos_para_selecao` | Catálogo para dropdowns (Material, Linha, Tipo, Nivel, Borda) |
+| `GET` | `/produtos_all` | Produtos mães, filhos e variações (`_variacao[]`) |
 | `GET` | `/CalculoValorVenda_IDs` | Cálculo de preços do item |
 | `GET` | `/Calc_new_Valor_Venda` | Recálculo: novo valor venda → nova margem |
 | `GET` | `/Calc_new_Valor_Lucro` | Recálculo: novo lucro → nova margem |

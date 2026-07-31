@@ -9,6 +9,7 @@ import type {
   Tipo,
   Nivel,
   Borda,
+  Variacao,
   OrcamentoResult,
   Func1,
   OrcamentoInsertPayload,
@@ -36,6 +37,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const tipoSelecionado = ref<Tipo | null>(null)
   const nivelSelecionado = ref<Nivel | null>(null)
   const bordaSelecionada = ref<Borda | null>(null)
+  const variacaoSelecionada = ref<Variacao | null>(null)
 
   const largura = ref<number>(0)
   const comprimento = ref<number>(0)
@@ -107,6 +109,49 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     return materialSelecionado.value.suc.Borda > 0
   })
 
+  const variacoes = computed<Variacao[]>(() => {
+    const m = materialSelecionado.value
+    if (!m) return []
+
+    const linhaId = linhaSelecionada.value?.id ?? 0
+    const tipoId = tipoSelecionado.value?.id ?? 0
+    const nivelId = nivelSelecionado.value?.id ?? 0
+
+    const vistos = new Set<number>()
+    const lista: Variacao[] = []
+
+    for (const p of catalogo.allProdutos) {
+      if (
+        p.material_id === m.id &&
+        p.linha_id === linhaId &&
+        p.tipo_id === tipoId &&
+        p.nivel_id === nivelId
+      ) {
+        for (const v of p._variacao ?? []) {
+          if (!vistos.has(v.id)) {
+            vistos.add(v.id)
+            lista.push(v)
+          }
+        }
+      }
+    }
+
+    return lista.sort((a, b) => a.ordem - b.ordem || a.id - b.id)
+  })
+
+  const mostrarVariacao = computed(() => variacoes.value.length > 0)
+
+  watch(mostrarVariacao, (val) => {
+    if (!val) variacaoSelecionada.value = null
+  })
+
+  watch(variacoes, (lista) => {
+    const sel = variacaoSelecionada.value
+    if (sel && !lista.some((v) => v.id === sel.id)) {
+      variacaoSelecionada.value = null
+    }
+  })
+
   async function carregarMateriais() {
     await catalogo.fetchCatalogo()
   }
@@ -118,6 +163,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
+    variacaoSelecionada.value = null
     resultado.value = null
   }
 
@@ -128,6 +174,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
+    variacaoSelecionada.value = null
     resultado.value = null
   }
 
@@ -183,6 +230,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
     if (mostrarBorda.value && bordas.value.length && !bordaSelecionada.value) {
       error.value = 'Selecione a borda'
+      return
+    }
+    if (mostrarVariacao.value && !variacaoSelecionada.value) {
+      error.value = 'Selecione a variação'
       return
     }
 
@@ -292,7 +343,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         tipo_fator_id: fator.id,
         fator_de_corte_id: fator.fator_de_corte_id,
         detalhe_id: produto.detalhe_id,
-        variacao_id: 0,
+        variacao_id: variacaoSelecionada.value?.id ?? 0,
         qtd: String(quantidade.value),
         vlr_cst_unit: r.func_1.Valor_Custo_Unit,
         vlr_cst_unit_ipi: r.func_1.Valor_Custo_IPI ?? null,
@@ -328,6 +379,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     tipoSelecionado.value = null
     nivelSelecionado.value = null
     bordaSelecionada.value = null
+    variacaoSelecionada.value = null
     largura.value = 0
     comprimento.value = 0
     quantidade.value = 1
@@ -401,6 +453,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     tipoSelecionado,
     nivelSelecionado,
     bordaSelecionada,
+    variacaoSelecionada,
+    variacoes,
     largura,
     comprimento,
     quantidade,
@@ -420,6 +474,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     mostrarTipo,
     mostrarNivel,
     mostrarBorda,
+    mostrarVariacao,
     carregarMateriais,
     selecionarMaterial,
     limparMaterial,

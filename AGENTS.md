@@ -38,18 +38,25 @@
 
 ### APIs consumidas
 
-- `GET /configuracoes` → `{ configuracoes-mae: [{ versao_materiais: N }] }` — chamada leve (~200 bytes)
-- `GET /produtos_para_selecao` → `{ lista_para_selecao: { Material: { material }, Linha, Tipo, Nivel, Borda } }` — chamada completa
+- `GET /configuracoes` → `{ configuracoes-mae: [{ versao_materiais: N, versao_produtos: M }] }` — chamada leve (~200 bytes)
+- `GET /produtos_para_selecao` → `{ lista_para_selecao: { Material: { material }, Linha, Tipo, Nivel, Borda } }` — árvore de dropdowns
+- `GET /produtos_all` → array de produtos com `_variacao[]` (produtos mães, filhos e variações); input zerado traz tudo
 
 ### Ciclo de vida (`fetchCatalogo()`)
+
+As duas partes (árvore de materiais e produtos) têm caches **independentes** e são baixadas separadamente — só a API cuja versão mudou é chamada (numa primeira carga sem cache, as duas são chamadas).
 
 | Etapa | Descrição |
 |---|---|
 | `loaded` da sessão | Se `true`, retorna imediatamente (0 chamadas de API) |
-| `/configuracoes` | Busca `versao_materiais` atual no servidor |
-| Cache localStorage (`orca_catalogo_cache`) | Se `cache.versao === versao_servidor`, popula estado do cache e retorna |
-| `/produtos_para_selecao` | Versão diferente ou sem cache → baixa tudo, salva cache com a versão atual |
+| `/configuracoes` | Busca `versao_materiais` **e** `versao_produtos` atuais no servidor (popula `versaoMateriais`/`versaoProdutos`/`versaoLabel`) |
+| Cache materiais (`orca_catalogo_materiais_cache`) | Se `cache.versao === versao_materiais`, popula árvore do cache; senão baixa `/produtos_para_selecao` e salva |
+| Cache produtos (`orca_catalogo_produtos_cache`) | Se `cache.versao === versao_produtos`, popula produtos do cache; senão baixa `/produtos_all` e salva |
 | `loaded = true` | Marca sessão como carregada |
+
+### Badge de versão no header
+
+`GlobalHeader` mostra `versaoLabel` (`M{versao_materiais}P{versao_produtos}`, ex. `M2P1`) como um badge clicável que abre um popover com os dois valores. Usa `catalogo.carregarConfiguracoes()` (só `/configuracoes`, sem baixar catálogo) no `onMounted`.
 
 ### Logout
 
@@ -60,6 +67,12 @@
 As refs `materiais`, `linhas`, `tipos`, `niveis`, `bordas` agora são **computed** que consomem `useCatalogoStore()`.  
 `carregarMateriais()` delega para `catalogo.fetchCatalogo()`.  
 `selecionarMaterial()` virou síncrona — apenas seta `materialSelecionado` + `catalogo.selectedMaterialId`.
+
+### Listbox de Variação
+
+Produtos com `detalhe_id > 0` no `produtos_all` têm `_variacao[]`. A store cruza a seleção atual (`material_id`, `linha_id ?? 0`, `tipo_id ?? 0`, `nivel_id ?? 0`) com os produtos e monta `variacoes` (união dos `_variacao`, dedupe por `id`, ordenado por `ordem`).  
+`mostrarVariacao` = `variacoes.length > 0`; `watch` limpa `variacaoSelecionada` ao ocultar ou quando sai da lista.  
+O `inserirOrcamento()` envia `variacao_id: variacaoSelecionada?.id ?? 0` (antes era `0` fixo). O cálculo (`CalculoValorVenda_IDs`) **não** recebe variação por enquanto.
 
 ### Exceção Vinil+Liso (`mostrarNivel`)
 
