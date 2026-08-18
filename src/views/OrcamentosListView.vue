@@ -25,6 +25,21 @@ interface OrcamentoRow {
   margem: number
   validade: string
   pedido_id: number
+  status?: string
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  RASCUNHO: 'Rascunho',
+  ENVIADO: 'Enviado',
+  AGUARDANDO_RETORNO: 'Aguardando retorno',
+  APROVADO: 'Aprovado',
+  FATURADO: 'Faturado',
+  RECUSADO: 'Recusado',
+  CANCELADO: 'Cancelado',
+}
+
+function statusLabel(status?: string): string {
+  return STATUS_LABELS[status ?? ''] ?? status ?? 'Rascunho'
 }
 
 const router = useRouter()
@@ -60,13 +75,24 @@ async function buscar() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const response = await xano.get('/api:-qqRIakp/orca_por_cliente_busca', {
-      busca: termo,
-      page: curPage.value,
-      per_page: perPage.value,
+    const [buscaRes, statusRes] = await Promise.all([
+      xano.get('/api:-qqRIakp/orca_por_cliente_busca', {
+        busca: termo,
+        page: curPage.value,
+        per_page: perPage.value,
+      }),
+      xano.get('/api:-qqRIakp/orcamento_status_lista'),
+    ])
+    const body = buscaRes.getBody() as any
+    const statusMap = new Map<number, string>()
+    const statusList = (statusRes.getBody() as any[]) ?? []
+    statusList.forEach((o: any) => {
+      if (o?.id != null && o?.status) statusMap.set(Number(o.id), o.status)
     })
-    const body = response.getBody() as any
-    const items = (body?.items ?? []) as OrcamentoRow[]
+    const items = ((body?.items ?? []) as OrcamentoRow[]).map((row) => ({
+      ...row,
+      status: statusMap.get(Number(row.id)) ?? row.status ?? 'RASCUNHO',
+    }))
     resultados.value = items
     const itemsReceived = body?.itemsReceived ?? items.length
     hasNext.value = !!body.nextPage && itemsReceived >= perPage.value
@@ -224,6 +250,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
               <th>CNPJ/CPF</th>
               <th>Total Venda</th>
               <th>Data</th>
+              <th>Status</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -235,27 +262,88 @@ async function excluirOrcamento(row: OrcamentoRow) {
               <td class="cell-doc">{{ row.cnpj || row.cpf || '-' }}</td>
               <td class="cell-valor">{{ formatarMoeda(row.vnd_tot) }}</td>
               <td class="cell-data">{{ formatarData(row.created_at) }}</td>
+              <td class="cell-status">
+                <span class="badge-status" :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`">
+                  {{ statusLabel(row.status) }}
+                </span>
+              </td>
               <td class="cell-acoes">
                 <template v-if="row.pedido_id === 0">
-                  <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">
-                    Editar
+                  <button class="btn-icon" title="Editar orçamento" @click="editarOrcamento(row)">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      <path d="m15 5 4 4" />
+                    </svg>
                   </button>
                   <button
-                    class="btn btn-sm btn-outline"
+                    class="btn-icon btn-icon-pdf"
                     :disabled="gerandoPdfDe === row.id"
+                    title="Baixar PDF"
                     @click="gerarPdf(row)"
                   >
-                    {{ gerandoPdfDe === row.id ? 'Gerando…' : 'PDF' }}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6" />
+                      <path d="M9 13h6" />
+                      <path d="M9 17h6" />
+                    </svg>
                   </button>
                   <button
-                    class="btn btn-sm btn-whatsapp"
+                    class="btn-icon btn-icon-whatsapp"
                     :disabled="enviandoWaDe === row.id"
+                    title="Enviar via WhatsApp"
                     @click="enviarWhatsApp(row)"
                   >
-                    {{ enviandoWaDe === row.id ? 'Enviando…' : 'WhatsApp' }}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"
+                      />
+                    </svg>
                   </button>
-                  <button class="btn btn-sm btn-danger-outline" @click="excluirOrcamento(row)">
-                    Excluir
+                  <button
+                    class="btn-icon btn-icon-danger"
+                    title="Excluir orçamento"
+                    @click="excluirOrcamento(row)"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      <line x1="10" x2="10" y1="11" y2="17" />
+                      <line x1="14" x2="14" y1="11" y2="17" />
+                    </svg>
                   </button>
                 </template>
                 <span v-else class="badge-pedido">Vinculado</span>
@@ -271,6 +359,14 @@ async function excluirOrcamento(row: OrcamentoRow) {
           <div class="orc-card-header">
             <span class="orc-card-cod">{{ row.cod_orca }}</span>
             <span class="orc-card-data">{{ formatarData(row.created_at) }}</span>
+          </div>
+          <div class="orc-card-status">
+            <span
+              class="badge-status"
+              :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`"
+            >
+              {{ statusLabel(row.status) }}
+            </span>
           </div>
           <div class="orc-card-body">
             <div class="orc-card-field">
@@ -292,23 +388,76 @@ async function excluirOrcamento(row: OrcamentoRow) {
           </div>
           <div class="orc-card-actions">
             <template v-if="row.pedido_id === 0">
-              <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">Editar</button>
+              <button class="btn-icon" title="Editar orçamento" @click="editarOrcamento(row)">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg>
+              </button>
               <button
-                class="btn btn-sm btn-outline"
+                class="btn-icon btn-icon-pdf"
                 :disabled="gerandoPdfDe === row.id"
+                title="Baixar PDF"
                 @click="gerarPdf(row)"
               >
-                {{ gerandoPdfDe === row.id ? 'Gerando…' : 'PDF' }}
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h6" />
+                </svg>
               </button>
               <button
-                class="btn btn-sm btn-whatsapp"
+                class="btn-icon btn-icon-whatsapp"
                 :disabled="enviandoWaDe === row.id"
+                title="Enviar via WhatsApp"
                 @click="enviarWhatsApp(row)"
               >
-                {{ enviandoWaDe === row.id ? 'Enviando…' : 'WhatsApp' }}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"
+                  />
+                </svg>
               </button>
-              <button class="btn btn-sm btn-danger-outline" @click="excluirOrcamento(row)">
-                Excluir
+              <button
+                class="btn-icon btn-icon-danger"
+                title="Excluir orçamento"
+                @click="excluirOrcamento(row)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <line x1="10" x2="10" y1="11" y2="17" />
+                  <line x1="14" x2="14" y1="11" y2="17" />
+                </svg>
               </button>
             </template>
             <span v-else class="badge-pedido">Vinculado</span>
@@ -460,6 +609,56 @@ async function excluirOrcamento(row: OrcamentoRow) {
   color: #fff;
 }
 
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--secondary, #6b7280);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: var(--primary);
+}
+
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-icon-pdf:hover:not(:disabled) {
+  color: #dc2626;
+}
+
+.btn-icon-whatsapp {
+  color: #25d366;
+}
+
+.btn-icon-whatsapp:hover:not(:disabled) {
+  background: #ecfdf5;
+  color: #1fb959;
+}
+
+.btn-icon-danger:hover:not(:disabled) {
+  background: #fef2f2;
+  color: var(--danger, #dc2626);
+}
+
 .badge-pedido {
   font-size: 0.7rem;
   font-weight: 700;
@@ -470,6 +669,57 @@ async function excluirOrcamento(row: OrcamentoRow) {
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   display: inline-block;
+}
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.badge-rascunho {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.badge-enviado,
+.badge-aguardando_retorno {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-aprovado {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-faturado {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-recusado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-cancelado {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.orc-card-status {
+  margin-top: 0.35rem;
+}
+
+.cell-status {
+  white-space: nowrap;
 }
 
 .loading-card p {
@@ -543,7 +793,8 @@ async function excluirOrcamento(row: OrcamentoRow) {
 
 .cell-acoes {
   display: flex;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 /* Pagination */
@@ -622,7 +873,10 @@ async function excluirOrcamento(row: OrcamentoRow) {
 
 .orc-card-actions {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.15rem;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 767px) {

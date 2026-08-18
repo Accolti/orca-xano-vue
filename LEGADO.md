@@ -72,3 +72,7 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 - PDF: nome `{codOrca}_{contato}-{fantasia/razao}_{dd-MM-yyyy HH-mm-ss}_.pdf`, descrição do item abaixo do item, seção Observações e toggle "Faturar para cliente".
 - WhatsApp: botão na tela finalizada e na listagem; mensagem montada no frontend (`montarTextoWhatsApp`); telefone do cliente com `tipo_telefone_id == 1` (addon `Telefone_Cliente_of_Cliente` no `orca_detalhes`).
 - Campo "Observações do Orçamento" movido para o card "Ajustar Orçamento" (abaixo do botão Aplicar); botão Aplicar na cor primária.
+- Margem (alvo) movida para a parte oculta (só com o olho); "Diferença Total c/ B2C" (preview simulado − total atual) no preview da negociação (oculto).
+- Status do orçamento: enum ganhou `AGUARDANDO_RETORNO`; endpoint `orcamento_status` (POST); badges na finalizada + listagem; fluxo RASCUNHO → AGUARDANDO_RETORNO → APROVADO → FATURADO (+ RECUSADO/CANCELADO).
+- Listagem: o enum `status` **não pode** ir no `output` de `db.query` paginado (`orca_por_cliente_busca` — erro `xdo.orca.cod_orca`). O status vem do endpoint auxiliar `orcamento_status_lista` (db.query simples) e é mesclado por `id` no frontend.
+- Referência de tabela base em `db.query` com join deve ser **maiúscula** (`$db.Orca.cod_orca`, `sort = {Orca.created_at: "desc"}`); minúscula (`$db.orca.cod_orca`, `{orca.created_at: ...}`) quebra com `xdo.orca.*`. `orca_por_cliente_id` (sort) e `orca_id_user` (where `$db.orca.cod_orca` + sort) ainda usam minúsculo (legado, não usados pelo frontend novo) — corrigir ao migrar.

@@ -357,6 +357,11 @@ const previewTotalB2C = computed(
     (maoDeObraResumo.value || 0),
 )
 
+// Diferença do Total c/ Frete B2C (preview simulado − total atual persistido)
+const diferencaTotalB2C = computed(
+  () => previewTotalB2C.value - (orcamentoStore.orcamentoHeader?.vnd_B2B_B2C_tot ?? 0),
+)
+
 function round2(n: number) {
   return Math.round(n * 100) / 100
 }
@@ -566,6 +571,38 @@ function imprimirPdf() {
 
 const enviandoWhatsApp = ref(false)
 
+// Status do orçamento (badge + fluxo de botões)
+const statusAtual = computed(() => orcamentoStore.orcamentoHeader?.status ?? 'RASCUNHO')
+const statusFinalizado = computed(() => ['APROVADO', 'FATURADO', 'RECUSADO', 'CANCELADO'].includes(statusAtual.value))
+const atualizandoStatus = ref(false)
+
+const STATUS_LABELS: Record<string, string> = {
+  RASCUNHO: 'Rascunho',
+  ENVIADO: 'Enviado',
+  AGUARDANDO_RETORNO: 'Aguardando retorno',
+  APROVADO: 'Aprovado',
+  FATURADO: 'Faturado',
+  RECUSADO: 'Recusado',
+  CANCELADO: 'Cancelado',
+}
+
+function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status
+}
+
+async function mudarStatus(status: string) {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return
+  atualizandoStatus.value = true
+  try {
+    await orcamentoStore.atualizarStatus(orcaId, status)
+  } catch {
+    /* error já definido no store */
+  } finally {
+    atualizandoStatus.value = false
+  }
+}
+
 async function enviarWhatsApp() {
   const codOrca = orcamentoStore.numeroOrcamento ?? codOrcaParam
   if (!codOrca) return
@@ -619,10 +656,6 @@ async function enviarWhatsApp() {
           <span>{{ clienteSelecionado.cnpj || clienteSelecionado.cpf || '' }}</span>
         </div>
         <div class="welcome-metrics">
-          <span class="metric"
-            ><strong>Margem:</strong>
-            {{ orcamentoStore.margemPersonalizada ?? margemPadrao }}%</span
-          >
           <span class="metric"
             ><strong>Frete B2B mínimo:</strong> {{ formatarMoeda(fretePadrao) }}</span
           >
@@ -1265,12 +1298,6 @@ async function enviarWhatsApp() {
                 <span class="totais-valor">{{ orcamentoStore.itensInseridos.length }}</span>
               </div>
               <div class="totais-item">
-                <span class="totais-label">Margem</span>
-                <span class="totais-valor"
-                  >{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span
-                >
-              </div>
-              <div class="totais-item">
                 <span class="totais-label">Desconto</span>
                 <span class="totais-valor">{{
                   formatarMoeda(orcamentoStore.orcamentoHeader?.desconto ?? 0)
@@ -1311,6 +1338,14 @@ async function enviarWhatsApp() {
                       0,
                   )
                 }}</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">Margem (Alvo)</span>
+                <span class="totais-valor">{{
+                  orcamentoStore.totaisRecalculo?.markup_alvo ??
+                  orcamentoStore.orcamentoHeader?.margem ??
+                  margemPadrao
+                }}%</span>
               </div>
               <div class="totais-item">
                 <span class="totais-label">Margem Efetiva</span>
@@ -1503,6 +1538,16 @@ async function enviarWhatsApp() {
                   }}</span>
                 </div>
                 <div class="preview-item">
+                  <span class="preview-label" title="Total simulado − Total c/ Frete B2C atual"
+                    >Diferença Total c/ B2C</span
+                  >
+                  <span
+                    class="preview-value"
+                    :class="diferencaTotalB2C >= 0 ? 'preview-pos' : 'preview-neg'"
+                    >{{ formatarMoeda(diferencaTotalB2C) }}</span
+                  >
+                </div>
+                <div class="preview-item">
                   <span class="preview-label">Custo Kapazi</span>
                   <span class="preview-value">{{ formatarMoeda(custoKapaziTotal) }}</span>
                 </div>
@@ -1687,10 +1732,6 @@ async function enviarWhatsApp() {
             }}</span>
           </div>
           <div class="resumo-total-item">
-            <span class="resumo-label">Margem</span>
-            <span>{{ orcamentoStore.orcamentoHeader?.margem ?? margemPadrao }}%</span>
-          </div>
-          <div class="resumo-total-item">
             <span class="resumo-label">Validade</span>
             <span>{{
               orcamentoStore.orcamentoHeader?.validade
@@ -1718,6 +1759,14 @@ async function enviarWhatsApp() {
                   0,
               )
             }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Margem (Alvo)</span>
+            <span>{{
+              orcamentoStore.totaisRecalculo?.markup_alvo ??
+              orcamentoStore.orcamentoHeader?.margem ??
+              margemPadrao
+            }}%</span>
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Margem Efetiva</span>
@@ -1762,6 +1811,55 @@ async function enviarWhatsApp() {
         <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
           <h3>Observações</h3>
           <p>{{ orcamentoStore.orcamentoHeader.observacao }}</p>
+        </div>
+
+        <div class="status-card">
+          <span class="badge-status" :class="`badge-${statusAtual.toLowerCase()}`">
+            {{ statusLabel(statusAtual) }}
+          </span>
+
+          <div v-if="!isVinculado && !statusFinalizado" class="status-actions">
+            <button
+              v-if="statusAtual === 'RASCUNHO'"
+              class="btn btn-primary btn-sm"
+              :disabled="atualizandoStatus"
+              @click="mudarStatus('AGUARDANDO_RETORNO')"
+            >
+              Enviar
+            </button>
+            <button
+              v-if="statusAtual === 'AGUARDANDO_RETORNO' || statusAtual === 'ENVIADO'"
+              class="btn btn-primary btn-sm"
+              :disabled="atualizandoStatus"
+              @click="mudarStatus('APROVADO')"
+            >
+              Aprovar
+            </button>
+            <button
+              v-if="statusAtual === 'APROVADO'"
+              class="btn btn-primary btn-sm"
+              :disabled="atualizandoStatus"
+              @click="mudarStatus('FATURADO')"
+            >
+              Faturar
+            </button>
+            <button
+              v-if="statusAtual !== 'FATURADO' && statusAtual !== 'APROVADO'"
+              class="btn btn-sm btn-danger-outline"
+              :disabled="atualizandoStatus"
+              @click="mudarStatus('RECUSADO')"
+            >
+              Recusar
+            </button>
+            <button
+              v-if="statusAtual !== 'FATURADO'"
+              class="btn btn-sm btn-outline"
+              :disabled="atualizandoStatus"
+              @click="mudarStatus('CANCELADO')"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
 
         <div class="btn-row resumo-actions">
@@ -2853,6 +2951,75 @@ async function enviarWhatsApp() {
 .preview-total {
   font-weight: 700;
   color: #16a34a;
+}
+
+.preview-pos {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.preview-neg {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.status-card {
+  max-width: 600px;
+  margin: 1.25rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-rascunho {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.badge-enviado,
+.badge-aguardando_retorno {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-aprovado {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-faturado {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-recusado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-cancelado {
+  background: #e5e7eb;
+  color: #374151;
 }
 
 @media (max-width: 480px) {

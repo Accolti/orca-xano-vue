@@ -889,6 +889,22 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     await recalcularTotais(orcaId, { desconto: valor })
   }
 
+  // Atualiza o status do orçamento (RASCUNHO → AGUARDANDO_RETORNO → APROVADO → FATURADO)
+  async function atualizarStatus(orcaId: number, status: string) {
+    try {
+      const response = await xano.post('/api:-qqRIakp/orcamento_status', {
+        orca_id: orcaId,
+        status,
+      })
+      const body = response.getBody() as any
+      orcamentoHeader.value = body?.ORCA_1 ?? orcamentoHeader.value
+    } catch (err: any) {
+      console.error('Erro ao atualizar status:', err)
+      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar status'
+      throw err
+    }
+  }
+
   return {
     materiais,
     linhas,
@@ -943,6 +959,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     removerItem,
     definirFreteB2C,
     definirDesconto,
+    atualizarStatus,
     definirMargemPersonalizada,
     definirFretePersonalizado,
     limparPersonalizacoes,
