@@ -3,6 +3,9 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { xano } from '@/services/xano'
 import { useOrcamentoStore } from '@/stores/orcamento'
+import { useAuthStore } from '@/stores/auth'
+import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, abrirWhatsApp } from '@/services/pdf'
+import type { Cliente } from '@/types/cliente'
 
 interface OrcamentoRow {
   id: number
@@ -26,11 +29,13 @@ interface OrcamentoRow {
 
 const router = useRouter()
 const orcamentoStore = useOrcamentoStore()
+const authStore = useAuthStore()
 
 const termoBusca = ref('')
 const resultados = ref<OrcamentoRow[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const gerandoPdfDe = ref<number | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const curPage = ref(1)
@@ -100,6 +105,78 @@ function editarOrcamento(row: OrcamentoRow) {
   router.push(`/orcamentos/${row.cod_orca}`)
 }
 
+async function gerarPdf(row: OrcamentoRow) {
+  gerandoPdfDe.value = row.id
+  try {
+    await orcamentoStore.carregarOrcamento(row.cod_orca)
+    const header = orcamentoStore.orcamentoHeader
+    const cliente = montarClienteDoHeader(header)
+    gerarPdfOrcamento({
+      header,
+      itens: orcamentoStore.itensInseridos,
+      cliente,
+      user: authStore.user,
+    })
+  } catch {
+    errorMsg.value = 'Erro ao gerar o PDF'
+  } finally {
+    gerandoPdfDe.value = null
+  }
+}
+
+const enviandoWaDe = ref<number | null>(null)
+
+function montarClienteDoHeader(header: any): Cliente | null {
+  const c = header?._cliente
+  if (!c) return null
+  return {
+    id: c.id,
+    razao_social: c.razao_social || '',
+    nome_fantasia: c.nome_fantasia || '',
+    contato: c.contato || '',
+    cpf: c.cpf || '',
+    nome_cpf: c.nome_cpf || '',
+    cnpj: c.cnpj || '',
+    inscricao_estadual: c.inscricao_estadual || '',
+    'e-mail': c['e-mail'] || '',
+    contribui_icms: c.contribui_icms ?? false,
+    isento: c.isento ?? false,
+    observacao: c.observacao || '',
+    user_id: c.user_id ?? 0,
+    beneficio_fiscal_id: c.beneficio_fiscal_id ?? null,
+    mercado_id: c.mercado_id ?? null,
+    ramo_id: c.ramo_id ?? null,
+    regime_id: c.regime_id ?? null,
+    created_at: c.created_at ?? 0,
+    _enderecos: c._enderecos ?? [],
+    _telefone_cliente_of_cliente: c._telefone_cliente_of_cliente ?? [],
+  }
+}
+
+async function enviarWhatsApp(row: OrcamentoRow) {
+  enviandoWaDe.value = row.id
+  try {
+    await orcamentoStore.carregarOrcamento(row.cod_orca)
+    const header = orcamentoStore.orcamentoHeader
+    const cliente = montarClienteDoHeader(header)
+    const telefone = obterWhatsappCliente(cliente)
+    if (!telefone) {
+      errorMsg.value = `Cliente sem telefone cadastrado (tipo 1) em ${row.cod_orca}`
+      return
+    }
+    const mensagem = montarTextoWhatsApp({
+      header,
+      itens: orcamentoStore.itensInseridos,
+      cliente,
+    })
+    abrirWhatsApp(telefone, mensagem)
+  } catch {
+    errorMsg.value = 'Erro ao gerar o WhatsApp'
+  } finally {
+    enviandoWaDe.value = null
+  }
+}
+
 async function excluirOrcamento(row: OrcamentoRow) {
   if (!confirm(`Excluir orçamento ${row.cod_orca}?`)) return
   try {
@@ -163,6 +240,20 @@ async function excluirOrcamento(row: OrcamentoRow) {
                   <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">
                     Editar
                   </button>
+                  <button
+                    class="btn btn-sm btn-outline"
+                    :disabled="gerandoPdfDe === row.id"
+                    @click="gerarPdf(row)"
+                  >
+                    {{ gerandoPdfDe === row.id ? 'Gerando…' : 'PDF' }}
+                  </button>
+                  <button
+                    class="btn btn-sm btn-whatsapp"
+                    :disabled="enviandoWaDe === row.id"
+                    @click="enviarWhatsApp(row)"
+                  >
+                    {{ enviandoWaDe === row.id ? 'Enviando…' : 'WhatsApp' }}
+                  </button>
                   <button class="btn btn-sm btn-danger-outline" @click="excluirOrcamento(row)">
                     Excluir
                   </button>
@@ -202,6 +293,20 @@ async function excluirOrcamento(row: OrcamentoRow) {
           <div class="orc-card-actions">
             <template v-if="row.pedido_id === 0">
               <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">Editar</button>
+              <button
+                class="btn btn-sm btn-outline"
+                :disabled="gerandoPdfDe === row.id"
+                @click="gerarPdf(row)"
+              >
+                {{ gerandoPdfDe === row.id ? 'Gerando…' : 'PDF' }}
+              </button>
+              <button
+                class="btn btn-sm btn-whatsapp"
+                :disabled="enviandoWaDe === row.id"
+                @click="enviarWhatsApp(row)"
+              >
+                {{ enviandoWaDe === row.id ? 'Enviando…' : 'WhatsApp' }}
+              </button>
               <button class="btn btn-sm btn-danger-outline" @click="excluirOrcamento(row)">
                 Excluir
               </button>
@@ -341,6 +446,18 @@ async function excluirOrcamento(row: OrcamentoRow) {
 
 .btn-danger-outline:hover {
   background: #fef2f2;
+}
+
+.btn-whatsapp {
+  background: #25d366;
+  border-color: #25d366;
+  color: #fff;
+}
+
+.btn-whatsapp:hover:not(:disabled) {
+  background: #1fb959;
+  border-color: #1fb959;
+  color: #fff;
 }
 
 .badge-pedido {

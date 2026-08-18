@@ -76,6 +76,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       frete_b2b_total: Number(h.frtB2B) || 0,
       desconto: Number(h.desconto) || 0,
       frtB2C: Number(h.frtB2C) || 0,
+      mao_de_obra: Number(h.mao_de_obra) || 0,
       ipi_tot: Number(h.vlr_ipi_tot) || 0,
       st_tot: Number(h.vlr_st_tot) || 0,
       difal_tot: Number(h.valor_difal_tot) || 0,
@@ -532,7 +533,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
-  async function inserirOrcamento(cliente_id: number, descricao: string, existingCodOrca?: string) {
+  async function inserirOrcamento(
+    cliente_id: number,
+    descricao: string,
+    existingCodOrca?: string,
+    observacao?: string,
+  ) {
     if (!resultado.value && !resultadoNovo.value) {
       error.value = 'Calcule o orçamento primeiro'
       return
@@ -580,6 +586,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
             margemPersonalizada.value ??
             authIns.user?.margem ??
             0,
+          observacao: observacao ?? '',
           produto_id: it.produto_id ?? 0,
           ipi: it.ipi ?? materialSelecionado.value?.ipi ?? null,
           imp: 0,
@@ -644,6 +651,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
             margemPersonalizada.value ??
             authIns.user?.margem ??
             0,
+          observacao: observacao ?? '',
           produto_id: produto.id,
           ipi: materialSelecionado.value?.ipi ?? null,
           imp: materialSelecionado.value?.imp ?? null,
@@ -813,10 +821,16 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     fretePersonalizado.value = null
   }
 
-  // Recálculo dinâmico por somatório (markup efetivo, frete B2C, desconto)
+  // Recálculo dinâmico por somatório (markup efetivo, frete B2C, desconto, mão de obra)
   async function recalcularTotais(
     orcaId: number,
-    opts?: { newMargem?: number; frtB2C?: number; desconto?: number },
+    opts?: {
+      newMargem?: number
+      frtB2C?: number
+      desconto?: number
+      maoDeObra?: number
+      observacao?: string
+    },
   ) {
     carregandoOrcamento.value = true
     error.value = null
@@ -826,6 +840,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         newMargem: opts?.newMargem,
         frtB2C: opts?.frtB2C,
         desconto: opts?.desconto,
+        maoDeObra: opts?.maoDeObra,
+        observacao: opts?.observacao,
       })
       const body = response.getBody() as any
       console.log('[recalcularTotais] resposta', {

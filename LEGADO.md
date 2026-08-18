@@ -30,7 +30,7 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 | `calculo_valor_venda` | PARA EXCLUIR | orquestrador |
 | `f_calculo_valor_venda_ids` | PARA EXCLUIR | orquestrador |
 | `f_modulo_calcula_valor_venda` | PARA EXCLUIR | orquestrador |
-| `External API PDF` | PARA EXCLUIR (CraftMyPDF aposentado) | PDF no frontend (pdfmake, futuro) |
+| `External API PDF` | PARA EXCLUIR (CraftMyPDF aposentado) | PDF no frontend (`src/services/pdf.ts`) |
 | `fpdf_teste` | PARA EXCLUIR (teste) | — |
 | `Item_alterar_margem` | EM USO (via `orca_change`) | revisar ao migrar pedido |
 | `post_orca` | EM USO (via `OrcamentoItem_Inserir`) | revisar |
@@ -44,7 +44,7 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 |---|---|---|
 | `Orcamento_Detalhes` GET | PARA EXCLUIR (quebrado) | `orca_por_codigo` + `orcamento_recalcular` |
 | `Orcamento_Detalhes_OLD` GET | PARA EXCLUIR | acima |
-| `CriarOrcamentoPdf` POST | PARA EXCLUIR (CraftMyPDF) | PDF no frontend (futuro) |
+| `CriarOrcamentoPdf` POST | PARA EXCLUIR (CraftMyPDF) | PDF no frontend (`src/services/pdf.ts`) |
 | `Calc_new_Valor_Venda` GET | PARA EXCLUIR | simulação em memória (frontend) |
 | `Calc_new_Valor_Lucro` GET | PARA EXCLUIR | simulação em memória (frontend) |
 | `calculo_valor_venda_ids` GET | PARA EXCLUIR | orquestrador |
@@ -63,5 +63,12 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 ## Próximos passos
 1. Validar edição de orçamento (ORC12439 abre com cliente/descrição/negociação)
 2. Validar WhatsApp e Pedido com `Orcamento_Detalhes_v2`
-3. Gerar PDF no frontend (pdfmake)
+3. ~~Gerar PDF no frontend (pdfmake)~~ → feito (`src/services/pdf.ts`; `/auth/me` expõe `_telefones`; `orca_detalhes` expõe `_enderecos`)
 4. Excluir os itens `PARA EXCLUIR` no dashboard
+
+## Notas (`mao_de_obra` / `observacao`)
+- Tabela `Orca` ganhou `mao_de_obra` (soma apenas no Total Geral `vnd_B2B_B2C_tot`, não altera lucro/margem) e `observacao` (texto livre, impresso no final do PDF).
+- `Orcamento_Recalcular_Totais` e `orcamento_recalcular` aceitam/persistem ambos; `OrcamentoItem_Inserir`/`post_orca` gravam a observação na criação.
+- PDF: nome `{codOrca}_{contato}-{fantasia/razao}_{dd-MM-yyyy HH-mm-ss}_.pdf`, descrição do item abaixo do item, seção Observações e toggle "Faturar para cliente".
+- WhatsApp: botão na tela finalizada e na listagem; mensagem montada no frontend (`montarTextoWhatsApp`); telefone do cliente com `tipo_telefone_id == 1` (addon `Telefone_Cliente_of_Cliente` no `orca_detalhes`).
+- Campo "Observações do Orçamento" movido para o card "Ajustar Orçamento" (abaixo do botão Aplicar); botão Aplicar na cor primária.

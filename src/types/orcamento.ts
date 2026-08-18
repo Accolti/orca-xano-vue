@@ -255,6 +255,7 @@ export interface OrcamentoInsertPayload {
   frtB2C: number | null
   validade: string
   margem: number
+  observacao?: string
   produto_id: number
   ipi: number | null
   imp: number | null

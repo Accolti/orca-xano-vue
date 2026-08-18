@@ -23,6 +23,7 @@ export interface User {
   isPJ: number
   uf?: string
   regime_id?: number
+  _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
 }
 
 export const useAuthStore = defineStore('auth', () => {

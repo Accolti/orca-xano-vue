@@ -5,6 +5,7 @@ import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import { useClienteStore } from '@/stores/cliente'
 import { useCatalogoStore } from '@/stores/catalogo'
+import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, abrirWhatsApp } from '@/services/pdf'
 import { xano } from '@/services/xano'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
@@ -23,6 +24,7 @@ const clienteStore = useClienteStore()
 const catalogo = useCatalogoStore()
 
 const observacao = ref('')
+const observacaoOrcamento = ref('')
 const mostrarCustos = ref(false)
 const mostrarCustosHeader = ref(false)
 const simulacaoModalOpen = ref(false)
@@ -122,6 +124,8 @@ onMounted(async () => {
     orcamentoStore.resetar()
     limparCliente()
     observacao.value = ''
+    observacaoOrcamento.value = ''
+    faturarCliente.value = false
     mostrarCustos.value = false
     mostrarCustosHeader.value = false
     simulacaoSelecionada.value = null
@@ -157,6 +161,8 @@ onMounted(async () => {
           ramo_id: c.ramo_id ?? null,
           regime_id: c.regime_id ?? null,
           created_at: c.created_at ?? 0,
+          _enderecos: c._enderecos ?? [],
+          _telefone_cliente_of_cliente: c._telefone_cliente_of_cliente ?? [],
         }
       }
     } catch {
@@ -212,6 +218,7 @@ async function handleInserir() {
         clienteSelecionado.value.id,
         observacao.value,
         isEditMode.value ? codOrcaParam : undefined,
+        observacaoOrcamento.value,
       )
     }
     inserirOk.value = true
@@ -236,6 +243,8 @@ function novoOrcamento() {
   orcamentoStore.resetar()
   limparCliente()
   observacao.value = ''
+  observacaoOrcamento.value = ''
+  faturarCliente.value = false
   mostrarCustos.value = false
   mostrarCustosHeader.value = false
   simulacaoSelecionada.value = null
@@ -318,7 +327,9 @@ const novoLucroResumo = ref(0)
 const margemRealResumo = ref(0)
 const freteB2CResumo = ref(0)
 const descontoResumo = ref(0)
+const maoDeObraResumo = ref(0)
 const recaleError = ref<string | null>(null)
+const faturarCliente = ref(false)
 
 // Custo de entrada + frete B2B (fixo na negociação)
 const custoTotalBase = computed(() => orcamentoStore.orcamentoHeader?.cst_tot ?? 0)
@@ -340,7 +351,10 @@ const previewMargemEfetiva = computed(() => {
   return round2(((novoValorVendaResumo.value - cst) / cst) * 100)
 })
 const previewTotalB2C = computed(
-  () => (novoValorVendaResumo.value || 0) + (freteB2CResumo.value || 0),
+  () =>
+    (novoValorVendaResumo.value || 0) +
+    (freteB2CResumo.value || 0) +
+    (maoDeObraResumo.value || 0),
 )
 
 function round2(n: number) {
@@ -357,6 +371,8 @@ function sincronizarSimulacao() {
   novoLucroResumo.value = header?.luc_tot ?? 0
   descontoResumo.value = totais?.desconto ?? header?.desconto ?? 0
   freteB2CResumo.value = totais?.frtB2C ?? header?.frtB2C ?? 0
+  maoDeObraResumo.value = totais?.mao_de_obra ?? header?.mao_de_obra ?? 0
+  observacaoOrcamento.value = header?.observacao ?? ''
   const vendaFinal = novoValorVendaResumo.value
   const cst = custoTotalBase.value
   margemRealResumo.value =
@@ -455,11 +471,15 @@ async function aplicarNegociacao() {
       newMargem: novaMargemResumo.value,
       desconto: Number(descontoResumo.value) || 0,
       frtB2C: Number(freteB2CResumo.value) || 0,
+      maoDeObra: Number(maoDeObraResumo.value) || 0,
+      observacao: observacaoOrcamento.value,
     })
     await orcamentoStore.recalcularTotais(orcaId, {
       newMargem: novaMargemResumo.value,
       desconto: Number(descontoResumo.value) || 0,
       frtB2C: Number(freteB2CResumo.value) || 0,
+      maoDeObra: Number(maoDeObraResumo.value) || 0,
+      observacao: observacaoOrcamento.value,
     })
     sincronizarSimulacao()
   } catch (err: any) {
@@ -530,8 +550,50 @@ async function removerItem(item: any, idx: number) {
   }
 }
 
-function formatarMoeda(valor: number): string {
-  return `R$ ${valor.toFixed(2).replace('.', ',')}`
+function formatarMoeda(valor: number | string | null | undefined): string {
+  return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function imprimirPdf() {
+  gerarPdfOrcamento({
+    header: orcamentoStore.orcamentoHeader,
+    itens: orcamentoStore.itensInseridos,
+    cliente: clienteSelecionado.value,
+    user: authStore.user,
+    faturar: faturarCliente.value,
+  })
+}
+
+const enviandoWhatsApp = ref(false)
+
+async function enviarWhatsApp() {
+  const codOrca = orcamentoStore.numeroOrcamento ?? codOrcaParam
+  if (!codOrca) return
+  enviandoWhatsApp.value = true
+  try {
+    // Garante telefones do cliente no header (_cliente._telefone_cliente_of_cliente)
+    const header = orcamentoStore.orcamentoHeader
+    if (!header?._cliente?._telefone_cliente_of_cliente?.length) {
+      await orcamentoStore.carregarOrcamento(codOrca)
+    }
+    const h = orcamentoStore.orcamentoHeader
+    const telefone = obterWhatsappCliente(h?._cliente ?? null)
+    if (!telefone) {
+      alert('Cliente sem telefone cadastrado (tipo 1).')
+      return
+    }
+    const mensagem = montarTextoWhatsApp({
+      header: h,
+      itens: orcamentoStore.itensInseridos,
+      cliente: h?._cliente ?? null,
+      faturar: faturarCliente.value,
+    })
+    abrirWhatsApp(telefone, mensagem)
+  } catch (err: any) {
+    alert(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao gerar o WhatsApp')
+  } finally {
+    enviandoWhatsApp.value = false
+  }
 }
 </script>
 
@@ -1097,11 +1159,11 @@ function formatarMoeda(valor: number): string {
           <h3 class="section-title">Finalização</h3>
 
           <div class="field">
-            <label>Descrição / Observação</label>
+            <label>Descrição do Item</label>
             <textarea
               v-model="observacao"
-              placeholder="Observações do orçamento..."
-              rows="3"
+              placeholder="Descrição adicional do item..."
+              rows="2"
             ></textarea>
           </div>
 
@@ -1377,9 +1439,32 @@ function formatarMoeda(valor: number): string {
                   </div>
                 </div>
 
+                <div class="recalc-item">
+                  <label>Mão de Obra (R$)</label>
+                  <div class="novo-valor-wrap">
+                    <input
+                      v-model.number="maoDeObraResumo"
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      class="input-num"
+                      @input="simularPorFreteB2C"
+                    />
+                  </div>
+                </div>
+
                 <div class="recalc-item recalc-item-action">
                   <button class="btn btn-primary btn-sm" @click="aplicarNegociacao">Aplicar</button>
                 </div>
+              </div>
+
+              <div class="recalc-obs">
+                <label>Observações do Orçamento</label>
+                <textarea
+                  v-model="observacaoOrcamento"
+                  placeholder="Informações importantes para o cliente..."
+                  rows="3"
+                ></textarea>
               </div>
 
               <div class="recalc-preview">
@@ -1401,7 +1486,21 @@ function formatarMoeda(valor: number): string {
                 </div>
                 <div class="preview-item">
                   <span class="preview-label">Total c/ Frete B2C</span>
-                  <span class="preview-value">{{ formatarMoeda(previewTotalB2C) }}</span>
+                  <span class="preview-value">{{
+                    formatarMoeda(
+                      (novoValorVendaResumo || 0) + (freteB2CResumo || 0),
+                    )
+                  }}</span>
+                </div>
+                <div class="preview-item">
+                  <span class="preview-label">Mão de Obra</span>
+                  <span class="preview-value">{{ formatarMoeda(maoDeObraResumo) }}</span>
+                </div>
+                <div class="preview-item">
+                  <span class="preview-label">Total Geral</span>
+                  <span class="preview-value preview-total">{{
+                    formatarMoeda(previewTotalB2C)
+                  }}</span>
                 </div>
                 <div class="preview-item">
                   <span class="preview-label">Custo Kapazi</span>
@@ -1576,6 +1675,12 @@ function formatarMoeda(valor: number): string {
             }}</span>
           </div>
           <div class="resumo-total-item">
+            <span class="resumo-label">Mão de Obra</span>
+            <span class="resumo-preco">{{
+              formatarMoeda(orcamentoStore.orcamentoHeader?.mao_de_obra ?? 0)
+            }}</span>
+          </div>
+          <div class="resumo-total-item">
             <span class="resumo-label">Total c/ Frete B2C</span>
             <span class="resumo-preco resumo-b2b">{{
               formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_B2C_tot ?? 0)
@@ -1654,9 +1759,24 @@ function formatarMoeda(valor: number): string {
           </div>
         </div>
 
+        <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
+          <h3>Observações</h3>
+          <p>{{ orcamentoStore.orcamentoHeader.observacao }}</p>
+        </div>
+
         <div class="btn-row resumo-actions">
           <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
-          <button class="btn btn-secondary btn-lg" disabled>Imprimir (em breve)</button>
+          <div class="switch-wrap">
+            <label class="switch">
+              <input type="checkbox" v-model="faturarCliente" />
+              <span class="slider"></span>
+            </label>
+            <span class="switch-label">Faturar para cliente</span>
+          </div>
+          <button class="btn btn-whatsapp btn-lg" :disabled="enviandoWhatsApp" @click="enviarWhatsApp">
+            {{ enviandoWhatsApp ? 'Enviando…' : 'WhatsApp' }}
+          </button>
+          <button class="btn btn-secondary btn-lg" @click="imprimirPdf">Imprimir</button>
         </div>
       </section>
     </template>
@@ -1930,6 +2050,15 @@ function formatarMoeda(valor: number): string {
   background: #e5e7eb;
 }
 
+.btn-whatsapp {
+  background: #25d366;
+  color: #fff;
+}
+
+.btn-whatsapp:hover:not(:disabled) {
+  background: #1fb959;
+}
+
 .btn-lg {
   flex: 1;
   padding: 0.65rem 1.25rem;
@@ -2104,6 +2233,35 @@ function formatarMoeda(valor: number): string {
 
 .recalc-item-action .btn {
   width: 100%;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.recalc-item-action .btn:hover:not(:disabled) {
+  background: var(--primary-light);
+}
+
+.recalc-obs {
+  margin-top: 0.85rem;
+}
+
+.recalc-obs label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+.recalc-obs textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
 }
 
 .recalc-preview {
@@ -2611,6 +2769,90 @@ function formatarMoeda(valor: number): string {
 
 .resumo-actions {
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.resumo-obs {
+  max-width: 600px;
+  margin: 1.25rem auto;
+  padding: 0.9rem 1.1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.resumo-obs h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+  color: #334155;
+}
+
+.resumo-obs p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+  white-space: pre-wrap;
+}
+
+.switch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.switch-label {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #cbd5e1;
+  transition: 0.2s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: '';
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 3px;
+  background-color: #fff;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.switch input:checked + .slider {
+  background-color: var(--primary, #16a34a);
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+.preview-total {
+  font-weight: 700;
+  color: #16a34a;
 }
 
 @media (max-width: 480px) {

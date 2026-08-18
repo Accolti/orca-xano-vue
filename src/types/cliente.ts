@@ -46,6 +46,24 @@ export interface Cliente {
   ramo_id: number
   regime_id: number
   created_at: number
+  _enderecos?: Array<{
+    id?: number
+    Tipo?: string
+    endereco?: string
+    numero?: string
+    complemento?: string
+    cep?: string
+    bairro?: string
+    cidade?: string
+    estado?: string
+  }>
+  _telefone_cliente_of_cliente?: Array<{
+    id: number
+    cliente_id?: number
+    tipo_telefone_id: number
+    telefone: string
+    descricao?: string
+  }>
 }
 
 export const defaultForm: ClienteForm = {
