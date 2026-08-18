@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import { useClienteStore } from '@/stores/cliente'
+import { useCatalogoStore } from '@/stores/catalogo'
 import { xano } from '@/services/xano'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
@@ -19,6 +20,7 @@ const isVinculado = computed(() => (orcamentoStore.orcamentoHeader?.pedido_id ??
 const orcamentoStore = useOrcamentoStore()
 const authStore = useAuthStore()
 const clienteStore = useClienteStore()
+const catalogo = useCatalogoStore()
 
 const observacao = ref('')
 const mostrarCustos = ref(false)
@@ -190,6 +192,7 @@ const inserirOk = ref(false)
 const mostrarResumo = ref(false)
 const finalizando = ref(false)
 const resumoAberto = ref(true)
+const editandoItemId = ref<number | null>(null)
 
 const validadeCalculada = computed(() => {
   const dias = authStore.user?.DiasVencimentoOrcamento ?? 15
@@ -201,16 +204,27 @@ async function handleInserir() {
   if (!clienteSelecionado.value) return
   inserirOk.value = false
   try {
-    await orcamentoStore.inserirOrcamento(
-      clienteSelecionado.value.id,
-      observacao.value,
-      isEditMode.value ? codOrcaParam : undefined,
-    )
+    if (editandoItemId.value) {
+      await orcamentoStore.atualizarItem(editandoItemId.value, observacao.value)
+      editandoItemId.value = null
+    } else {
+      await orcamentoStore.inserirOrcamento(
+        clienteSelecionado.value.id,
+        observacao.value,
+        isEditMode.value ? codOrcaParam : undefined,
+      )
+    }
     inserirOk.value = true
     observacao.value = ''
   } catch {
     /* error já definido no store */
   }
+}
+
+function cancelarEdicaoItem() {
+  editandoItemId.value = null
+  orcamentoStore.limparFormItem()
+  observacao.value = ''
 }
 
 function handleFinalizar() {
@@ -464,7 +478,46 @@ function voltarLista() {
 }
 
 function editarItem(item: any) {
-  // TODO: implementar com API do endpoint de atualização de item
+  if (!item?.id) return
+  // Resolve o produto do catálogo pelo produto_id do item
+  const prod = catalogo.allProdutos.find((p) => p.produto_id === item.produto_id)
+  const material = catalogo.allMaterials.find((m) => m.id === (prod?.material_id ?? item.material_id))
+
+  editandoItemId.value = item.id
+  orcamentoStore.limparFormItem()
+
+  if (!material) {
+    console.warn('Material do item não encontrado no catálogo', item)
+    return
+  }
+  orcamentoStore.selecionarMaterial(material)
+
+  const linha =
+    catalogo.allLinhas.find((l) => l.id === (item.linha_id ?? prod?.linha_id ?? 0)) ?? null
+  const tipo = catalogo.allTipos.find((t) => t.id === (item.tipo_id ?? prod?.tipo_id ?? 0)) ?? null
+  const nivel =
+    catalogo.allNiveis.find((n) => n.id === (item.nivel_id ?? prod?.nivel_id ?? 0)) ?? null
+  const borda = catalogo.allBordas.find((b) => b.id === (item.borda_id ?? 0)) ?? null
+
+  if (linha) orcamentoStore.linhaSelecionada = linha
+  if (tipo) orcamentoStore.tipoSelecionado = tipo
+  if (nivel) orcamentoStore.nivelSelecionado = nivel
+  if (borda) orcamentoStore.bordaSelecionada = borda
+
+  if (item.variacao_id) {
+    const varItem = orcamentoStore.variacoes.find((v) => v.id === item.variacao_id)
+    if (varItem) orcamentoStore.variacaoSelecionada = varItem
+  }
+
+  orcamentoStore.largura = item.larg ?? 0
+  orcamentoStore.comprimento = item.comp ?? 0
+  orcamentoStore.quantidade = item.qtd ?? 1
+  if (orcamentoStore.ehML) {
+    orcamentoStore.areaML = item.area_calc ?? 0
+    modoEntradaML.value = item.area_calc ? 'area' : 'dimensoes'
+  }
+  observacao.value = item.descricao ?? ''
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function removerItem(item: any, idx: number) {
@@ -1069,12 +1122,19 @@ function formatarMoeda(valor: number): string {
               "
               @click="handleInserir"
             >
-              {{ orcamentoStore.inserindo ? 'Inserindo…' : 'Adicionar Item' }}
+              {{ orcamentoStore.inserindo ? 'Salvando…' : editandoItemId ? 'Salvar Alterações' : 'Adicionar Item' }}
+            </button>
+            <button
+              v-if="editandoItemId"
+              class="btn btn-outline btn-lg"
+              @click="cancelarEdicaoItem"
+            >
+              ✕ Cancelar edição
             </button>
           </div>
 
           <p v-if="inserirOk" class="success-msg">
-            Item adicionado ao orçamento {{ orcamentoStore.numeroOrcamento }}!
+            {{ editandoItemId ? 'Item atualizado!' : `Item adicionado ao orçamento ${orcamentoStore.numeroOrcamento}!` }}
           </p>
           <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
         </section>
@@ -1195,6 +1255,30 @@ function formatarMoeda(valor: number): string {
                 <span class="totais-valor">{{
                   orcamentoStore.totaisRecalculo?.margem ?? 0
                 }}%</span>
+              </div>
+              <div class="totais-item">
+                <span class="totais-label">IPI</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.totaisRecalculo?.ipi_tot ?? 0)
+                }}</span>
+              </div>
+              <div v-if="(orcamentoStore.totaisRecalculo?.credito_icms_tot ?? 0) > 0" class="totais-item">
+                <span class="totais-label">ICMS (Crédito)</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.totaisRecalculo?.credito_icms_tot ?? 0)
+                }}</span>
+              </div>
+              <div v-if="(orcamentoStore.totaisRecalculo?.st_tot ?? 0) > 0" class="totais-item">
+                <span class="totais-label">ICMS-ST</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.totaisRecalculo?.st_tot ?? 0)
+                }}</span>
+              </div>
+              <div v-if="(orcamentoStore.totaisRecalculo?.difal_tot ?? 0) > 0" class="totais-item">
+                <span class="totais-label">DIFAL</span>
+                <span class="totais-valor">{{
+                  formatarMoeda(orcamentoStore.totaisRecalculo?.difal_tot ?? 0)
+                }}</span>
               </div>
             </div>
             <div class="totais-validade">
@@ -1427,7 +1511,10 @@ function formatarMoeda(valor: number): string {
 
     <template v-else>
       <section class="card resumo-card">
-        <h2>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</h2>
+        <div class="resumo-top">
+          <h2>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</h2>
+          <button class="btn btn-sm btn-outline" @click="voltarLista">← Voltar</button>
+        </div>
 
         <div class="resumo-totais-header">
           <span class="resumo-escopo">Resumo</span>
@@ -1543,7 +1630,6 @@ function formatarMoeda(valor: number): string {
               <span class="itens-col-qtd">Qtd</span>
               <span class="itens-col-vlr">Valor Unit</span>
               <span class="itens-col-total">Total</span>
-              <span class="itens-col-actions"></span>
             </div>
             <div
               v-for="(item, idx) in orcamentoStore.itensInseridos"
@@ -1564,45 +1650,6 @@ function formatarMoeda(valor: number): string {
               <span class="itens-col-total" data-label="Total">{{
                 formatarMoeda((item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1))
               }}</span>
-              <span class="itens-col-actions">
-                <button class="btn-icon" title="Editar item" @click="editarItem(item)">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    <path d="m15 5 4 4" />
-                  </svg>
-                </button>
-                <button
-                  class="btn-icon btn-icon-danger"
-                  title="Remover item"
-                  @click="removerItem(item, idx)"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    <line x1="10" x2="10" y1="11" y2="17" />
-                    <line x1="14" x2="14" y1="11" y2="17" />
-                  </svg>
-                </button>
-              </span>
             </div>
           </div>
         </div>
@@ -2517,10 +2564,20 @@ function formatarMoeda(valor: number): string {
   padding: 2rem 1.5rem;
 }
 
+.resumo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 600px;
+  margin: 0 auto 0.5rem;
+  text-align: left;
+}
+
 .resumo-card h2 {
   color: #16a34a;
   font-size: 1.25rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
 }
 
 .resumo-grid {

@@ -76,6 +76,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       frete_b2b_total: Number(h.frtB2B) || 0,
       desconto: Number(h.desconto) || 0,
       frtB2C: Number(h.frtB2C) || 0,
+      ipi_tot: Number(h.vlr_ipi_tot) || 0,
+      st_tot: Number(h.vlr_st_tot) || 0,
+      difal_tot: Number(h.valor_difal_tot) || 0,
+      credito_icms_tot: Number(h.vlr_credito_icms_tot) || 0,
       total_itens: itensInseridos.value.length,
     }
   })
@@ -472,6 +476,62 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
+  // Monta os campos do item a partir do resultado novo (orquestrador flat).
+  // Usado pelo inserir e pelo atualizar (não inclui cod_orca/cliente/frete/validade).
+  function montarPayloadItem(descricao: string, margemBase: number) {
+    const it = resultadoNovo.value as OrcamentoNovoResult
+    const undVenda = it.base_calculo || 'M2'
+    const undBorda =
+      catalogo.allBordas.find((b) => b.id === (bordaSelecionada.value?.id ?? 0))?.Unidade ??
+      bordaSelecionada.value?.Unidade ??
+      ''
+    return {
+      margem: margemBase,
+      produto_id: it.produto_id ?? 0,
+      ipi: it.ipi ?? materialSelecionado.value?.ipi ?? null,
+      imp: 0,
+      vlr_custo: it.vlr_cst_materia_prima ?? 0,
+      und_produto: undVenda,
+      larg: it.larg ?? 0,
+      comp: it.comp ?? 0,
+      larg_fc: it.larg_fc ?? 0,
+      comp_fc: it.comp_fc ?? 0,
+      borda_id: String(it.borda_id ?? 0),
+      vlr_cst_borda: it.vlr_cst_borda ?? 0,
+      und_borda: undBorda,
+      tipo_fator_id: it.tipo_fator_id ?? 0,
+      fator_de_corte_id: it.fator_de_corte_id ?? 0,
+      detalhe_id: 0,
+      variacao_id: it.variacao_id ?? 0,
+      qtd: String(it.qtd ?? 1),
+      vlr_cst_unit: it.vlr_cst_unit ?? 0,
+      vlr_cst_unit_ipi: null,
+      vlr_cst_unit_imp: null,
+      vlr_vnd_unit: it.vlr_vnd_unit ?? 0,
+      vlr_vnd_unit_ipi: 0,
+      vlr_vnd_unit_imp: 0,
+      vlr_vnd_unit_b2b: it.vlr_vnd_unit ?? 0,
+      vlr_lucro_unit: it.vlr_lucro_unit ?? 0,
+      descricao,
+      area_user: areaNominal.value,
+      area_calc: it.qtd ?? 0,
+      base_calculo: undVenda,
+      vlr_cst_nota_unit: it.vlr_custo_nota_unit ?? 0,
+      vlr_cst_entrada_unit: it.vlr_cst_entrada_unit ?? 0,
+      valor_difal_unit: it.vlr_difal_unit ?? 0,
+      vlr_credito_icms_unit: it.vlr_credito_icms_unit ?? 0,
+      aliq_inter: it.vlr_aliq_inter ?? 0,
+      aliq_interna: it.vlr_aliq_interna ?? 0,
+      perc_difal: it.vlr_perc_difal ?? 0,
+      vlr_frete_b2b_unit: it.frete_b2b ?? 0,
+      vlr_st_unit: it.vlr_st_unit ?? 0,
+      vlr_custo_fiscal_unit: it.vlr_custo_fiscal_unit ?? 0,
+      eh_importado: it.eh_importado ?? false,
+      perc_margem_real: it.perc_marguem_real ?? 0,
+      fc: it.fc ?? [],
+    }
+  }
+
   async function inserirOrcamento(cliente_id: number, descricao: string, existingCodOrca?: string) {
     if (!resultado.value && !resultadoNovo.value) {
       error.value = 'Calcule o orçamento primeiro'
@@ -644,6 +704,39 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
+  // Atualiza um item existente (edição de características) no mesmo registro.
+  async function atualizarItem(itemId: number, descricao: string) {
+    if (!resultado.value && !resultadoNovo.value) {
+      error.value = 'Calcule o orçamento primeiro'
+      return
+    }
+    inserindo.value = true
+    error.value = null
+    try {
+      const margemBase =
+        orcamentoHeader.value?.margem ??
+        margemPersonalizada.value ??
+        useAuthStore().user?.margem ??
+        0
+      const payload = montarPayloadItem(descricao, margemBase)
+      const response = await xano.post('/api:-qqRIakp/OrcamentoItem_Atualizar', {
+        item_id: itemId,
+        ...payload,
+      })
+      const body = response.getBody() as any
+      orcamentoHeader.value = body?.ORCA_1 ?? null
+      itensInseridos.value = body?.itemS ?? []
+      numeroOrcamento.value = body?.ORCA_1?.cod_orca ?? numeroOrcamento.value
+      limparFormItem()
+    } catch (err: any) {
+      console.error('Erro ao atualizar item:', err)
+      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar item'
+      throw err
+    } finally {
+      inserindo.value = false
+    }
+  }
+
   function limparFormItem() {
     materialSelecionado.value = null
     catalogo.selectedMaterialId = null
@@ -761,6 +854,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       const body = response.getBody() as any
       orcamentoHeader.value = body?.ORCA_1 ?? null
       itensInseridos.value = (itensInseridos.value ?? []).filter((i) => i.id !== itemId)
+      resultadoNovo.value = null
+      resultado.value = null
     } catch (err: any) {
       console.error('Erro ao remover item:', err)
       error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao remover item'
@@ -824,6 +919,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     calcularOrquestrador,
     gerarNumeroOrcamento,
     inserirOrcamento,
+    atualizarItem,
     resetar,
     carregarOrcamento,
     deleteOrcamento,
@@ -834,5 +930,6 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     definirMargemPersonalizada,
     definirFretePersonalizado,
     limparPersonalizacoes,
+    limparFormItem,
   }
 })
