@@ -160,7 +160,9 @@ async function excluirOrcamento(row: OrcamentoRow) {
               <td class="cell-data">{{ formatarData(row.created_at) }}</td>
               <td class="cell-acoes">
                 <template v-if="row.pedido_id === 0">
-                  <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">Editar</button>
+                  <button class="btn btn-sm btn-outline" @click="editarOrcamento(row)">
+                    Editar
+                  </button>
                   <button class="btn btn-sm btn-danger-outline" @click="excluirOrcamento(row)">
                     Excluir
                   </button>
@@ -210,17 +212,13 @@ async function excluirOrcamento(row: OrcamentoRow) {
       </div>
 
       <div v-if="hasNext || hasPrev" class="pagination">
-        <button
-          v-if="hasPrev"
-          class="btn btn-sm btn-outline"
-          @click="irPagina(curPage - 1)"
-        >← Anterior</button>
+        <button v-if="hasPrev" class="btn btn-sm btn-outline" @click="irPagina(curPage - 1)">
+          ← Anterior
+        </button>
         <span class="page-info">Página {{ curPage }}</span>
-        <button
-          v-if="hasNext"
-          class="btn btn-sm btn-outline"
-          @click="irPagina(curPage + 1)"
-        >Próxima →</button>
+        <button v-if="hasNext" class="btn btn-sm btn-outline" @click="irPagina(curPage + 1)">
+          Próxima →
+        </button>
       </div>
     </section>
 
@@ -229,7 +227,9 @@ async function excluirOrcamento(row: OrcamentoRow) {
     </section>
 
     <section v-if="!loading && !jaCarregou" class="card hint-card">
-      <p class="hint-msg">Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.</p>
+      <p class="hint-msg">
+        Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.
+      </p>
     </section>
   </div>
 </template>

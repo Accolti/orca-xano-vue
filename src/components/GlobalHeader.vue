@@ -174,7 +174,9 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .versao-badge:hover {
@@ -223,7 +225,9 @@ onBeforeUnmount(() => {
 
 .pop-enter-active,
 .pop-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .pop-enter-from,

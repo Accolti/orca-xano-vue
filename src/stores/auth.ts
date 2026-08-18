@@ -21,6 +21,8 @@ export interface User {
   ie: string
   cpf: string
   isPJ: number
+  uf?: string
+  regime_id?: number
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -121,6 +123,56 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Dispara o fluxo Google OAuth: chama init e redireciona o usuário para o Google
+  async function googleLogin() {
+    loading.value = true
+    error.value = null
+    try {
+      const redirectUri = `${window.location.origin}/oauth/callback`
+      const response = await xano.get('/api:8ebaG5ZN/oauth/google/init', {
+        redirect_uri: redirectUri,
+      })
+      const body = response.getBody()
+      if (body?.authUrl) {
+        window.location.href = body.authUrl
+      } else {
+        throw new Error('URL de autenticação não retornada')
+      }
+    } catch (err) {
+      console.error('[oauth/google/init]', err)
+      error.value = getErrorMessage(err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Processa o callback do Google: continue → token → fetchMe
+  async function googleCallback(code: string, redirectUri: string) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await xano.get('/api:8ebaG5ZN/oauth/google/continue', {
+        code,
+        redirect_uri: redirectUri,
+      })
+      const data = response.getBody()
+      token.value = data.token
+      localStorage.setItem('authToken', data.token)
+      xano.setAuthToken(data.token)
+      await fetchMe()
+    } catch (err) {
+      console.error('[oauth/google/continue] erro:', err)
+      if (err instanceof XanoRequestError) {
+        console.error('[oauth/google/continue] status:', err.getResponse().getStatusCode())
+        console.error('[oauth/google/continue] body:', JSON.stringify(err.getResponse().getBody()))
+      }
+      error.value = getErrorMessage(err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   function logout() {
     token.value = null
     user.value = null
@@ -138,6 +190,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     signup,
     fetchMe,
+    googleLogin,
+    googleCallback,
     logout,
   }
 })

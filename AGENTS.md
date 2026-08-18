@@ -62,6 +62,16 @@ As duas partes (árvore de materiais e produtos) têm caches **independentes** e
 
 `authStore.logout()` chama `catalogo.resetarSessao()` — zera `loaded` + `selectedMaterialId`, forçando revalidação no próximo login.
 
+### Login Google OAuth
+
+Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/api:8ebaG5ZN/oauth/google/init`** e **`/api:8ebaG5ZN/oauth/google/continue`**:
+
+- **`auth.ts`**: `googleLogin()` chama `init` com `redirect_uri = window.location.origin + '/oauth/callback'` → redireciona para `body.authUrl` (Google). `googleCallback(code, redirectUri)` chama `continue` → salva `data.token` (JWT) no localStorage + `setAuthToken` → `fetchMe()`.
+- **`LoginView.vue`**: botão "Entrar com o Google" (ícone SVG) abaixo do form.
+- **`OAuthCallbackView.vue`** (rota `/oauth/callback`): lê `code` da query, processa (redirect_uri é sempre reconstruído a partir do origin para evitar mismatch), redireciona para `/`; erro → mensagem amigável ("Acesso restrito a usuários previamente autorizados.").
+- **Router**: `/oauth/callback` incluída em `guestRoutes` (não exige login).
+- **Env vars Xano**: `google_client_id` e `google_client_secret` (a função `google_oauth_getauthurl` lê esses nomes).
+
 ### Consumo no `orcamentoStore`
 
 As refs `materiais`, `linhas`, `tipos`, `niveis`, `bordas` agora são **computed** que consomem `useCatalogoStore()`.  
@@ -74,9 +84,110 @@ Produtos com `detalhe_id > 0` no `produtos_all` têm `_variacao[]`. A store cruz
 `mostrarVariacao` = `variacoes.length > 0`; `watch` limpa `variacaoSelecionada` ao ocultar ou quando sai da lista.  
 O `inserirOrcamento()` envia `variacao_id: variacaoSelecionada?.id ?? 0` (antes era `0` fixo). O cálculo (`CalculoValorVenda_IDs`) **não** recebe variação por enquanto.
 
+### `suc` refinado por seleção (`filtrarSuc`)
+
+O `suc` de cada material (Linha/Tipo/Nivel/Borda/Variacao contagens) é usado para mostrar/ocultar dropdowns. O problema: o aggregate `Ret_TabMaeEFilhas_2` conta **todas** as opções do material, sem considerar a linha/tipo já selecionados — ex.: Fibra de Coco (id 50) tem `Nivel=1` porque existe o tipo Personalizado, mas o dropdown de Nível aparecia também para o tipo **Liso**.
+
+Solução: nova função **`Ret_Suc_Filtrado`** + endpoint **`GET /produtos_suc_filtrado?material_id&linha_id&tipo_id`** que repete o aggregate com raiz em `Produto` e filtros condicionais (`==?`) por `linha_id`/`tipo_id`. Sem filtro → mesmas contagens totais; com filtro → contagens restritas à seleção.
+
+- `catalogo.ts`: `sucFiltrado` ref + action `filtrarSuc(materialId, linhaId?, tipoId?)` que chama o endpoint e guarda a resposta.
+- `orcamento.ts`: computed `sucAtual` (usa `catalogo.sucFiltrado` se houver, senão `material.suc`) alimenta `mostrarLinha/Tipo/Nivel/Borda`. `watch([linhaSelecionada, tipoSelecionado])` dispara `filtrarSuc`. Limpa `sucFiltrado` em `selecionarMaterial`/`limparMaterial`/`limparFormItem`.
+- Exceção hardcoded Vinil+Liso continua coexistindo como proteção extra.
+
 ### Exceção Vinil+Liso (`mostrarNivel`)
 
 Quando Material = Vinil, Linha = Gold ou Alto Tráfego, Tipo = Liso → Nível (cores) não faz sentido, então `mostrarNivel` retorna `false` e o campo some. Um `watch` limpa `nivelSelecionado` automaticamente.
+
+### Recálculo dinâmico (resumo tela verde)
+
+O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, frete B2C, desconto) dispara `Orcamento_Recalcular_Totais` que refaz o **frete B2B sobre o somatório dos custos**, rateia proporcionalmente, aplica markup (efetivo), desconto e frete B2C, e atualiza itens + cabeçalho ORCA.
+
+**Ajustar Orçamento** (tela verde, `.card-totais` `#f0fdf4`):
+- **Nova Margem (%)** → `POST /orcamento_recalcular { newMargem }` (markup **efetivo** — Opção B)
+- **Novo Vlr de Venda Total B2B** → `GET /Calc_new_Valor_Venda` → `new_margem` → recalc
+- **Novo Lucro Total** → `GET /Calc_new_Valor_Lucro` → `new_margem` → recalc
+- **Frete B2C (R$)** → `POST /orcamento_recalcular { frtB2C }` (editável, negociação)
+- **Desconto (R$)** → `POST /orcamento_recalcular { desconto }` (editável, reduz markup efetivo)
+
+Fórmulas-chave:
+```
+cst_tot      = Σ custo_entrada (por item: custo_nota + difal − credito + frete_rateado)
+venda_bruta  = Σ [custo_entrada × (1 + markup/100)]
+vnd_tot      = venda_bruta − desconto
+markup_efetivo = (vnd_tot / cst_tot − 1) × 100   ← exibido no cabeçalho
+vnd_B2B_tot  = vnd_tot
+vnd_B2B_B2C_tot = vnd_tot + frtB2C
+```
+
+O **frete B2B não é editável** (Kapazi automático sobre o somatório). Remover item usa `DELETE /orcamento_item_deletar { item_id }` → recalc.
+
+**Tabela de itens (resumo)**: cada linha mostra **Valor Unit B2B** e **Total B2B** (venda, não custo) — ex.: qtd 20m × `vlr_vnd_unit_b2b` 200.32 = 4006.38. O `itemS` retornado vem do `Orcamento_Recalcular_Totais` (com `Descricao` concatenada Material+Linha+Tipo+Nivel+Borda), **não** do `Orcamento_Detalhes_Function` legado. Cabeçalho = somatório dos totais B2B + custos + `markup_efetivo = (V/C − 1) × 100`.
+
+**M2 (fator de corte)**: o orquestrador chama a função **`f_retorna_fc(comp, larg, fc)`** → `new_comp`/`new_larg` → área real com FC → custo. A lógica inline antiga foi removida.
+
+## Orquestrador de Cálculo (`Orcamento_Orquestrador`)
+
+Nova arquitetura de precificação no Xano (paralela às funções legadas — não altera `Valor_Venda_*`, `f_CalculoValorVenda_IDs`, `Orcamento_Detalhes_Function`).
+
+### Conceitos
+
+- **Markup** (não margem): `venda = custo_entrada × (1 + markup/100)`. Ex.: custo 100, markup 80% → venda 180, lucro 80.
+- **`custo_nota`** = custo fábrica + IPI% + IMP% (base para DIFAL — o IPI compõe a base de cálculo do ICMS).
+- **DIFAL por regime**: MEI/Simples pagam DIFAL (entra no custo) e não têm crédito; Lucro Real/Presumido não pagam DIFAL na compra para revenda e abatem crédito ICMS (`custo_nota × aliq_inter%`).
+- **Frete B2B** (Kapazi) sobre a soma dos `custo_nota`: ≥ R$ 1.000 → R$ 0; ≥ R$ 300 → 10%; < R$ 300 → R$ 52. Rateado **proporcionalmente ao custo_nota** de cada item.
+
+### Funções criadas (workspace OrcaKap, branch v1)
+
+| Função | Papel |
+|---|---|
+| `Precificar` | Fiscal puro: recebe `custo_nota` + `uf_origem` + `uf_destino` + `regime_empresa` + `eh_importado`, consulta `Aliquotas_icms`, devolve `valor_difal`, `credito_icms`, `perc_difal`, `aliq_inter`, `custo_fiscal` |
+| `Orcamento_Orquestrador` | Entrada `object[] itens` (unidade M2/ML/KIT/UND + IDs + dimensões + markup + uf/regime). Faz lookups (Produto, Material, Borda, Tipo_Fator/Fator_de_Corte, Variacao, Organizacao), calcula `custo_nota` por tipo, chama `Precificar` por item, soma → frete → rateio → markup. Saída: `{ itens: [...], totais: {...} }` |
+| `Orcamento_Recalcular_Totais` | **Recálculo dinâmico**: lê itens do orçamento, soma custos_nota, refaz frete B2B (Kapazi) sobre o somatório, rateia, aplica markup efetivo (`newMargem` opcional), desconto e frete B2C; atualiza itens + ORCA. Chamado após insert/delete/mudança de markup |
+| `Ret_Suc_Filtrado` | Aggregate de `suc` (Linha/Tipo/Nivel/Borda/Variacao) com filtros condicionais por `linha_id`/`tipo_id` — resolve o caso Fibra de Coco Liso vs Personalizado |
+
+### Tabelas
+
+- `Organizacao` ganhou campo `uf?` (UF do fornecedor, ex. "PR" da Kapazi) — usado como `uf_origem` quando o item não informa.
+- `Aliquotas_icms` (já existia): `uf`, `aliquota_modal`, `regiao` (SUL_SUDESTE / OUTROS).
+- `Regime` ganhou campo `slug?` (`MEI`/`SIMPLES`/`LUCRO_REAL`/`LUCRO_PRESUMIDO`) — o `Precificar` resolve o regime pelo `regime_id` do usuário via lookup na tabela (sem mapeamento no frontend).
+- `Fator_de_Corte` ganhou campos `larg_base`, `comp_corte`, `tam_total` (largura base, fator de corte, tamanho total do rolo).
+- `Variacao` ganhou campos `fator_de_corte_id` (FK p/ Fator_de_Corte) e `ativo` (bool).
+- `item` ganhou campos `vlr_cst_nota` (MP×área/qtd + IPI + IMP + frete B2B — pago à Kapazi) e `vlr_cst_entrada` (vlr_cst_nota + DIFAL − crédito ICMS).
+
+### Contrato de saída por item (unificado)
+
+```
+Valor_Custo_Unit, Valor_Venda_Unit, Valor_Lucro_Unit, Valor_Venda_Unit_B2B,
+AreaFC, Qtd_Unidades, Valor_Custo_Total, Valor_Venda_Total, Valor_Lucro_Total,
+Valor_Venda_Total_B2B, margem, markup,
+custo_nota, custo_mp_base, valor_difal, credito_icms, custo_fiscal, custo_entrada,
+frete_rateado, vlr_cst_nota, vlr_cst_entrada,
+produto_id, detalhe_id, tipo_fator_id, fator_de_corte_id, base_de_calculo, unidade_venda
+```
+
+ML extra: `totalMetrosLineares`, `valorMetroLinearConvertido`, `rolosFechados`, `metrosFracionados`, `orientacaoIdeal`, `largura_fixa`.
+
+`totais`: `custo_nota_total, frete_total, difal_total, credito_icms_total, custo_entrada_total, venda_total, lucro_total, qtd_itens`.
+
+### Integração no frontend (novo fluxo)
+
+O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orquestrador`. O `handleCalcular()`/`handleSimular()` da view agora chamam `orcamentoStore.calcularOrquestrador()` em vez do `calcular(false)` legado.
+
+- `auth.ts`: `User.uf` (novo, da tabela User) + `User.regime_id` (FK da tabela Regime). O frontend envia `regime_id`; o backend resolve o slug.
+- `orcamento.ts`: refs `areaML`, `resultadoNovo`; computeds `produtoSelecionado`, `unidadeSelecionada` (M2/ML/KIT/UND via **`Base_de_Calculo`**, não `Unidade` — Grama tem Unidade=M2 do custo, mas Base_de_Calculo=ML), `ehML`. Action `calcularOrquestrador()` monta o payload por IDs + dimensões + `uf_destino`/`regime_id` (do perfil) + `markup` e chama `POST /orcamento_calcular`. O `inserirOrcamento()` monta o payload a partir de `resultadoNovo.itens[0]` quando disponível (senão fallback legado por nomes).
+- `OrcamentosView.vue`: inputs de dimensão dinâmicos por unidade — ML mostra toggle **Área (m²) / Largura × Comprimento**, UND só quantidade, M2/KIT mostra Largura × Comprimento. Quantidade só para M2/UND. Computeds `itemCalc` e `simulacaoLista` leem o novo formato.
+- **ML (custo M2 → ML)**: quando `Produto.Unidade == "M2"` e venda por ML, o orquestrador converte `custo_mp × larg_fixa` (largura do rolo) antes de calcular.
+- **ML usa `f_fator_corte_variacao`**: para ML, o orquestrador chama a função `f_fator_corte_variacao(variacao_id)` que cruza `Variacao` com `Fator_de_Corte` (via `fator_de_corte_id`) e devolve `larg_base` (→ `largura_fixa`), `comp_corte` (→ `fator_corte`), `tam_rolo_total` (→ `tam_rolo`). Se a variação estiver inativa (`ativo=false`) ou sem FC, lança `Variação desativada.`
+- **Lógica ML exata = `f_Valor_Custo_ML`**: paginação inteligente (2 sentidos), conversão M2→ML, fator de corte, rolos/metros fracionados — incorporada no lambda do orquestrador.
+- **`inserirOrcamento()`** envia `vlr_cst_nota`/`vlr_cst_entrada` (do `resultadoNovo.itens[0]`) → `post_item` grava na tabela `item`.
+
+### Pendências
+
+- `user.uf` adicionado à tabela User e à interface TS; `user.regime_id` precisa ser **preenchido no perfil** de cada vendedor (e `user.uf`) para a precificação funcionar. Atualmente o frontend usa fallbacks (`SP`/`regime_id=0`).
+- Simulação de margens (`bSimulaMargens`) **ainda não** é suportada pelo orquestrador — `handleSimular` chama o orquestrador sem simulação.
+- Stub vazia `orcamento_orquestrador` (lowercase, id antigo) ainda existe no workspace — remover manualmente no dashboard.
+- O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
+- Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
 
 ## What's NOT set up
 

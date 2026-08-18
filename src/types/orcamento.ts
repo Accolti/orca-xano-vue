@@ -199,6 +199,55 @@ export interface OrcamentoResult {
   }
 }
 
+export interface OrcamentoNovoResult {
+  produto_id: number
+  borda_id: number
+  variacao_id: number
+  qtd: number
+  comp: number
+  larg: number
+  comp_fc: number
+  larg_fc: number
+  vlr_cst_unit: number
+  vlr_custo_nota_unit: number
+  vlr_custo_nota_tot: number
+  vlr_difal_unit: number
+  vlr_difal_tot: number
+  vlr_st_unit: number
+  vlr_st_tot: number
+  vlr_credito_icms_unit: number
+  vlr_credito_icms_tot: number
+  vlr_custo_fiscal_unit: number
+  vlr_custo_fiscal_tot: number
+  eh_importado: boolean
+  frete_b2b: number
+  vlr_cst_entrada_unit: number
+  vlr_cst_entrada_tot: number
+  vlr_vnd_unit: number
+  vlr_vnd_tot: number
+  vlr_lucro_unit: number
+  vlr_lucro_tot: number
+  perc_marguem_real: number
+  margem: number
+  ipi: number
+  base_calculo: string
+  und_produto: string
+  und_borda: string
+  unidade_valor_materia_prima: string
+  vlr_cst_materia_prima: number
+  vlr_cst_borda: number
+  vlr_ipi_unit: number
+  vlr_perc_difal: number
+  vlr_aliq_inter: number
+  vlr_aliq_interna: number
+  uf_origem: string
+  uf_destino: string
+  regime_id: number
+  tipo_fator_id: number
+  fator_de_corte_id: number
+  fc: number[]
+}
+
 export interface OrcamentoInsertPayload {
   cod_orca: string
   cliente_id: string
@@ -230,7 +279,22 @@ export interface OrcamentoInsertPayload {
   vlr_vnd_unit_ipi: number
   vlr_vnd_unit_imp: number
   vlr_vnd_unit_b2b: number
+  vlr_lucro_unit: number
   descricao: string
   area_user: number
   area_calc: number
+  base_calculo: string
+  vlr_cst_nota_unit: number
+  vlr_cst_entrada_unit: number
+  valor_difal_unit: number
+  vlr_credito_icms_unit: number
+  aliq_inter: number
+  aliq_interna: number
+  perc_difal: number
+  vlr_frete_b2b_unit: number
+  vlr_st_unit: number
+  vlr_custo_fiscal_unit: number
+  eh_importado: boolean
+  perc_margem_real: number
+  fc: number[]
 }

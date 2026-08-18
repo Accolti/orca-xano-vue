@@ -20,6 +20,14 @@ interface CatalogoProdutosCache {
   produtos: ProdutoCatalogo[]
 }
 
+export interface SucFiltrado {
+  Linha: number
+  Tipo: number
+  Nivel: number
+  Borda: number
+  Variacao: number
+}
+
 export const useCatalogoStore = defineStore('catalogo', () => {
   const allMaterials = ref<Material[]>([])
   const allLinhas = ref<Linha[]>([])
@@ -36,6 +44,34 @@ export const useCatalogoStore = defineStore('catalogo', () => {
 
   const selectedMaterialId = ref<number | null>(null)
 
+  // suc do material considerando a seleção atual de linha/tipo.
+  // Sem filtro (linha/tipo nulos) espelha o suc carregado no catálogo.
+  const sucFiltrado = ref<SucFiltrado | null>(null)
+
+  async function filtrarSuc(materialId: number, linhaId?: number, tipoId?: number) {
+    try {
+      const response = await xano.get('/api:-qqRIakp/produtos_suc_filtrado', {
+        material_id: materialId,
+        linha_id: linhaId ?? 0,
+        tipo_id: tipoId ?? 0,
+      })
+      const body = response.getBody() as any
+      const row = body?.Material_1?.[0]
+      sucFiltrado.value = row
+        ? {
+            Linha: row.Linha ?? 0,
+            Tipo: row.Tipo ?? 0,
+            Nivel: row.Nivel ?? 0,
+            Borda: row.Borda ?? 0,
+            Variacao: row.Variacao ?? 0,
+          }
+        : null
+    } catch (err: any) {
+      console.error('Erro ao filtrar suc:', err)
+      sucFiltrado.value = null
+    }
+  }
+
   const versaoLabel = computed(() => {
     const m = versaoMateriais.value ?? '?'
     const p = versaoProdutos.value ?? '?'
@@ -43,9 +79,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   })
 
   const materiais = computed(() =>
-    allMaterials.value
-      .filter((m) => m.ativo)
-      .sort((a, b) => a.Ordenacao - b.Ordenacao),
+    allMaterials.value.filter((m) => m.ativo).sort((a, b) => a.Ordenacao - b.Ordenacao),
   )
 
   const linhasFiltradas = computed(() =>
@@ -197,6 +231,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     versaoProdutos,
     versaoLabel,
     selectedMaterialId,
+    sucFiltrado,
     materiais,
     linhasFiltradas,
     tiposFiltrados,
@@ -204,6 +239,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     bordasFiltradas,
     carregarConfiguracoes,
     fetchCatalogo,
+    filtrarSuc,
     resetarSessao,
   }
 })
