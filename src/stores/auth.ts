@@ -24,6 +24,17 @@ export interface User {
   uf?: string
   regime_id?: number
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
+  _endereco_user?: {
+    id?: number
+    endereco?: string
+    numero?: string
+    complemento?: string
+    cep?: string
+    bairro?: string
+    cidade?: string
+    estado?: string
+    preferencial?: boolean
+  } | null
 }
 
 export const useAuthStore = defineStore('auth', () => {

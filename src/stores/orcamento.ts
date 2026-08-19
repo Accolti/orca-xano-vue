@@ -66,12 +66,14 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     const luc = Number(h.luc_tot) || 0
     return {
       cst_tot: cst,
+      venda_bruta_tot: Number(h.venda_bruta_tot) ?? 0,
       vnd_tot: vnd,
       luc_tot: luc,
       vnd_B2B_tot: Number(h.vnd_B2B_tot) ?? vnd,
       vnd_B2B_B2C_tot: Number(h.vnd_B2B_B2C_tot) ?? vnd,
       margem: cst > 0 ? round4(((vnd - cst) / cst) * 100) : 0,
       markup_alvo: Number(h.margem) || 0,
+      markup_efetivo: Number(h.markup_efetivo) ?? 0,
       margem_real_total: vnd > 0 ? round4((luc / vnd) * 100) : 0,
       frete_b2b_total: Number(h.frtB2B) || 0,
       desconto: Number(h.desconto) || 0,
@@ -830,6 +832,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       desconto?: number
       maoDeObra?: number
       observacao?: string
+      condicoesPagamento?: string
     },
   ) {
     carregandoOrcamento.value = true
@@ -842,6 +845,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         desconto: opts?.desconto,
         maoDeObra: opts?.maoDeObra,
         observacao: opts?.observacao,
+        condicoesPagamento: opts?.condicoesPagamento,
       })
       const body = response.getBody() as any
       console.log('[recalcularTotais] resposta', {

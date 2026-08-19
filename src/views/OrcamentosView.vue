@@ -5,7 +5,13 @@ import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import { useClienteStore } from '@/stores/cliente'
 import { useCatalogoStore } from '@/stores/catalogo'
-import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, abrirWhatsApp } from '@/services/pdf'
+import {
+  gerarPdfOrcamento,
+  montarTextoWhatsApp,
+  obterWhatsappCliente,
+  copiarEabrirWhatsApp,
+  calcularCondicoesPagamento,
+} from '@/services/pdf'
 import { xano } from '@/services/xano'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
@@ -25,6 +31,7 @@ const catalogo = useCatalogoStore()
 
 const observacao = ref('')
 const observacaoOrcamento = ref('')
+const condicoesPagamento = ref('')
 const mostrarCustos = ref(false)
 const mostrarCustosHeader = ref(false)
 const simulacaoModalOpen = ref(false)
@@ -125,6 +132,7 @@ onMounted(async () => {
     limparCliente()
     observacao.value = ''
     observacaoOrcamento.value = ''
+    condicoesPagamento.value = ''
     faturarCliente.value = false
     mostrarCustos.value = false
     mostrarCustosHeader.value = false
@@ -234,7 +242,9 @@ function cancelarEdicaoItem() {
   observacao.value = ''
 }
 
-function handleFinalizar() {
+async function handleFinalizar() {
+  // Persiste condições, observação e negociação antes de mostrar a tela finalizada
+  await persistirCondicoesPagamento()
   finalizando.value = true
   mostrarResumo.value = true
 }
@@ -244,6 +254,7 @@ function novoOrcamento() {
   limparCliente()
   observacao.value = ''
   observacaoOrcamento.value = ''
+  condicoesPagamento.value = ''
   faturarCliente.value = false
   mostrarCustos.value = false
   mostrarCustosHeader.value = false
@@ -378,6 +389,7 @@ function sincronizarSimulacao() {
   freteB2CResumo.value = totais?.frtB2C ?? header?.frtB2C ?? 0
   maoDeObraResumo.value = totais?.mao_de_obra ?? header?.mao_de_obra ?? 0
   observacaoOrcamento.value = header?.observacao ?? ''
+  condicoesPagamento.value = (header?.condicoes_pagamento || '').trim()
   const vendaFinal = novoValorVendaResumo.value
   const cst = custoTotalBase.value
   margemRealResumo.value =
@@ -478,6 +490,7 @@ async function aplicarNegociacao() {
       frtB2C: Number(freteB2CResumo.value) || 0,
       maoDeObra: Number(maoDeObraResumo.value) || 0,
       observacao: observacaoOrcamento.value,
+      condicoesPagamento: condicoesPagamento.value,
     })
     await orcamentoStore.recalcularTotais(orcaId, {
       newMargem: novaMargemResumo.value,
@@ -485,6 +498,7 @@ async function aplicarNegociacao() {
       frtB2C: Number(freteB2CResumo.value) || 0,
       maoDeObra: Number(maoDeObraResumo.value) || 0,
       observacao: observacaoOrcamento.value,
+      condicoesPagamento: condicoesPagamento.value,
     })
     sincronizarSimulacao()
   } catch (err: any) {
@@ -559,17 +573,94 @@ function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function imprimirPdf() {
+// Persiste as condições de pagamento editadas na ORCA antes de enviar.
+// Envia também os demais campos atuais — o backend grava incondicionalmente (0 não é vazio).
+async function persistirCondicoesPagamento(): Promise<boolean> {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return false
+  try {
+    await orcamentoStore.recalcularTotais(orcaId, {
+      newMargem: novaMargemResumo.value,
+      frtB2C: Number(freteB2CResumo.value) || 0,
+      desconto: Number(descontoResumo.value) || 0,
+      maoDeObra: Number(maoDeObraResumo.value) || 0,
+      observacao: observacaoOrcamento.value,
+      condicoesPagamento: condicoesPagamento.value,
+    })
+    return true
+  } catch (err: any) {
+    recaleError.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar condições'
+    return false
+  }
+}
+
+// Condições padrão calculadas (Pix 2x + Boleto parcelado) para o total atual
+function calcularCondicoesPadrao(): string {
+  const header = orcamentoStore.orcamentoHeader
+  return calcularCondicoesPagamento(
+    Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
+    Number(header?.cst_tot) || 0,
+    faturarCliente.value,
+  )
+}
+
+// Gera as condições padrão no textarea (pergunta antes de sobrescrever conteúdo existente)
+function gerarCondicoes() {
+  const atual = condicoesPagamento.value.trim()
+  if (atual && !confirm('Isso substituirá as condições atuais. Continuar?')) return
+  condicoesPagamento.value = calcularCondicoesPadrao()
+}
+
+// Salva as condições editadas na ORCA (sem gerar PDF/WhatsApp)
+async function salvarCondicoes() {
+  const ok = await persistirCondicoesPagamento()
+  if (ok) alert('Condições de pagamento salvas.')
+}
+
+// Aplica as condições para envio:
+// - campo vazio → usa o calculado (sem pergunta);
+// - campo alterado em relação ao salvo → pergunta se salva antes de enviar.
+// Retorna o texto efetivo das condições.
+async function condicoesParaEnvio(): Promise<string> {
+  const atual = condicoesPagamento.value.trim()
+  const salvo = (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim()
+  if (!atual) {
+    condicoesPagamento.value = calcularCondicoesPadrao()
+    await persistirCondicoesPagamento()
+    return condicoesPagamento.value.trim()
+  }
+  if (atual !== salvo) {
+    if (confirm('As condições foram alteradas. Salvar as alterações antes de enviar?')) {
+      await persistirCondicoesPagamento()
+    }
+  }
+  return atual
+}
+
+async function gerarPdf() {
+  const cond = await condicoesParaEnvio()
   gerarPdfOrcamento({
     header: orcamentoStore.orcamentoHeader,
     itens: orcamentoStore.itensInseridos,
     cliente: clienteSelecionado.value,
     user: authStore.user,
     faturar: faturarCliente.value,
+    condicoesPagamento: cond,
   })
 }
 
 const enviandoWhatsApp = ref(false)
+
+// Toast temporário (rodapé) para avisos de clipboard/WhatsApp
+const toastMsg = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function mostrarToast(msg: string) {
+  toastMsg.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMsg.value = ''
+  }, 4000)
+}
 
 // Status do orçamento (badge + fluxo de botões)
 const statusAtual = computed(() => orcamentoStore.orcamentoHeader?.status ?? 'RASCUNHO')
@@ -590,6 +681,36 @@ function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
 
+// Modal de confirmação de status
+const statusConfirm = ref<{ destino: string; rotulo: string } | null>(null)
+
+const STATUS_ACAO_LABEL: Record<string, string> = {
+  AGUARDANDO_RETORNO: 'Enviar',
+  APROVADO: 'Aprovar',
+  FATURADO: 'Faturar',
+  RECUSADO: 'Recusar',
+  CANCELADO: 'Cancelar',
+  RASCUNHO: 'Voltar para Rascunho',
+}
+
+function pedirConfirmacao(destino: string) {
+  statusConfirm.value = {
+    destino,
+    rotulo: STATUS_ACAO_LABEL[destino] ?? destino,
+  }
+}
+
+function cancelarStatus() {
+  statusConfirm.value = null
+}
+
+async function confirmarStatus() {
+  const destino = statusConfirm.value?.destino
+  statusConfirm.value = null
+  if (!destino) return
+  await mudarStatus(destino)
+}
+
 async function mudarStatus(status: string) {
   const orcaId = orcaIdAtual.value
   if (!orcaId) return
@@ -608,6 +729,8 @@ async function enviarWhatsApp() {
   if (!codOrca) return
   enviandoWhatsApp.value = true
   try {
+    // Aplica as condições (vazio → calculado; alterado → pergunta se salva)
+    const cond = await condicoesParaEnvio()
     // Garante telefones do cliente no header (_cliente._telefone_cliente_of_cliente)
     const header = orcamentoStore.orcamentoHeader
     if (!header?._cliente?._telefone_cliente_of_cliente?.length) {
@@ -624,8 +747,16 @@ async function enviarWhatsApp() {
       itens: orcamentoStore.itensInseridos,
       cliente: h?._cliente ?? null,
       faturar: faturarCliente.value,
+      condicoesPagamento: cond,
     })
-    abrirWhatsApp(telefone, mensagem)
+    const status = await copiarEabrirWhatsApp(telefone, mensagem)
+    if (status === 'shared') {
+      mostrarToast('Mensagem enviada para compartilhamento. Escolha o WhatsApp.')
+    } else if (status === 'copied') {
+      mostrarToast('Mensagem copiada! Cole na conversa do WhatsApp (Ctrl+V / segure o campo).')
+    } else {
+      mostrarToast('Não foi possível copiar. A mensagem foi aberta no WhatsApp.')
+    }
   } catch (err: any) {
     alert(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao gerar o WhatsApp')
   } finally {
@@ -1494,6 +1625,23 @@ async function enviarWhatsApp() {
               </div>
 
               <div class="recalc-obs">
+                <label>Condições de Pagamento</label>
+                <div class="condicoes-botoes">
+                  <button class="btn btn-sm btn-outline" @click="gerarCondicoes">
+                    Gerar Condições
+                  </button>
+                  <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
+                    Salvar Condições
+                  </button>
+                </div>
+                <textarea
+                  v-model="condicoesPagamento"
+                  placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
+                  rows="3"
+                ></textarea>
+              </div>
+
+              <div class="recalc-obs">
                 <label>Observações do Orçamento</label>
                 <textarea
                   v-model="observacaoOrcamento"
@@ -1808,22 +1956,33 @@ async function enviarWhatsApp() {
           </div>
         </div>
 
+        <div v-if="orcamentoStore.orcamentoHeader?.condicoes_pagamento" class="resumo-obs">
+          <h3>Condições de Pagamento</h3>
+          <p style="white-space: pre-line">{{
+            orcamentoStore.orcamentoHeader.condicoes_pagamento
+          }}</p>
+        </div>
+
         <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
           <h3>Observações</h3>
           <p>{{ orcamentoStore.orcamentoHeader.observacao }}</p>
         </div>
 
-        <div class="status-card">
+        <div class="status-top">
+          <span class="status-top-label">Status do Orçamento</span>
           <span class="badge-status" :class="`badge-${statusAtual.toLowerCase()}`">
             {{ statusLabel(statusAtual) }}
           </span>
+        </div>
 
-          <div v-if="!isVinculado && !statusFinalizado" class="status-actions">
+        <div v-if="!isVinculado && !statusFinalizado" class="status-section">
+          <h3 class="status-section-title">Ações de Status</h3>
+          <div class="status-actions">
             <button
               v-if="statusAtual === 'RASCUNHO'"
               class="btn btn-primary btn-sm"
               :disabled="atualizandoStatus"
-              @click="mudarStatus('AGUARDANDO_RETORNO')"
+              @click="pedirConfirmacao('AGUARDANDO_RETORNO')"
             >
               Enviar
             </button>
@@ -1831,7 +1990,7 @@ async function enviarWhatsApp() {
               v-if="statusAtual === 'AGUARDANDO_RETORNO' || statusAtual === 'ENVIADO'"
               class="btn btn-primary btn-sm"
               :disabled="atualizandoStatus"
-              @click="mudarStatus('APROVADO')"
+              @click="pedirConfirmacao('APROVADO')"
             >
               Aprovar
             </button>
@@ -1839,7 +1998,7 @@ async function enviarWhatsApp() {
               v-if="statusAtual === 'APROVADO'"
               class="btn btn-primary btn-sm"
               :disabled="atualizandoStatus"
-              @click="mudarStatus('FATURADO')"
+              @click="pedirConfirmacao('FATURADO')"
             >
               Faturar
             </button>
@@ -1847,7 +2006,7 @@ async function enviarWhatsApp() {
               v-if="statusAtual !== 'FATURADO' && statusAtual !== 'APROVADO'"
               class="btn btn-sm btn-danger-outline"
               :disabled="atualizandoStatus"
-              @click="mudarStatus('RECUSADO')"
+              @click="pedirConfirmacao('RECUSADO')"
             >
               Recusar
             </button>
@@ -1855,14 +2014,30 @@ async function enviarWhatsApp() {
               v-if="statusAtual !== 'FATURADO'"
               class="btn btn-sm btn-outline"
               :disabled="atualizandoStatus"
-              @click="mudarStatus('CANCELADO')"
+              @click="pedirConfirmacao('CANCELADO')"
             >
               Cancelar
+            </button>
+            <button
+              v-if="statusAtual === 'AGUARDANDO_RETORNO' || statusAtual === 'ENVIADO'"
+              class="btn btn-sm btn-outline"
+              :disabled="atualizandoStatus"
+              @click="pedirConfirmacao('RASCUNHO')"
+            >
+              ← Voltar para Rascunho
+            </button>
+            <button
+              v-if="statusAtual === 'APROVADO' || statusAtual === 'RECUSADO' || statusAtual === 'CANCELADO'"
+              class="btn btn-sm btn-outline"
+              :disabled="atualizandoStatus"
+              @click="pedirConfirmacao('AGUARDANDO_RETORNO')"
+            >
+              ← Voltar para Aguardando Retorno
             </button>
           </div>
         </div>
 
-        <div class="btn-row resumo-actions">
+        <div class="btn-row resumo-actions resumo-toolbar">
           <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
           <div class="switch-wrap">
             <label class="switch">
@@ -1874,10 +2049,28 @@ async function enviarWhatsApp() {
           <button class="btn btn-whatsapp btn-lg" :disabled="enviandoWhatsApp" @click="enviarWhatsApp">
             {{ enviandoWhatsApp ? 'Enviando…' : 'WhatsApp' }}
           </button>
-          <button class="btn btn-secondary btn-lg" @click="imprimirPdf">Imprimir</button>
+          <button class="btn btn-secondary btn-lg" @click="gerarPdf">Gerar PDF</button>
         </div>
       </section>
     </template>
+
+    <Transition name="toast-fade">
+      <div v-if="toastMsg" class="app-toast">{{ toastMsg }}</div>
+    </Transition>
+
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="statusConfirm" class="status-modal-overlay" @click.self="cancelarStatus">
+          <div class="status-modal-card">
+            <h3>Tem certeza que deseja {{ statusConfirm.rotulo.toLowerCase() }} este orçamento?</h3>
+            <div class="status-modal-actions">
+              <button class="btn btn-sm btn-outline" @click="cancelarStatus">Cancelar</button>
+              <button class="btn btn-primary btn-sm" @click="confirmarStatus">Confirmar</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -2514,19 +2707,30 @@ async function enviarWhatsApp() {
   font-size: 0.8rem;
   border-radius: 5px;
   font-weight: 500;
-  cursor: pointer;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
-  transition: background 0.15s;
 }
 
 .btn-sm:hover {
-  background: #f3f4f6;
+  filter: brightness(0.96);
 }
 
 .btn-outline {
-  border-color: #d1d5db;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.btn-danger-outline {
+  border: 1px solid #dc2626;
+  background: #fff;
+  color: #dc2626;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: #fef2f2;
 }
 
 .summary-section {
@@ -2894,6 +3098,24 @@ async function enviarWhatsApp() {
   white-space: pre-wrap;
 }
 
+.condicoes-edit {
+  width: 100%;
+  font-size: 0.9rem;
+  font-family: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  resize: vertical;
+}
+
+.condicoes-botoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .switch-wrap {
   display: inline-flex;
   align-items: center;
@@ -2972,11 +3194,100 @@ async function enviarWhatsApp() {
   gap: 0.75rem;
 }
 
+.status-top {
+  max-width: 600px;
+  margin: 1.25rem auto 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.status-top-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-section {
+  max-width: 600px;
+  margin: 0 auto 1.25rem;
+  padding: 0.9rem 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.status-section-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .status-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.5rem;
+}
+
+.resumo-toolbar {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.status-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+  padding: 1rem;
+}
+
+.status-modal-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.status-modal-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.status-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 
 .badge-status {
@@ -3121,5 +3432,32 @@ async function enviarWhatsApp() {
   .btn-row {
     flex-direction: column;
   }
+}
+
+.app-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 520px);
+  padding: 0.75rem 1.1rem;
+  background: #1f4e79;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font-size: 0.9rem;
+  text-align: center;
+  z-index: 1200;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
 }
 </style>

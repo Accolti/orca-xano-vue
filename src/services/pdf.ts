@@ -3,6 +3,7 @@ import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
+import logoOrca from '@/assets/logo.png?inline'
 
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
 
@@ -12,6 +13,7 @@ interface PdfOrcamentoInput {
   cliente?: Cliente | null
   user?: User | null
   faturar?: boolean
+  condicoesPagamento?: string
 }
 
 export const PRAZOS_ORCAMENTO = {
@@ -41,6 +43,18 @@ function formatarDataHoraAgora(): string {
   const data = d.toLocaleDateString('pt-BR')
   const hora = d.toLocaleTimeString('pt-BR', { hour12: false })
   return `${data} às ${hora}`
+}
+
+// Data de validade da proposta (pt-BR, dd/mm/aaaa) — header.validade ou hoje + DiasVencimentoOrcamento
+function formatarValidade(header: any, user?: User | null): string {
+  const val = header?.validade
+  if (val) {
+    const d = new Date(val)
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
+  }
+  const dias = Number(user?.DiasVencimentoOrcamento) || 10
+  const v = new Date(Date.now() + dias * 86400000)
+  return v.toLocaleDateString('pt-BR')
 }
 
 function pad2(n: number): string {
@@ -110,6 +124,90 @@ export function calcularCondicoesPagamento(
   return linhas.join('\n')
 }
 
+// Condições salvas no orçamento ou calculadas (fallback).
+// Precedência: override (editado) → salvo na ORCA → calculado. Nunca sobrescreve conteúdo salvo.
+function obterCondicoes(header: any, faturar = false, override?: string): string {
+  if (override && String(override).trim()) return String(override).trim()
+  const salvo = header?.condicoes_pagamento
+  if (salvo && String(salvo).trim()) return String(salvo).trim()
+  const totalGeral =
+    Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  return calcularCondicoesPagamento(totalGeral, Number(header?.cst_tot) || 0, faturar)
+}
+
+// Linha de frete: valor ou "Grátis" (sem a sigla B2C)
+function linhaFrete(freteB2C: number): string {
+  return Number(freteB2C) > 0 ? `Frete: ${formatarMoeda(freteB2C)}` : 'Frete: Grátis'
+}
+
+// Preço cheio (bruto) unitário do item, antes do desconto.
+// Fonte pronta: item.vlr_vnd_unit_bruto (salvo pelo backend no recalcular). Fallback para
+// registros antigos sem o campo: custo_entrada × (1 + markup_alvo/100).
+function brutoUnitarioItem(item: any, header: any): number {
+  const brutoSalvo = Number(item.vlr_vnd_unit_bruto)
+  if (brutoSalvo > 0) return brutoSalvo
+  const custoEntrada = Number(item.vlr_cst_entrada_unit) || Number(item.vlr_cst_unit) || 0
+  const markupAlvo = Number(header?.markup_alvo) || Number(header?.margem) || 0
+  return custoEntrada * (1 + markupAlvo / 100)
+}
+
+// Subtotal = Σ do preço cheio (bruto) × qtd por item
+function subtotalItensBruto(itens: any[], header: any): number {
+  return (itens || []).reduce((acc, item) => {
+    const qtd = Number(item.qtd) || 1
+    return acc + brutoUnitarioItem(item, header) * qtd
+  }, 0)
+}
+
+// Total geral derivado: subtotal (bruto) − desconto + frete + mão de obra
+function totalGeralDerivado(itens: any[], header: any): number {
+  const subtotal = subtotalItensBruto(itens, header)
+  const desconto = Number(header?.desconto) || 0
+  const freteB2C = Number(header?.frtB2C) || 0
+  const maoDeObra = Number(header?.mao_de_obra) || 0
+  return subtotal - desconto + freteB2C + maoDeObra
+}
+
+// Condição de pagamento com o método em negrito: "• *Pix* (2x de R$ ...): ..."
+function formatarCondicaoWhatsApp(linha: string): string {
+  const l = linha.trim()
+  const m = l.match(/^(Pix|Boleto|Faturamos)\b/i)
+  if (m && m[1]) {
+    return `• *${m[1]}*${l.slice(m[1].length)}`
+  }
+  return `• ${l}`
+}
+
+// Converte um valor possivelmente com $/moeda/sujeira para número limpo (preserva decimais)
+function valorNumericoLimpo(valor: any): number {
+  if (valor == null) return 0
+  let str = String(valor).replace(/[R$]/gi, '').trim()
+  if (str.includes(',') && !str.includes('.')) {
+    str = str.replace(',', '.')
+  }
+  const n = Number(str)
+  return isNaN(n) ? 0 : n
+}
+
+// Medidas do item: "(250,00 x 120,00 cm)" ou "Tamanho Padrão" quando zeradas (sem $)
+function formatarMedidas(item: any): string {
+  const largCm = valorNumericoLimpo(item.larg) * 100
+  const compCm = valorNumericoLimpo(item.comp) * 100
+  if (largCm <= 0 && compCm <= 0) return 'Tamanho Padrão'
+  const fmt = (v: number) =>
+    v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `(${fmt(largCm)} x ${fmt(compCm)} cm)`
+}
+
+// Observações organizadas em tópicos numerados
+function organizarObservacoes(texto: string): string[] {
+  return (texto || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l, i) => `${i + 1}. ${l}`)
+}
+
 export function obterWhatsapp(user?: User | null): string {
   const telefones = (user as any)?._telefones ?? []
   const whats = telefones.find((t: any) => String(t.tipo_telefone || '').toLowerCase() === 'whatsapp')
@@ -129,67 +227,149 @@ export function montarTextoWhatsApp({
   itens,
   cliente,
   faturar,
+  condicoesPagamento,
 }: PdfOrcamentoInput): string {
   const codOrca = header?.cod_orca || 'ORC'
   const contato = cliente?.contato || cliente?.nome_fantasia || cliente?.razao_social || ''
 
-  const vendaBruta = (Number(header?.vnd_B2B_tot) || 0) + (Number(header?.desconto) || 0)
+  const subtotal = subtotalItensBruto(itens, header)
   const desconto = Number(header?.desconto) || 0
   const maoDeObra = Number(header?.mao_de_obra) || 0
   const freteB2C = Number(header?.frtB2C) || 0
-  const totalGeral =
-    Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || vendaBruta - desconto
+  const totalGeral = totalGeralDerivado(itens, header)
   const observacao = header?.observacao || ''
 
-  const condicoes = calcularCondicoesPagamento(totalGeral, Number(header?.cst_tot) || 0, faturar)
+  const condicoes = obterCondicoes(header, faturar, condicoesPagamento)
 
   const linhasItens = (itens || []).map((item, i) => {
-    const descricao = item.Descricao || item.descricao || ''
-    const largCm = (Number(item.larg) || 0) * 100
-    const compCm = (Number(item.comp) || 0) * 100
-    const dim = `(${largCm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} x ${compCm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} cm)`
+    const descricao = (item.Descricao || item.descricao || '').trim()
+    const medidas = formatarMedidas(item)
     const qtd = Number(item.qtd) || 1
-    const unit = Number(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit) || 0
-    return `Item ${i + 1}: ${descricao} ${dim} — Qtd: ${qtd} — Unitário: ${formatarMoeda(unit)} — Total: ${formatarMoeda(unit * qtd)}`
+    const unit = brutoUnitarioItem(item, header)
+    return `📌 *Item ${i + 1}: ${descricao}* ${medidas}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
   })
 
   const linhas: string[] = []
-  linhas.push(`Olá ${contato}! Segue o orçamento ${codOrca}:`)
+  linhas.push(`📋 Olá ${contato}! Segue o orçamento ${codOrca}:`)
   linhas.push('')
   linhas.push('*Itens e Valores*')
-  linhas.push(...linhasItens)
   linhas.push('')
-  linhas.push(`Subtotal: ${formatarMoeda(vendaBruta)}`)
+  linhasItens.forEach((linha) => {
+    linhas.push(linha)
+    linhas.push('')
+  })
+  linhas.push('💳 *Totais*')
+  linhas.push('')
+  linhas.push(`Subtotal: ${formatarMoeda(subtotal)}`)
   if (desconto) linhas.push(`Desconto: ${formatarMoeda(desconto)}`)
-  if (freteB2C) linhas.push(`Frete B2C: ${formatarMoeda(freteB2C)}`)
+  linhas.push(linhaFrete(freteB2C))
   if (maoDeObra) linhas.push(`Mão de Obra: ${formatarMoeda(maoDeObra)}`)
   linhas.push(`*Total Geral: ${formatarMoeda(totalGeral)}*`)
   linhas.push('')
-  linhas.push('*Condições de Pagamento*')
-  linhas.push(...condicoes.split('\n'))
+  linhas.push('📝 *Condições de Pagamento*')
+  linhas.push(...condicoes.split('\n').filter(Boolean).map(formatarCondicaoWhatsApp))
   if (observacao) {
     linhas.push('')
-    linhas.push('*Observações*')
-    linhas.push(observacao)
+    linhas.push('📎 *Observações*')
+    linhas.push(observacao.trim())
   }
   return linhas.join('\n')
 }
 
-// Gera o link wa.me a partir da mensagem (abre em nova aba)
-export function abrirWhatsApp(telefone: string, mensagem: string) {
-  const apenasDigitos = String(telefone || '').replace(/\D/g, '')
-  if (!apenasDigitos) return false
-  const numero = apenasDigitos.startsWith('55') ? apenasDigitos : `55${apenasDigitos}`
-  const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`
-  window.open(url, '_blank')
-  return true
+// Detecta dispositivo móvel (Web Share API faz sentido só no celular;
+// no desktop o navigator.share abre a caixa de compartilhamento do SO, sem WhatsApp)
+function ehDispositivoMovel(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true
+  if (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) return true
+  return false
 }
 
-export function gerarPdfOrcamento({ header, itens, cliente, user, faturar }: PdfOrcamentoInput) {
+// Envia a mensagem para o WhatsApp preservando emojis:
+// 1º Web Share API (SÓ celular — texto nativo, mais automático) → 'shared';
+// 2º copia para o clipboard e abre o wa.me sem texto (desktop e fallback) → 'copied';
+// 3º fallback: wa.me?text= com o texto na URL → 'failed'.
+export async function copiarEabrirWhatsApp(
+  telefone: string,
+  mensagem: string,
+): Promise<'shared' | 'copied' | 'failed'> {
+  const apenasDigitos = String(telefone || '').replace(/\D/g, '')
+  if (!apenasDigitos) return 'failed'
+  const numero = apenasDigitos.startsWith('55') ? apenasDigitos : `55${apenasDigitos}`
+
+  const texto = String(mensagem || '').normalize('NFC')
+
+  // Web Share API — somente mobile: texto entra nativo (sem URL), preserva emojis
+  if (ehDispositivoMovel() && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ text: texto })
+      return 'shared'
+    } catch {
+      // Cancelado ou falha: segue para copiar+colar
+    }
+  }
+
+  const copiado = await copiarParaClipboard(texto)
+
+  const url = copiado
+    ? `https://wa.me/${numero}`
+    : `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
+  window.open(url, '_blank')
+  return copiado ? 'copied' : 'failed'
+}
+
+// Copia texto para a área de transferência (Clipboard API com fallback execCommand)
+async function copiarParaClipboard(texto: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto)
+      return true
+    }
+  } catch {
+    /* tenta fallback abaixo */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = texto
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+// Endereço da empresa (rodapé do PDF) no padrão:
+// "Alameda dos Cravos, nº 48 - Jd. Simus - Sorocaba/SP - CEP: 18055-135"
+function formatarEnderecoEmpresa(user?: User | null): string {
+  const e = (user as any)?._endereco_user
+  if (!e) return ''
+
+  const logradouro = [
+    e.endereco,
+    e.numero ? `nº ${e.numero}` : '',
+    e.complemento,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  const cidadeEstado = [e.cidade, e.estado].filter(Boolean).join('/')
+
+  const partes = [logradouro, e.bairro, cidadeEstado, e.cep ? `CEP: ${e.cep}` : ''].filter(Boolean)
+  return partes.join(' - ')
+}
+
+export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condicoesPagamento }: PdfOrcamentoInput) {
   const codOrca = header?.cod_orca || 'ORC'
   const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
   const cnpjEmpresa = user?.cnpj || ''
   const whatsapp = obterWhatsapp(user)
+  const enderecoEmpresa = formatarEnderecoEmpresa(user)
 
   const nomeCliente =
     cliente?.nome_fantasia || cliente?.razao_social || cliente?.nome_cpf || cliente?.contato || ''
@@ -201,111 +381,230 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar }: Pdf
   const end = enderecos.find((e) => e?.Tipo === 'Comercial') || enderecos[0]
   const localizacao = end?.cidade && end?.estado ? `${end.cidade} / ${end.estado}` : ''
 
-  const vendaBruta = (Number(header?.vnd_B2B_tot) || 0) + (Number(header?.desconto) || 0)
+  const subtotal = subtotalItensBruto(itens, header)
   const desconto = Number(header?.desconto) || 0
   const maoDeObra = Number(header?.mao_de_obra) || 0
-  const totalGeral = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || vendaBruta - desconto
+  const totalGeral = totalGeralDerivado(itens, header)
   const freteB2C = Number(header?.frtB2C) || 0
   const observacao = header?.observacao || ''
 
-  const condicoes = calcularCondicoesPagamento(totalGeral, Number(header?.cst_tot) || 0, faturar)
+  const condicoes = obterCondicoes(header, faturar, condicoesPagamento)
 
-  // Linha do item + descrição digitada abaixo (se houver)
-  const itensTable = (itens || []).map((item, i) => {
+  // Cabeçalho duplo: esquerda = logo + emissora; direita = card ORÇAMENTO DE VENDA
+  const cabecalho = {
+    table: {
+      widths: ['*', 190],
+      body: [
+        [
+          {
+            stack: [
+              {
+                image: logoOrca,
+                width: 150,
+                alignment: 'left',
+                margin: [0, 0, 0, 8] as any,
+              },
+              {
+                text: [
+                  { text: 'Empresa Emissora: ', bold: true },
+                  { text: nomeEmpresa },
+                  { text: ` (CNPJ: ${cnpjEmpresa})` },
+                  ...(whatsapp ? [{ text: ` | WhatsApp: ${whatsapp}` }] : []),
+                ],
+                fontSize: 9,
+                margin: [0, 4, 0, 0] as any,
+              },
+            ],
+            alignment: 'left',
+            margin: [0, 6, 8, 6] as any,
+          },
+          {
+            stack: [
+              { text: 'ORÇAMENTO DE VENDA Nº', style: 'headerCardTitle' },
+              { text: codOrca, style: 'headerCardNum' },
+              { text: `Data de Emissão: ${formatarDataHoraAgora()}`, style: 'headerCardLine' },
+              { text: `Validade da Proposta: ${formatarValidade(header, user)}`, style: 'headerCardLine' },
+            ],
+            fillColor: '#1f4e79',
+            color: '#ffffff',
+            margin: [12, 14, 12, 14] as any,
+          },
+        ],
+      ],
+    },
+    layout: 'noBorders',
+    margin: [0, 0, 0, 14] as any,
+  } as any
+
+  // Dados do cliente (quadro cinza claro)
+  const dadosCliente = {
+    table: {
+      widths: ['*'],
+      body: [
+        [
+          {
+            stack: [
+              {
+                text: `Cliente/Razão Social: ${nomeCliente}${docCliente ? ` | CNPJ/CPF: ${docCliente}` : ''}`,
+                style: 'cliente',
+              },
+              ...(contatoCliente ? [{ text: `A/C (Contato): ${contatoCliente}`, style: 'cliente' }] : []),
+              ...(localizacao ? [{ text: `Localização do Cliente: ${localizacao}`, style: 'cliente' }] : []),
+            ],
+            fillColor: '#f3f3f3',
+            margin: [10, 8, 10, 8] as any,
+          },
+        ],
+      ],
+    },
+    layout: 'noBorders',
+    margin: [0, 0, 0, 14] as any,
+  } as any
+
+  // Tabela de itens zebrada
+  const th: any = { bold: true, color: '#ffffff', fontSize: 9, fillColor: '#1f4e79', margin: [4, 6, 4, 6] }
+  const td: any = { fontSize: 9, margin: [4, 5, 4, 5] }
+  const bodyItens: any[] = [
+    [
+      { text: '#', ...th },
+      { text: 'Descrição do Item', ...th },
+      { text: 'Medidas', ...th },
+      { text: 'Qtd', ...th },
+      { text: 'Valor Unitário', ...th, alignment: 'right' },
+      { text: 'Valor Total', ...th, alignment: 'right' },
+    ],
+  ]
+  ;(itens || []).forEach((item, i) => {
     const descricao = item.Descricao || item.descricao || ''
-    const largCm = (Number(item.larg) || 0) * 100
-    const compCm = (Number(item.comp) || 0) * 100
-    const dim = `(${largCm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} x ${compCm.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} cm)`
-    const qtd = Number(item.qtd) || 1
-    const unit = Number(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit) || 0
     const obsItem = item.descricao || ''
-    const linha = `Item ${i + 1}: ${descricao} ${dim} — Qtd: ${qtd} — Unitário: ${formatarMoeda(unit)} — Total: ${formatarMoeda(unit * qtd)}`
-    return obsItem
-      ? [
-          { text: linha, style: 'item' },
-          { text: obsItem, style: 'itemObs' },
-        ]
-      : [{ text: linha, style: 'item' }]
+    const qtd = Number(item.qtd) || 1
+    const unit = brutoUnitarioItem(item, header)
+    const zebra = i % 2 === 1 ? '#f7f9fb' : '#ffffff'
+    bodyItens.push([
+      { text: String(i + 1), ...td, fillColor: zebra },
+      {
+        stack: obsItem
+          ? [
+              { text: descricao, ...td, fillColor: zebra },
+              { text: obsItem, fontSize: 8, italics: true, color: '#555555', fillColor: zebra, margin: [4, 0, 4, 5] as any },
+            ]
+          : [{ text: descricao, ...td, fillColor: zebra }],
+        fillColor: zebra,
+        margin: [4, 5, 4, 5] as any,
+      },
+      { text: formatarMedidas(item), ...td, fillColor: zebra },
+      { text: String(qtd), ...td, fillColor: zebra, alignment: 'center' },
+      { text: formatarMoeda(unit), ...td, fillColor: zebra, alignment: 'right' },
+      { text: formatarMoeda(unit * qtd), ...td, fillColor: zebra, alignment: 'right' },
+    ])
   })
+
+  const tabelaItens = {
+    table: {
+      headerRows: 1,
+      widths: [18, '*', 78, 32, 72, 72],
+      body: bodyItens,
+    },
+    margin: [0, 0, 0, 12] as any,
+  } as any
+
+  // Resumo financeiro (alinhado à direita)
+  const resumoRows: any[] = [
+    [{ text: 'Subtotal dos Itens', style: 'resumoLabel' }, { text: formatarMoeda(subtotal), style: 'resumoVal' }],
+  ]
+  if (desconto) {
+    resumoRows.push([{ text: 'Desconto', style: 'resumoLabel' }, { text: formatarMoeda(desconto), style: 'resumoVal' }])
+  }
+  resumoRows.push([{ text: 'Frete', style: 'resumoLabel' }, { text: linhaFrete(freteB2C).replace('Frete: ', ''), style: 'resumoVal' }])
+  if (maoDeObra) {
+    resumoRows.push([{ text: 'Mão de Obra / Serviços', style: 'resumoLabel' }, { text: formatarMoeda(maoDeObra), style: 'resumoVal' }])
+  }
+  resumoRows.push([
+    { text: 'TOTAL GERAL', style: 'resumoTotal' },
+    { text: formatarMoeda(totalGeral), style: 'resumoTotal' },
+  ])
+
+  const resumoFinanceiro = {
+    table: {
+      widths: ['*', 120],
+      body: resumoRows,
+    },
+    layout: 'noBorders',
+    alignment: 'right',
+    margin: [0, 0, 0, 16] as any,
+  } as any
+
+  // Condições comerciais em 2 colunas com espaço garantido entre elas
+  const colCondicoes = {
+    width: '*',
+    stack: [
+      { text: 'Condições de Pagamento', style: 'section' },
+      ...condicoes
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => ({ text: `• ${l.trim()}`, style: 'item' })),
+    ],
+  }
+
+  const colPrazos = {
+    width: '*',
+    stack: [
+      { text: 'Prazos e Entregas', style: 'section' },
+      { text: `• Prazo de Entrega: ${PRAZOS_ORCAMENTO.entrega}`, style: 'item' },
+      { text: `• ${linhaFrete(freteB2C)}`, style: 'item' },
+      { text: `• Garantia: ${PRAZOS_ORCAMENTO.garantia}`, style: 'item' },
+    ],
+  }
+
+  const condicoesComerciais = {
+    columns: [colCondicoes, colPrazos],
+    columnGap: 24,
+    margin: [0, 0, 0, 8] as any,
+  } as any
+
+  const observacoes = organizarObservacoes(observacao)
 
   const doc: TDocumentDefinitions = {
     content: [
-      {
-        table: {
-          widths: ['*'],
-          body: [
-            [
-              {
-                stack: [
-                  { text: nomeEmpresa || 'Orçamento de Venda', style: 'headerEmpresa' },
-                  ...(cnpjEmpresa || whatsapp
-                    ? [
-                        {
-                          text: [cnpjEmpresa ? `CNPJ: ${cnpjEmpresa}` : '', whatsapp ? `WhatsApp: ${whatsapp}` : '']
-                            .filter(Boolean)
-                            .join('   ·   '),
-                          style: 'headerSub',
-                        },
-                      ]
-                    : []),
-                  { text: `Orçamento ${codOrca}`, style: 'headerOrc' },
-                  { text: `Data/Hora: ${formatarDataHoraAgora()}`, style: 'headerSub' },
-                ],
-                alignment: 'center',
-                fillColor: '#111111',
-                color: '#ffffff',
-                margin: [16, 18, 16, 18],
-              },
-            ],
-          ],
-        },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 14],
-      } as any,
-
-      ...(contatoCliente ? [{ text: `Contato do Cliente: ${contatoCliente}`, style: 'info' }] : []),
-      ...(nomeCliente ? [{ text: `Cliente: ${nomeCliente}`, style: 'info' }] : []),
-      ...(localizacao ? [{ text: `Localização do Cliente: ${localizacao}`, style: 'info' }] : []),
-      ...(docCliente ? [{ text: `Documento: ${docCliente}`, style: 'info' }] : []),
-      { text: ' ', style: 'info' },
-
+      cabecalho,
+      dadosCliente,
       { text: 'Itens e Valores', style: 'section' },
-      ...itensTable.flat(),
-      { text: ' ', style: 'info' },
-      { text: `Subtotal: ${formatarMoeda(vendaBruta)}`, style: 'tot' },
-      ...(desconto ? [{ text: `Desconto: ${formatarMoeda(desconto)}`, style: 'tot' }] : []),
-      ...(freteB2C ? [{ text: `Frete B2C: ${formatarMoeda(freteB2C)}`, style: 'tot' }] : []),
-      ...(maoDeObra ? [{ text: `Mão de Obra: ${formatarMoeda(maoDeObra)}`, style: 'tot' }] : []),
-      { text: `Total Geral: ${formatarMoeda(totalGeral)}`, style: 'total' },
-      { text: ' ', style: 'info' },
-
-      { text: 'Condições de Pagamento', style: 'section' },
-      ...condicoes.split('\n').map((linha) => ({ text: linha, style: 'item' })),
-      { text: ' ', style: 'info' },
-
-      { text: 'Prazos, Frete e Garantia', style: 'section' },
-      { text: `Prazo de Entrega: ${PRAZOS_ORCAMENTO.entrega}`, style: 'item' },
-      { text: `Frete: ${PRAZOS_ORCAMENTO.frete}`, style: 'item' },
-      { text: `Garantia: ${PRAZOS_ORCAMENTO.garantia}`, style: 'item' },
-
-      ...(observacao
+      tabelaItens,
+      resumoFinanceiro,
+      condicoesComerciais,
+      ...(observacoes.length
         ? [
-            { text: ' ', style: 'info' },
-            { text: 'Observações', style: 'section' },
-            { text: observacao, style: 'itemObs' },
+            { text: 'Observações e Notas Técnicas', style: 'section' },
+            ...observacoes.map((l) => ({ text: l, style: 'itemObs' })),
           ]
         : []),
     ],
+    footer: (currentPage, pageCount) => {
+      const contatoRodape = [nomeEmpresa, cnpjEmpresa ? `CNPJ: ${cnpjEmpresa}` : '', whatsapp ? `WhatsApp: ${whatsapp}` : '']
+        .filter(Boolean)
+        .join(' | ')
+      return {
+        stack: [
+          ...(contatoRodape ? [{ text: contatoRodape, style: 'footer' }] : []),
+          ...(enderecoEmpresa ? [{ text: enderecoEmpresa, style: 'footer' }] : []),
+          { text: `Página ${currentPage} de ${pageCount}`, style: 'footer' },
+        ],
+        alignment: 'center',
+        margin: [40, 12, 40, 8],
+      }
+    },
     styles: {
-      headerEmpresa: { fontSize: 20, bold: true, alignment: 'center', color: '#ffffff', margin: [0, 0, 0, 6] },
-      headerOrc: { fontSize: 13, bold: true, alignment: 'center', color: '#ffffff', margin: [0, 8, 0, 2] },
-      headerSub: { fontSize: 10, alignment: 'center', color: '#e5e7eb', margin: [0, 2, 0, 2] },
-      info: { fontSize: 10, margin: [0, 1, 0, 1] },
+      headerCardTitle: { fontSize: 11, bold: true, color: '#ffffff', alignment: 'center' },
+      headerCardNum: { fontSize: 18, bold: true, color: '#ffffff', alignment: 'center', margin: [0, 6, 0, 6] },
+      headerCardLine: { fontSize: 9, color: '#e5e7eb', margin: [0, 2, 0, 2] },
+      cliente: { fontSize: 10, margin: [0, 1, 0, 1] },
       section: { fontSize: 13, bold: true, margin: [0, 12, 0, 6], color: '#1f4e79' },
       item: { fontSize: 10, margin: [0, 2, 0, 2] },
-      itemObs: { fontSize: 9, margin: [0, 0, 0, 6], color: '#555555', italics: true },
-      tot: { fontSize: 11, margin: [0, 2, 0, 2] },
-      total: { fontSize: 13, bold: true, margin: [0, 4, 0, 2], color: '#1f4e79' },
+      itemObs: { fontSize: 9, margin: [0, 2, 0, 6], color: '#444444' },
+      resumoLabel: { fontSize: 10, margin: [0, 2, 0, 2] },
+      resumoVal: { fontSize: 10, margin: [0, 2, 0, 2], alignment: 'right' },
+      resumoTotal: { fontSize: 14, bold: true, color: '#1f4e79', margin: [0, 6, 0, 2] },
+      footer: { fontSize: 8, color: '#666666', alignment: 'center', margin: [0, 1, 0, 1] },
     },
     defaultStyle: { fontSize: 10 },
     pageMargins: [40, 40, 40, 60],

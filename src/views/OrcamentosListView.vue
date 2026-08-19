@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { xano } from '@/services/xano'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
-import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, abrirWhatsApp } from '@/services/pdf'
+import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, copiarEabrirWhatsApp } from '@/services/pdf'
 import type { Cliente } from '@/types/cliente'
 
 interface OrcamentoRow {
@@ -52,6 +52,17 @@ const loading = ref(false)
 const errorMsg = ref('')
 const gerandoPdfDe = ref<number | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// Toast temporário (rodapé) para avisos de clipboard/WhatsApp
+const toastMsg = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+function mostrarToast(msg: string) {
+  toastMsg.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMsg.value = ''
+  }, 4000)
+}
 
 const curPage = ref(1)
 const perPage = ref(20)
@@ -195,7 +206,14 @@ async function enviarWhatsApp(row: OrcamentoRow) {
       itens: orcamentoStore.itensInseridos,
       cliente,
     })
-    abrirWhatsApp(telefone, mensagem)
+    const status = await copiarEabrirWhatsApp(telefone, mensagem)
+    if (status === 'shared') {
+      mostrarToast('Mensagem enviada para compartilhamento. Escolha o WhatsApp.')
+    } else if (status === 'copied') {
+      mostrarToast('Mensagem copiada! Cole na conversa do WhatsApp (Ctrl+V / segure o campo).')
+    } else {
+      mostrarToast('Não foi possível copiar. A mensagem foi aberta no WhatsApp.')
+    }
   } catch {
     errorMsg.value = 'Erro ao gerar o WhatsApp'
   } finally {
@@ -485,6 +503,10 @@ async function excluirOrcamento(row: OrcamentoRow) {
         Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.
       </p>
     </section>
+
+    <Transition name="toast-fade">
+      <div v-if="toastMsg" class="app-toast">{{ toastMsg }}</div>
+    </Transition>
   </div>
 </template>
 
@@ -903,5 +925,32 @@ async function excluirOrcamento(row: OrcamentoRow) {
   .orc-cards-mobile {
     display: none;
   }
+}
+
+.app-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 520px);
+  padding: 0.75rem 1.1rem;
+  background: #1f4e79;
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font-size: 0.9rem;
+  text-align: center;
+  z-index: 1200;
+}
+
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
 }
 </style>
