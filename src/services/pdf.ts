@@ -4,7 +4,6 @@ import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import logoOrca from '@/assets/logo.png?inline'
-
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
 
 interface PdfOrcamentoInput {
@@ -130,8 +129,7 @@ function obterCondicoes(header: any, faturar = false, override?: string): string
   if (override && String(override).trim()) return String(override).trim()
   const salvo = header?.condicoes_pagamento
   if (salvo && String(salvo).trim()) return String(salvo).trim()
-  const totalGeral =
-    Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  const totalGeral = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
   return calcularCondicoesPagamento(totalGeral, Number(header?.cst_tot) || 0, faturar)
 }
 
@@ -210,7 +208,9 @@ function organizarObservacoes(texto: string): string[] {
 
 export function obterWhatsapp(user?: User | null): string {
   const telefones = (user as any)?._telefones ?? []
-  const whats = telefones.find((t: any) => String(t.tipo_telefone || '').toLowerCase() === 'whatsapp')
+  const whats = telefones.find(
+    (t: any) => String(t.tipo_telefone || '').toLowerCase() === 'whatsapp',
+  )
   return whats?.telefone || ''
 }
 
@@ -350,11 +350,7 @@ function formatarEnderecoEmpresa(user?: User | null): string {
   const e = (user as any)?._endereco_user
   if (!e) return ''
 
-  const logradouro = [
-    e.endereco,
-    e.numero ? `nº ${e.numero}` : '',
-    e.complemento,
-  ]
+  const logradouro = [e.endereco, e.numero ? `nº ${e.numero}` : '', e.complemento]
     .filter(Boolean)
     .join(', ')
 
@@ -364,7 +360,14 @@ function formatarEnderecoEmpresa(user?: User | null): string {
   return partes.join(' - ')
 }
 
-export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condicoesPagamento }: PdfOrcamentoInput) {
+export function gerarPdfOrcamento({
+  header,
+  itens,
+  cliente,
+  user,
+  faturar,
+  condicoesPagamento,
+}: PdfOrcamentoInput) {
   const codOrca = header?.cod_orca || 'ORC'
   const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
   const cnpjEmpresa = user?.cnpj || ''
@@ -423,7 +426,10 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
               { text: 'ORÇAMENTO DE VENDA Nº', style: 'headerCardTitle' },
               { text: codOrca, style: 'headerCardNum' },
               { text: `Data de Emissão: ${formatarDataHoraAgora()}`, style: 'headerCardLine' },
-              { text: `Validade da Proposta: ${formatarValidade(header, user)}`, style: 'headerCardLine' },
+              {
+                text: `Validade da Proposta: ${formatarValidade(header, user)}`,
+                style: 'headerCardLine',
+              },
             ],
             fillColor: '#1f4e79',
             color: '#ffffff',
@@ -448,8 +454,12 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
                 text: `Cliente/Razão Social: ${nomeCliente}${docCliente ? ` | CNPJ/CPF: ${docCliente}` : ''}`,
                 style: 'cliente',
               },
-              ...(contatoCliente ? [{ text: `A/C (Contato): ${contatoCliente}`, style: 'cliente' }] : []),
-              ...(localizacao ? [{ text: `Localização do Cliente: ${localizacao}`, style: 'cliente' }] : []),
+              ...(contatoCliente
+                ? [{ text: `A/C (Contato): ${contatoCliente}`, style: 'cliente' }]
+                : []),
+              ...(localizacao
+                ? [{ text: `Localização do Cliente: ${localizacao}`, style: 'cliente' }]
+                : []),
             ],
             fillColor: '#f3f3f3',
             margin: [10, 8, 10, 8] as any,
@@ -462,7 +472,13 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
   } as any
 
   // Tabela de itens zebrada
-  const th: any = { bold: true, color: '#ffffff', fontSize: 9, fillColor: '#1f4e79', margin: [4, 6, 4, 6] }
+  const th: any = {
+    bold: true,
+    color: '#ffffff',
+    fontSize: 9,
+    fillColor: '#1f4e79',
+    margin: [4, 6, 4, 6],
+  }
   const td: any = { fontSize: 9, margin: [4, 5, 4, 5] }
   const bodyItens: any[] = [
     [
@@ -486,7 +502,14 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
         stack: obsItem
           ? [
               { text: descricao, ...td, fillColor: zebra },
-              { text: obsItem, fontSize: 8, italics: true, color: '#555555', fillColor: zebra, margin: [4, 0, 4, 5] as any },
+              {
+                text: obsItem,
+                fontSize: 8,
+                italics: true,
+                color: '#555555',
+                fillColor: zebra,
+                margin: [4, 0, 4, 5] as any,
+              },
             ]
           : [{ text: descricao, ...td, fillColor: zebra }],
         fillColor: zebra,
@@ -510,14 +533,26 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
 
   // Resumo financeiro (alinhado à direita)
   const resumoRows: any[] = [
-    [{ text: 'Subtotal dos Itens', style: 'resumoLabel' }, { text: formatarMoeda(subtotal), style: 'resumoVal' }],
+    [
+      { text: 'Subtotal dos Itens', style: 'resumoLabel' },
+      { text: formatarMoeda(subtotal), style: 'resumoVal' },
+    ],
   ]
   if (desconto) {
-    resumoRows.push([{ text: 'Desconto', style: 'resumoLabel' }, { text: formatarMoeda(desconto), style: 'resumoVal' }])
+    resumoRows.push([
+      { text: 'Desconto', style: 'resumoLabel' },
+      { text: formatarMoeda(desconto), style: 'resumoVal' },
+    ])
   }
-  resumoRows.push([{ text: 'Frete', style: 'resumoLabel' }, { text: linhaFrete(freteB2C).replace('Frete: ', ''), style: 'resumoVal' }])
+  resumoRows.push([
+    { text: 'Frete', style: 'resumoLabel' },
+    { text: linhaFrete(freteB2C).replace('Frete: ', ''), style: 'resumoVal' },
+  ])
   if (maoDeObra) {
-    resumoRows.push([{ text: 'Mão de Obra / Serviços', style: 'resumoLabel' }, { text: formatarMoeda(maoDeObra), style: 'resumoVal' }])
+    resumoRows.push([
+      { text: 'Mão de Obra / Serviços', style: 'resumoLabel' },
+      { text: formatarMoeda(maoDeObra), style: 'resumoVal' },
+    ])
   }
   resumoRows.push([
     { text: 'TOTAL GERAL', style: 'resumoTotal' },
@@ -580,7 +615,11 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
         : []),
     ],
     footer: (currentPage, pageCount) => {
-      const contatoRodape = [nomeEmpresa, cnpjEmpresa ? `CNPJ: ${cnpjEmpresa}` : '', whatsapp ? `WhatsApp: ${whatsapp}` : '']
+      const contatoRodape = [
+        nomeEmpresa,
+        cnpjEmpresa ? `CNPJ: ${cnpjEmpresa}` : '',
+        whatsapp ? `WhatsApp: ${whatsapp}` : '',
+      ]
         .filter(Boolean)
         .join(' | ')
       return {
@@ -595,7 +634,13 @@ export function gerarPdfOrcamento({ header, itens, cliente, user, faturar, condi
     },
     styles: {
       headerCardTitle: { fontSize: 11, bold: true, color: '#ffffff', alignment: 'center' },
-      headerCardNum: { fontSize: 18, bold: true, color: '#ffffff', alignment: 'center', margin: [0, 6, 0, 6] },
+      headerCardNum: {
+        fontSize: 18,
+        bold: true,
+        color: '#ffffff',
+        alignment: 'center',
+        margin: [0, 6, 0, 6],
+      },
       headerCardLine: { fontSize: 9, color: '#e5e7eb', margin: [0, 2, 0, 2] },
       cliente: { fontSize: 10, margin: [0, 1, 0, 1] },
       section: { fontSize: 13, bold: true, margin: [0, 12, 0, 6], color: '#1f4e79' },

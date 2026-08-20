@@ -22,7 +22,7 @@ const route = useRoute()
 const router = useRouter()
 const codOrcaParam = route.params.codOrca as string | undefined
 const isEditMode = computed(() => !!codOrcaParam)
-const isVinculado = computed(() => (orcamentoStore.orcamentoHeader?.pedido_id ?? 0) > 0)
+const isVinculado = computed(() => orcamentoStore.orcamentoHeader?.eh_pedido === true)
 
 const orcamentoStore = useOrcamentoStore()
 const authStore = useAuthStore()
@@ -146,6 +146,8 @@ onMounted(async () => {
   if (isEditMode.value && codOrcaParam) {
     try {
       await orcamentoStore.carregarOrcamento(codOrcaParam)
+      const orcaId = orcamentoStore.orcamentoHeader?.id
+      if (orcaId) await orcamentoStore.carregarStatusHistorico(orcaId)
       sincronizarSimulacao()
       const header = orcamentoStore.orcamentoHeader
       if (header?._cliente) {
@@ -227,6 +229,7 @@ async function handleInserir() {
         observacao.value,
         isEditMode.value ? codOrcaParam : undefined,
         observacaoOrcamento.value,
+        orcaIdAtual.value ?? undefined,
       )
     }
     inserirOk.value = true
@@ -363,9 +366,7 @@ const previewMargemEfetiva = computed(() => {
 })
 const previewTotalB2C = computed(
   () =>
-    (novoValorVendaResumo.value || 0) +
-    (freteB2CResumo.value || 0) +
-    (maoDeObraResumo.value || 0),
+    (novoValorVendaResumo.value || 0) + (freteB2CResumo.value || 0) + (maoDeObraResumo.value || 0),
 )
 
 // Diferença do Total c/ Frete B2C (preview simulado − total atual persistido)
@@ -398,10 +399,7 @@ function sincronizarSimulacao() {
 }
 
 watch(
-  [
-    () => orcamentoStore.orcamentoHeader?.id,
-    () => orcamentoStore.itensInseridos.length,
-  ],
+  [() => orcamentoStore.orcamentoHeader?.id, () => orcamentoStore.itensInseridos.length],
   () => {
     if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
   },
@@ -429,10 +427,9 @@ function simularPorVenda() {
   const dsc = descontoResumo.value || 0
   const vendaFinal = novoValorVendaResumo.value || 0
   novoLucroResumo.value = round2(vendaFinal - cst)
-  margemRealResumo.value =
-    vendaFinal > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0
+  margemRealResumo.value = vendaFinal > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0
   const vendaBruta = vendaFinal + dsc
-  novaMargemResumo.value = round2(((vendaBruta / cst) - 1) * 100)
+  novaMargemResumo.value = round2((vendaBruta / cst - 1) * 100)
 }
 
 function simularPorLucro() {
@@ -443,7 +440,7 @@ function simularPorLucro() {
   const vendaFinal = cst + lucro
   novoValorVendaResumo.value = round2(vendaFinal)
   margemRealResumo.value = vendaFinal > 0 ? round2((lucro / vendaFinal) * 100) : 0
-  novaMargemResumo.value = round2((((vendaFinal + dsc) / cst) - 1) * 100)
+  novaMargemResumo.value = round2(((vendaFinal + dsc) / cst - 1) * 100)
 }
 
 function simularPorMargemReal() {
@@ -455,7 +452,7 @@ function simularPorMargemReal() {
   novoValorVendaResumo.value = round2(vendaFinal)
   novoLucroResumo.value = round2(vendaFinal - cst)
   const dsc = descontoResumo.value || 0
-  novaMargemResumo.value = round2((((vendaFinal + dsc) / cst) - 1) * 100)
+  novaMargemResumo.value = round2(((vendaFinal + dsc) / cst - 1) * 100)
 }
 
 function simularPorDesconto() {
@@ -466,8 +463,7 @@ function simularPorDesconto() {
   novoValorVendaResumo.value = round2(Math.max(vendaBruta - dsc, 0))
   novoLucroResumo.value = round2(Math.max(vendaBruta - dsc - cst, 0))
   const vendaFinal = novoValorVendaResumo.value
-  margemRealResumo.value =
-    vendaFinal > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0
+  margemRealResumo.value = vendaFinal > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0
 }
 
 function simularPorFreteB2C() {
@@ -520,7 +516,9 @@ function editarItem(item: any) {
   if (!item?.id) return
   // Resolve o produto do catálogo pelo produto_id do item
   const prod = catalogo.allProdutos.find((p) => p.produto_id === item.produto_id)
-  const material = catalogo.allMaterials.find((m) => m.id === (prod?.material_id ?? item.material_id))
+  const material = catalogo.allMaterials.find(
+    (m) => m.id === (prod?.material_id ?? item.material_id),
+  )
 
   editandoItemId.value = item.id
   orcamentoStore.limparFormItem()
@@ -571,6 +569,19 @@ async function removerItem(item: any, idx: number) {
 
 function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatarDataHora(ts: number | string | null | undefined): string {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return String(ts)
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // Persiste as condições de pagamento editadas na ORCA antes de enviar.
@@ -664,7 +675,15 @@ function mostrarToast(msg: string) {
 
 // Status do orçamento (badge + fluxo de botões)
 const statusAtual = computed(() => orcamentoStore.orcamentoHeader?.status ?? 'RASCUNHO')
-const statusFinalizado = computed(() => ['APROVADO', 'FATURADO', 'RECUSADO', 'CANCELADO'].includes(statusAtual.value))
+const statusFinalizado = computed(() =>
+  ['APROVADO', 'AGUARDANDO_FATURAMENTO', 'FATURADO', 'ENTREGUE', 'RECUSADO', 'CANCELADO'].includes(
+    statusAtual.value,
+  ),
+)
+// Estados finais (sem ação de status possível) — ENTREGUE/RECUSADO/CANCELADO
+const statusTerminal = computed(() =>
+  ['ENTREGUE', 'RECUSADO', 'CANCELADO'].includes(statusAtual.value),
+)
 const atualizandoStatus = ref(false)
 
 const STATUS_LABELS: Record<string, string> = {
@@ -672,7 +691,9 @@ const STATUS_LABELS: Record<string, string> = {
   ENVIADO: 'Enviado',
   AGUARDANDO_RETORNO: 'Aguardando retorno',
   APROVADO: 'Aprovado',
+  AGUARDANDO_FATURAMENTO: 'Aguardando faturamento',
   FATURADO: 'Faturado',
+  ENTREGUE: 'Entregue',
   RECUSADO: 'Recusado',
   CANCELADO: 'Cancelado',
 }
@@ -682,41 +703,68 @@ function statusLabel(status: string): string {
 }
 
 // Modal de confirmação de status
-const statusConfirm = ref<{ destino: string; rotulo: string } | null>(null)
+const statusConfirm = ref<{ destino: string; rotulo: string; pedirMotivo: boolean } | null>(null)
+const motivoStatus = ref('')
 
 const STATUS_ACAO_LABEL: Record<string, string> = {
   AGUARDANDO_RETORNO: 'Enviar',
   APROVADO: 'Aprovar',
+  AGUARDANDO_FATURAMENTO: 'Converter em Pedido',
   FATURADO: 'Faturar',
+  ENTREGUE: 'Entregar',
   RECUSADO: 'Recusar',
   CANCELADO: 'Cancelar',
   RASCUNHO: 'Voltar para Rascunho',
 }
 
+const STATUS_PEDE_MOTIVO = ['RECUSADO', 'CANCELADO']
+
 function pedirConfirmacao(destino: string) {
+  motivoStatus.value = ''
   statusConfirm.value = {
     destino,
     rotulo: STATUS_ACAO_LABEL[destino] ?? destino,
+    pedirMotivo: STATUS_PEDE_MOTIVO.includes(destino),
   }
 }
 
 function cancelarStatus() {
   statusConfirm.value = null
+  motivoStatus.value = ''
 }
 
 async function confirmarStatus() {
-  const destino = statusConfirm.value?.destino
+  const confirm = statusConfirm.value
   statusConfirm.value = null
-  if (!destino) return
-  await mudarStatus(destino)
+  if (!confirm) return
+  if (confirm.destino === 'AGUARDANDO_FATURAMENTO') {
+    await converterParaPedido()
+  } else {
+    await mudarStatus(confirm.destino, motivoStatus.value.trim() || undefined)
+  }
+  motivoStatus.value = ''
 }
 
-async function mudarStatus(status: string) {
+async function mudarStatus(status: string, motivo?: string) {
   const orcaId = orcaIdAtual.value
   if (!orcaId) return
   atualizandoStatus.value = true
   try {
-    await orcamentoStore.atualizarStatus(orcaId, status)
+    await orcamentoStore.atualizarStatus(orcaId, status, motivo)
+  } catch {
+    /* error já definido no store */
+  } finally {
+    atualizandoStatus.value = false
+  }
+}
+
+async function converterParaPedido() {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return
+  atualizandoStatus.value = true
+  try {
+    await orcamentoStore.converterEmPedido(orcaId)
+    mostrarToast('Orçamento convertido em pedido.')
   } catch {
     /* error já definido no store */
   } finally {
@@ -1142,11 +1190,7 @@ async function enviarWhatsApp() {
             <div v-if="!orcamentoStore.ehML" class="field area-fc-wrap">
               <label>Área Faturada (m²)</label>
               <div class="area-fc-input">
-                <input
-                  :value="areaFaturada.toFixed(2)"
-                  readonly
-                  class="input-readonly input-big"
-                />
+                <input :value="areaFaturada.toFixed(2)" readonly class="input-readonly input-big" />
                 <button
                   class="btn-eye"
                   :class="{ active: mostrarCustos }"
@@ -1348,7 +1392,13 @@ async function enviarWhatsApp() {
               "
               @click="handleInserir"
             >
-              {{ orcamentoStore.inserindo ? 'Salvando…' : editandoItemId ? 'Salvar Alterações' : 'Adicionar Item' }}
+              {{
+                orcamentoStore.inserindo
+                  ? 'Salvando…'
+                  : editandoItemId
+                    ? 'Salvar Alterações'
+                    : 'Adicionar Item'
+              }}
             </button>
             <button
               v-if="editandoItemId"
@@ -1360,7 +1410,11 @@ async function enviarWhatsApp() {
           </div>
 
           <p v-if="inserirOk" class="success-msg">
-            {{ editandoItemId ? 'Item atualizado!' : `Item adicionado ao orçamento ${orcamentoStore.numeroOrcamento}!` }}
+            {{
+              editandoItemId
+                ? 'Item atualizado!'
+                : `Item adicionado ao orçamento ${orcamentoStore.numeroOrcamento}!`
+            }}
           </p>
           <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
         </section>
@@ -1405,7 +1459,9 @@ async function enviarWhatsApp() {
                   stroke-width="2"
                   stroke-linecap="round"
                 >
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"
+                  />
                   <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
                   <line x1="1" y1="1" x2="23" y2="23" />
                 </svg>
@@ -1472,17 +1528,17 @@ async function enviarWhatsApp() {
               </div>
               <div class="totais-item">
                 <span class="totais-label">Margem (Alvo)</span>
-                <span class="totais-valor">{{
-                  orcamentoStore.totaisRecalculo?.markup_alvo ??
-                  orcamentoStore.orcamentoHeader?.margem ??
-                  margemPadrao
-                }}%</span>
+                <span class="totais-valor"
+                  >{{
+                    orcamentoStore.totaisRecalculo?.markup_alvo ??
+                    orcamentoStore.orcamentoHeader?.margem ??
+                    margemPadrao
+                  }}%</span
+                >
               </div>
               <div class="totais-item">
                 <span class="totais-label">Margem Efetiva</span>
-                <span class="totais-valor">{{
-                  orcamentoStore.totaisRecalculo?.margem ?? 0
-                }}%</span>
+                <span class="totais-valor">{{ orcamentoStore.totaisRecalculo?.margem ?? 0 }}%</span>
               </div>
               <div class="totais-item">
                 <span class="totais-label">IPI</span>
@@ -1490,7 +1546,10 @@ async function enviarWhatsApp() {
                   formatarMoeda(orcamentoStore.totaisRecalculo?.ipi_tot ?? 0)
                 }}</span>
               </div>
-              <div v-if="(orcamentoStore.totaisRecalculo?.credito_icms_tot ?? 0) > 0" class="totais-item">
+              <div
+                v-if="(orcamentoStore.totaisRecalculo?.credito_icms_tot ?? 0) > 0"
+                class="totais-item"
+              >
                 <span class="totais-label">ICMS (Crédito)</span>
                 <span class="totais-valor">{{
                   formatarMoeda(orcamentoStore.totaisRecalculo?.credito_icms_tot ?? 0)
@@ -1670,9 +1729,7 @@ async function enviarWhatsApp() {
                 <div class="preview-item">
                   <span class="preview-label">Total c/ Frete B2C</span>
                   <span class="preview-value">{{
-                    formatarMoeda(
-                      (novoValorVendaResumo || 0) + (freteB2CResumo || 0),
-                    )
+                    formatarMoeda((novoValorVendaResumo || 0) + (freteB2CResumo || 0))
                   }}</span>
                 </div>
                 <div class="preview-item">
@@ -1734,7 +1791,9 @@ async function enviarWhatsApp() {
                     formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
                   }}</span>
                   <span class="itens-col-total" data-label="Total">{{
-                    formatarMoeda((item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1))
+                    formatarMoeda(
+                      (item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1),
+                    )
                   }}</span>
                   <span class="itens-col-actions">
                     <button class="btn-icon" title="Editar item" @click="editarItem(item)">
@@ -1835,7 +1894,9 @@ async function enviarWhatsApp() {
               stroke-width="2"
               stroke-linecap="round"
             >
-              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+              <path
+                d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"
+              />
               <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
               <line x1="1" y1="1" x2="23" y2="23" />
             </svg>
@@ -1910,11 +1971,13 @@ async function enviarWhatsApp() {
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Margem (Alvo)</span>
-            <span>{{
-              orcamentoStore.totaisRecalculo?.markup_alvo ??
-              orcamentoStore.orcamentoHeader?.margem ??
-              margemPadrao
-            }}%</span>
+            <span
+              >{{
+                orcamentoStore.totaisRecalculo?.markup_alvo ??
+                orcamentoStore.orcamentoHeader?.margem ??
+                margemPadrao
+              }}%</span
+            >
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Margem Efetiva</span>
@@ -1958,9 +2021,9 @@ async function enviarWhatsApp() {
 
         <div v-if="orcamentoStore.orcamentoHeader?.condicoes_pagamento" class="resumo-obs">
           <h3>Condições de Pagamento</h3>
-          <p style="white-space: pre-line">{{
-            orcamentoStore.orcamentoHeader.condicoes_pagamento
-          }}</p>
+          <p style="white-space: pre-line">
+            {{ orcamentoStore.orcamentoHeader.condicoes_pagamento }}
+          </p>
         </div>
 
         <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
@@ -1975,7 +2038,32 @@ async function enviarWhatsApp() {
           </span>
         </div>
 
-        <div v-if="!isVinculado && !statusFinalizado" class="status-section">
+        <div v-if="orcamentoStore.statusHistorico.length" class="status-section">
+          <h3 class="status-section-title">Histórico de Status</h3>
+          <div class="status-historico">
+            <div
+              v-for="(reg, idx) in orcamentoStore.statusHistorico"
+              :key="idx"
+              class="status-historico-item"
+            >
+              <span class="status-historico-dot"></span>
+              <div class="status-historico-body">
+                <div class="status-historico-line">
+                  <span class="badge-status" :class="`badge-${reg.status.toLowerCase()}`">
+                    {{ statusLabel(reg.status) }}
+                  </span>
+                  <span v-if="reg.status_anterior" class="status-historico-de">
+                    (anterior: {{ statusLabel(reg.status_anterior) }})
+                  </span>
+                  <span class="status-historico-data">{{ formatarDataHora(reg.created_at) }}</span>
+                </div>
+                <div v-if="reg.motivo" class="status-historico-motivo">{{ reg.motivo }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="!statusTerminal" class="status-section">
           <h3 class="status-section-title">Ações de Status</h3>
           <div class="status-actions">
             <button
@@ -1995,7 +2083,15 @@ async function enviarWhatsApp() {
               Aprovar
             </button>
             <button
-              v-if="statusAtual === 'APROVADO'"
+              v-if="statusAtual === 'APROVADO' && !isVinculado"
+              class="btn btn-primary btn-sm"
+              :disabled="atualizandoStatus"
+              @click="pedirConfirmacao('AGUARDANDO_FATURAMENTO')"
+            >
+              Converter em Pedido
+            </button>
+            <button
+              v-if="statusAtual === 'AGUARDANDO_FATURAMENTO' && isVinculado"
               class="btn btn-primary btn-sm"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('FATURADO')"
@@ -2003,7 +2099,19 @@ async function enviarWhatsApp() {
               Faturar
             </button>
             <button
-              v-if="statusAtual !== 'FATURADO' && statusAtual !== 'APROVADO'"
+              v-if="statusAtual === 'FATURADO' && isVinculado"
+              class="btn btn-primary btn-sm"
+              :disabled="atualizandoStatus"
+              @click="pedirConfirmacao('ENTREGUE')"
+            >
+              Entregar
+            </button>
+            <button
+              v-if="
+                statusAtual !== 'FATURADO' &&
+                statusAtual !== 'ENTREGUE' &&
+                statusAtual !== 'APROVADO'
+              "
               class="btn btn-sm btn-danger-outline"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('RECUSADO')"
@@ -2011,7 +2119,7 @@ async function enviarWhatsApp() {
               Recusar
             </button>
             <button
-              v-if="statusAtual !== 'FATURADO'"
+              v-if="statusAtual !== 'FATURADO' && statusAtual !== 'ENTREGUE'"
               class="btn btn-sm btn-outline"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('CANCELADO')"
@@ -2027,7 +2135,11 @@ async function enviarWhatsApp() {
               ← Voltar para Rascunho
             </button>
             <button
-              v-if="statusAtual === 'APROVADO' || statusAtual === 'RECUSADO' || statusAtual === 'CANCELADO'"
+              v-if="
+                statusAtual === 'APROVADO' ||
+                statusAtual === 'RECUSADO' ||
+                statusAtual === 'CANCELADO'
+              "
               class="btn btn-sm btn-outline"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('AGUARDANDO_RETORNO')"
@@ -2046,7 +2158,11 @@ async function enviarWhatsApp() {
             </label>
             <span class="switch-label">Faturar para cliente</span>
           </div>
-          <button class="btn btn-whatsapp btn-lg" :disabled="enviandoWhatsApp" @click="enviarWhatsApp">
+          <button
+            class="btn btn-whatsapp btn-lg"
+            :disabled="enviandoWhatsApp"
+            @click="enviarWhatsApp"
+          >
             {{ enviandoWhatsApp ? 'Enviando…' : 'WhatsApp' }}
           </button>
           <button class="btn btn-secondary btn-lg" @click="gerarPdf">Gerar PDF</button>
@@ -2063,6 +2179,15 @@ async function enviarWhatsApp() {
         <div v-if="statusConfirm" class="status-modal-overlay" @click.self="cancelarStatus">
           <div class="status-modal-card">
             <h3>Tem certeza que deseja {{ statusConfirm.rotulo.toLowerCase() }} este orçamento?</h3>
+            <label v-if="statusConfirm.pedirMotivo" class="status-modal-label">
+              Motivo (opcional)
+              <input
+                v-model="motivoStatus"
+                type="text"
+                class="status-modal-input"
+                placeholder="Ex.: cliente pediu mudança no produto"
+              />
+            </label>
             <div class="status-modal-actions">
               <button class="btn btn-sm btn-outline" @click="cancelarStatus">Cancelar</button>
               <button class="btn btn-primary btn-sm" @click="confirmarStatus">Confirmar</button>
@@ -3280,6 +3405,87 @@ async function enviarWhatsApp() {
   gap: 0.75rem;
 }
 
+.status-modal-label {
+  display: block;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 1rem;
+}
+
+.status-modal-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  background: #fff;
+}
+
+.status-modal-input:focus {
+  outline: none;
+  border-color: var(--primary, #3366cc);
+  box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.15);
+}
+
+.status-historico {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.status-historico-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.status-historico-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--primary, #3366cc);
+  margin-top: 0.45rem;
+}
+
+.status-historico-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.status-historico-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.status-historico-de {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.status-historico-data {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.status-historico-motivo {
+  font-size: 0.8rem;
+  color: #475569;
+  background: #f8fafc;
+  border-left: 3px solid var(--primary, #3366cc);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+}
+
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.2s ease;
@@ -3321,6 +3527,16 @@ async function enviarWhatsApp() {
 .badge-faturado {
   background: #dbeafe;
   color: #1e40af;
+}
+
+.badge-aguardando_faturamento {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-entregue {
+  background: #ccfbf1;
+  color: #0f766e;
 }
 
 .badge-recusado {
@@ -3452,7 +3668,9 @@ async function enviarWhatsApp() {
 
 .toast-fade-enter-active,
 .toast-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .toast-fade-enter-from,

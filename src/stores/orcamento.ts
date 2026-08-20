@@ -540,6 +540,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     descricao: string,
     existingCodOrca?: string,
     observacao?: string,
+    orcaId?: number,
   ) {
     if (!resultado.value && !resultadoNovo.value) {
       error.value = 'Calcule o orçamento primeiro'
@@ -579,6 +580,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           ''
         payload = {
           cod_orca: numeroOrcamento.value!,
+          orca_id: orcaId ?? 0,
           cliente_id: String(cliente_id),
           frtB2B: fretePersonalizado.value ?? authIns.user?.frtB2B ?? null,
           frtB2C: null,
@@ -644,6 +646,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         }
         payload = {
           cod_orca: numeroOrcamento.value!,
+          orca_id: orcaId ?? 0,
           cliente_id: String(cliente_id),
           frtB2B: fretePersonalizado.value ?? authIns.user?.frtB2B ?? null,
           frtB2C: null,
@@ -770,6 +773,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     numeroOrcamento.value = null
     itensInseridos.value = []
     orcamentoHeader.value = null
+    statusHistorico.value = []
     carregandoOrcamento.value = false
     limparPersonalizacoes()
   }
@@ -893,19 +897,63 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     await recalcularTotais(orcaId, { desconto: valor })
   }
 
-  // Atualiza o status do orçamento (RASCUNHO → AGUARDANDO_RETORNO → APROVADO → FATURADO)
-  async function atualizarStatus(orcaId: number, status: string) {
+  // Atualiza o status do orçamento (RASCUNHO → AGUARDANDO_RETORNO → APROVADO →
+  // AGUARDANDO_FATURAMENTO → FATURADO → ENTREGUE). Grava o histórico de auditoria no backend.
+  async function atualizarStatus(orcaId: number, status: string, motivo?: string) {
     try {
       const response = await xano.post('/api:-qqRIakp/orcamento_status', {
         orca_id: orcaId,
         status,
+        motivo,
       })
       const body = response.getBody() as any
       orcamentoHeader.value = body?.ORCA_1 ?? orcamentoHeader.value
+      await carregarStatusHistorico(orcaId)
     } catch (err: any) {
       console.error('Erro ao atualizar status:', err)
       error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar status'
       throw err
+    }
+  }
+
+  // Converte um orçamento APROVADO em pedido (eh_pedido=true + AGUARDANDO_FATURAMENTO).
+  // A partir daí a edição fica bloqueada (front e backend).
+  async function converterEmPedido(orcaId: number) {
+    try {
+      const response = await xano.post('/api:-qqRIakp/orcamento_converter_pedido', {
+        orca_id: orcaId,
+      })
+      const body = response.getBody() as any
+      orcamentoHeader.value = body?.ORCA_1 ?? orcamentoHeader.value
+      await carregarStatusHistorico(orcaId)
+    } catch (err: any) {
+      console.error('Erro ao converter em pedido:', err)
+      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao converter em pedido'
+      throw err
+    }
+  }
+
+  // Histórico de status (auditoria) — mais recente primeiro
+  const statusHistorico = ref<any[]>([])
+  const carregandoHistorico = ref(false)
+
+  async function carregarStatusHistorico(orcaId: number) {
+    if (!orcaId) {
+      statusHistorico.value = []
+      return
+    }
+    carregandoHistorico.value = true
+    try {
+      const response = await xano.get('/api:-qqRIakp/orcamento_status_historico', {
+        orca_id: orcaId,
+      })
+      const body = response.getBody() as any
+      statusHistorico.value = Array.isArray(body) ? body : []
+    } catch (err: any) {
+      console.error('Erro ao carregar histórico de status:', err)
+      statusHistorico.value = []
+    } finally {
+      carregandoHistorico.value = false
     }
   }
 
@@ -964,6 +1012,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     definirFreteB2C,
     definirDesconto,
     atualizarStatus,
+    converterEmPedido,
+    statusHistorico,
+    carregandoHistorico,
+    carregarStatusHistorico,
     definirMargemPersonalizada,
     definirFretePersonalizado,
     limparPersonalizacoes,

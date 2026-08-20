@@ -250,6 +250,7 @@ export interface OrcamentoNovoResult {
 
 export interface OrcamentoInsertPayload {
   cod_orca: string
+  orca_id?: number
   cliente_id: string
   frtB2B: number | null
   frtB2C: number | null

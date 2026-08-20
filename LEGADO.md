@@ -32,11 +32,11 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 | `f_modulo_calcula_valor_venda` | PARA EXCLUIR | orquestrador |
 | `External API PDF` | PARA EXCLUIR (CraftMyPDF aposentado) | PDF no frontend (`src/services/pdf.ts`) |
 | `fpdf_teste` | PARA EXCLUIR (teste) | — |
-| `Item_alterar_margem` | EM USO (via `orca_change`) | revisar ao migrar pedido |
+| `Item_alterar_margem` | EM USO (via `orca_change`) | revisar |
 | `post_orca` | EM USO (via `OrcamentoItem_Inserir`) | revisar |
 | `post_item` | EM USO (via `OrcamentoItem_Inserir`) | revisar |
-| `orca_change` | EM USO (via `PedidoItem_Inserir`) | revisar ao migrar pedido |
-| `pedido_func` | EM USO (via `PedidoItem_Inserir`) | revisar ao migrar pedido |
+| `orca_change` | EM USO (via `orca/{orca_id}` POST) | já sem `pedido_id` |
+| `pedido_func` | PARA EXCLUIR após migração | fusão Pedido → Orca |
 
 ## Endpoints (Xano)
 
@@ -62,9 +62,11 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 
 ## Próximos passos
 1. Validar edição de orçamento (ORC12439 abre com cliente/descrição/negociação)
-2. Validar WhatsApp e Pedido com `Orcamento_Detalhes_v2`
+2. Validar WhatsApp com `Orcamento_Detalhes_v2`
 3. ~~Gerar PDF no frontend (pdfmake)~~ → feito (`src/services/pdf.ts`; `/auth/me` expõe `_telefones`; `orca_detalhes` expõe `_enderecos`)
-4. Excluir os itens `PARA EXCLUIR` no dashboard
+4. ~~Fusão Pedido → Orca~~ → feito (status estendido + `orcamento_converter_pedido` + `Orca_Status_Log` + trava de edição)
+5. **Rodar `MigrarPedidosParaOrca` no dashboard** (marca as 83 Orcas vinculadas como `eh_pedido`) e depois **dropar** `Pedido`/`item_ped`/`controle_pedido` + funções/endpoints legados (`pedido_func`, `item_ped_func`, `PedidoItem_Inserir`, `pedido/*`, `controlepedido/*`, addons `boleto_of_pedido`) e a coluna `orca.pedido_id`
+6. Excluir os itens `PARA EXCLUIR` no dashboard
 
 ## Notas (`mao_de_obra` / `observacao` / `condicoes_pagamento`)
 - Tabela `Orca` ganhou `mao_de_obra` (soma apenas no Total Geral `vnd_B2B_B2C_tot`, não altera lucro/margem), `observacao` (texto livre, impresso no final do PDF) e `condicoes_pagamento` (texto salvo de Pix/Boleto/etc., exibido no PDF/WhatsApp).
@@ -79,8 +81,12 @@ Inventário do que **não faz parte do novo sistema** de precificação/orçamen
 - WhatsApp itens: `descricao.trim()` (o `concat` do backend deixa espaços finais que quebram o negrito `*...*` do WhatsApp a partir do item 4); item em 2 linhas (📌 nome / • métricas) com **linha em branco entre itens**.
 - Campo "Observações do Orçamento" movido para o card "Ajustar Orçamento" (abaixo do botão Aplicar); botão Aplicar na cor primária.
 - Margem (alvo) movida para a parte oculta (só com o olho); "Diferença Total c/ B2C" (preview simulado − total atual) no preview da negociação (oculto).
-- Status do orçamento: enum ganhou `AGUARDANDO_RETORNO`; endpoint `orcamento_status` (POST); badges na finalizada + listagem; fluxo RASCUNHO → AGUARDANDO_RETORNO → APROVADO → FATURADO (+ RECUSADO/CANCELADO). **Reversão**: AGUARDANDO_RETORNO → RASCUNHO ("Voltar para Rascunho"); APROVADO/RECUSADO/CANCELADO → AGUARDANDO_RETORNO ("Voltar para Aguardando Retorno"); FATURADO é terminal. **Modal de confirmação** (Teleport) antes de cada mudança.
-- Layout da tela finalizada: badge de status fixo em cabeçalho dedicado (`.status-top`); subseção "Ações de Status" (`.status-section`) com os botões de transição; barra de ferramentas no rodapé (`.resumo-toolbar`) com Novo Orçamento / Faturar / WhatsApp / Gerar PDF. Condições de Pagamento + Observações são **read-only** na finalizada — a edição (com Gerar/Salvar Condições) fica só na área "Ajustar Orçamento", e `handleFinalizar` persiste tudo via `persistirCondicoesPagamento`.
+- Status do orçamento: enum completo **RASCUNHO → ENVIADO → AGUARDANDO_RETORNO → APROVADO → AGUARDANDO_FATURAMENTO → FATURADO → ENTREGUE** (+ RECUSADO/CANCELADO como alternativas). Endpoints: `orcamento_status` (POST, muda status + grava auditoria) e `orcamento_status_lista` (GET, para mesclar na listagem). Badges na finalizada + listagem. **Reversão**: AGUARDANDO_RETORNO/ENVIADO → RASCUNHO; APROVADO/RECUSADO/CANCELADO → AGUARDANDO_RETORNO; ENTREGUE/RECUSADO/CANCELADO são terminais. **Modal de confirmação** (Teleport) antes de cada mudança; RECUSADO/CANCELADO pedem **motivo** (opcional), que vai para `motivo_recusa` da Orca e para o log.
+- **Fusão Pedido → Orca**: a tabela `Pedido`/`item_ped` foi **substituída** por marcar a própria Orca (`eh_pedido = true` + status `AGUARDANDO_FATURAMENTO`). Novo endpoint **`orcamento_converter_pedido`** (POST): exige `status == APROVADO` e `eh_pedido != true`, grava `eh_pedido` + status + auditoria. **Trava de edição no backend**: `orca_change`, `orcamento_recalcular`, `OrcamentoItem_Inserir` e `orcamento_item_deletar` recusam (`badrequest`) quando `eh_pedido == true`. No frontend, `isVinculado = orcamentoHeader.eh_pedido === true` e a tela finalizada mostra badge "Somente Leitura"; botão "Converter em Pedido" aparece só em APROVADO, e "Faturar"/"Entregar" quando `eh_pedido`. `post_orca`/`orca_change`/`orca_id_POST`/`f_DuplicaOrcamento` não escrevem mais `pedido_id`; coluna `pedido_id` da Orca ainda existe (legado) — remover após migração.
+- **Trava de edição — guard de nulo (fix)**: a trava não pode acessar `$X.eh_pedido` quando a Orca é `null` (1º item de orçamento novo em `OrcamentoItem_Inserir` gerava 500 `Unable to locate var`). Padrão: `var $pedidoBloqueado {false}` + `conditional if ($X != null) { var.update $pedidoBloqueado { ($X.eh_pedido == true) } }` + `precondition ($pedidoBloqueado != true)`. Aplicado nos 4 endpoints. Em `OrcamentoItem_Inserir` o `Orca_0` é resolvido por **precedência**: `orca_id` (2º+ item / edição) > `cod_orca` (1º item, cria) — `cod_orca` não é indexado; o frontend envia `orca_id` via `orcaIdAtual` sempre que o orçamento já existe.
+- **Auditoria de status (`Orca_Status_Log`)**: tabela append-only com `orca_id`, `status` (destino), `status_anterior`, `user_id` (quem), `motivo`, `created_at`. Escrita por `orcamento_status` e `orcamento_converter_pedido`. Endpoint **`orcamento_status_historico`** (GET) retorna por `orca_id` (mais recente primeiro); a tela finalizada mostra timeline ("Histórico de Status"). Servirá para relatórios de funil/apontamentos.
+- **Migração legado**: função `MigrarPedidosParaOrca` (one-off) — para cada `Pedido`, acha a Orca por `cod_orca`, grava `eh_pedido=true` + mapeia status (AGUARDANDO_FATURAMENTO/FATURADO/ENTREGUE/CANCELADO) + auditoria. **Rodar no dashboard UMA vez** antes de dropar `Pedido`/`item_ped`/`controle_pedido` e os endpoints/funções legados (`pedido_func`, `item_ped_func`, `PedidoItem_Inserir`, `pedido/*`, `controlepedido/*`). `fDadosDashBoard` conta `eh_pedido != true` (orçamentos) e `eh_pedido == true` (pedidos).
+- Layout da tela finalizada: badge de status fixo em cabeçalho dedicado (`.status-top`); subseção "Ações de Status" (`.status-section`) com os botões de transição (Enviar/Aprovar/Converter em Pedido/Faturar/Entregar/Recusar/Cancelar/reversões); timeline "Histórico de Status"; barra de ferramentas no rodapé (`.resumo-toolbar`) com Novo Orçamento / Faturar para cliente / WhatsApp / Gerar PDF. Condições de Pagamento + Observações são **read-only** na finalizada — a edição (com Gerar/Salvar Condições) fica só na área "Ajustar Orçamento", e `handleFinalizar` persiste tudo via `persistirCondicoesPagamento`.
 - Botões: `.btn-sm`/`.btn-lg` ajustam **apenas tamanho** (padding/fonte) — não sobrescrevem cor/fundo das variantes `.btn-primary/.btn-secondary/.btn-outline/.btn-danger-outline/.btn-whatsapp` (bug antigo: ordem de declaração fazia `.btn-sm` "branco" sobrepor o primário).
 - Listagem: o enum `status` **não pode** ir no `output` de `db.query` paginado (`orca_por_cliente_busca` — erro `xdo.orca.cod_orca`). O status vem do endpoint auxiliar `orcamento_status_lista` (db.query simples) e é mesclado por `id` no frontend.
 - Referência de tabela base em `db.query` com join deve ser **maiúscula** (`$db.Orca.cod_orca`, `sort = {Orca.created_at: "desc"}`); minúscula (`$db.orca.cod_orca`, `{orca.created_at: ...}`) quebra com `xdo.orca.*`. `orca_por_cliente_id` (sort) e `orca_id_user` (where `$db.orca.cod_orca` + sort) ainda usam minúsculo (legado, não usados pelo frontend novo) — corrigir ao migrar.

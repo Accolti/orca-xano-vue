@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { xano } from '@/services/xano'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
-import { gerarPdfOrcamento, montarTextoWhatsApp, obterWhatsappCliente, copiarEabrirWhatsApp } from '@/services/pdf'
+import {
+  gerarPdfOrcamento,
+  montarTextoWhatsApp,
+  obterWhatsappCliente,
+  copiarEabrirWhatsApp,
+} from '@/services/pdf'
 import type { Cliente } from '@/types/cliente'
+
+const props = defineProps<{ somentePedidos?: boolean }>()
 
 interface OrcamentoRow {
   id: number
@@ -24,7 +31,7 @@ interface OrcamentoRow {
   luc_tot: number
   margem: number
   validade: string
-  pedido_id: number
+  eh_pedido?: boolean
   status?: string
 }
 
@@ -33,7 +40,9 @@ const STATUS_LABELS: Record<string, string> = {
   ENVIADO: 'Enviado',
   AGUARDANDO_RETORNO: 'Aguardando retorno',
   APROVADO: 'Aprovado',
+  AGUARDANDO_FATURAMENTO: 'Aguardando faturamento',
   FATURADO: 'Faturado',
+  ENTREGUE: 'Entregue',
   RECUSADO: 'Recusado',
   CANCELADO: 'Cancelado',
 }
@@ -53,6 +62,11 @@ const errorMsg = ref('')
 const gerandoPdfDe = ref<number | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+// Em /pedidos, filtra apenas as Orcas convertidas em pedido (eh_pedido === true)
+const resultadosVisiveis = computed(() =>
+  props.somentePedidos ? resultados.value.filter((r) => r.eh_pedido === true) : resultados.value,
+)
+
 // Toast temporário (rodapé) para avisos de clipboard/WhatsApp
 const toastMsg = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -68,7 +82,6 @@ const curPage = ref(1)
 const perPage = ref(20)
 const hasNext = ref(false)
 const hasPrev = ref(false)
-const jaCarregou = ref(false)
 
 function formatarMoeda(valor: number): string {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`
@@ -108,7 +121,6 @@ async function buscar() {
     const itemsReceived = body?.itemsReceived ?? items.length
     hasNext.value = !!body.nextPage && itemsReceived >= perPage.value
     hasPrev.value = !!body.prevPage
-    jaCarregou.value = true
   } catch (err: any) {
     console.error('Erro na busca:', err)
     errorMsg.value = 'Erro ao buscar orçamentos'
@@ -236,7 +248,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
   <div class="orc-list-page">
     <section class="card header-card">
       <div class="header-top">
-        <h2>Orçamentos</h2>
+        <h2>{{ props.somentePedidos ? 'Pedidos' : 'Orçamentos' }}</h2>
         <button class="btn btn-primary" @click="novoOrcamento">+ Novo Orçamento</button>
       </div>
       <div class="field busca-field">
@@ -257,7 +269,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
       <p class="error-msg">{{ errorMsg }}</p>
     </section>
 
-    <section v-if="!loading && resultados.length" class="card tabela-card">
+    <section v-if="!loading && resultadosVisiveis.length" class="card tabela-card">
       <div class="tabela-orcamentos-wrap">
         <table class="tabela-orcamentos">
           <thead>
@@ -273,7 +285,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in resultados" :key="row.id">
+            <tr v-for="row in resultadosVisiveis" :key="row.id">
               <td class="cell-cod">{{ row.cod_orca }}</td>
               <td class="cell-cliente">{{ row.nome_fantasia || row.razao_social }}</td>
               <td class="cell-contato">{{ row.contato }}</td>
@@ -281,12 +293,15 @@ async function excluirOrcamento(row: OrcamentoRow) {
               <td class="cell-valor">{{ formatarMoeda(row.vnd_tot) }}</td>
               <td class="cell-data">{{ formatarData(row.created_at) }}</td>
               <td class="cell-status">
-                <span class="badge-status" :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`">
+                <span
+                  class="badge-status"
+                  :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`"
+                >
                   {{ statusLabel(row.status) }}
                 </span>
               </td>
               <td class="cell-acoes">
-                <template v-if="row.pedido_id === 0">
+                <template v-if="!row.eh_pedido">
                   <button class="btn-icon" title="Editar orçamento" @click="editarOrcamento(row)">
                     <svg
                       width="16"
@@ -330,12 +345,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
                     title="Enviar via WhatsApp"
                     @click="enviarWhatsApp(row)"
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                       <path
                         d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"
                       />
@@ -373,16 +383,13 @@ async function excluirOrcamento(row: OrcamentoRow) {
 
       <!-- Cards mobile -->
       <div class="orc-cards-mobile">
-        <div v-for="row in resultados" :key="row.id" class="orc-card-mobile">
+        <div v-for="row in resultadosVisiveis" :key="row.id" class="orc-card-mobile">
           <div class="orc-card-header">
             <span class="orc-card-cod">{{ row.cod_orca }}</span>
             <span class="orc-card-data">{{ formatarData(row.created_at) }}</span>
           </div>
           <div class="orc-card-status">
-            <span
-              class="badge-status"
-              :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`"
-            >
+            <span class="badge-status" :class="`badge-${(row.status ?? 'RASCUNHO').toLowerCase()}`">
               {{ statusLabel(row.status) }}
             </span>
           </div>
@@ -405,7 +412,7 @@ async function excluirOrcamento(row: OrcamentoRow) {
             </div>
           </div>
           <div class="orc-card-actions">
-            <template v-if="row.pedido_id === 0">
+            <template v-if="!row.eh_pedido">
               <button class="btn-icon" title="Editar orçamento" @click="editarOrcamento(row)">
                 <svg
                   width="16"
@@ -494,13 +501,24 @@ async function excluirOrcamento(row: OrcamentoRow) {
       </div>
     </section>
 
-    <section v-if="!loading && termoBusca.length >= 3 && !resultados.length" class="card">
-      <p class="empty-msg">Nenhum orçamento encontrado para "{{ termoBusca }}"</p>
+    <section v-if="!loading && termoBusca.length >= 3 && !resultadosVisiveis.length" class="card">
+      <p class="empty-msg">
+        Nenhum {{ props.somentePedidos ? 'pedido' : 'orçamento' }} encontrado para "{{
+          termoBusca
+        }}"
+      </p>
     </section>
 
-    <section v-if="!loading && !jaCarregou" class="card hint-card">
+    <section
+      v-if="!loading && !resultadosVisiveis.length && termoBusca.length < 3"
+      class="card hint-card"
+    >
       <p class="hint-msg">
-        Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.
+        {{
+          props.somentePedidos
+            ? 'Nenhum pedido ainda. Converta um orçamento aprovado em pedido.'
+            : 'Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.'
+        }}
       </p>
     </section>
 
@@ -726,6 +744,16 @@ async function excluirOrcamento(row: OrcamentoRow) {
   color: #1e40af;
 }
 
+.badge-aguardando_faturamento {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-entregue {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
 .badge-recusado {
   background: #fee2e2;
   color: #991b1b;
@@ -945,7 +973,9 @@ async function excluirOrcamento(row: OrcamentoRow) {
 
 .toast-fade-enter-active,
 .toast-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .toast-fade-enter-from,
