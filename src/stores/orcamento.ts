@@ -774,6 +774,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     itensInseridos.value = []
     orcamentoHeader.value = null
     statusHistorico.value = []
+    controlePedido.value = null
     carregandoOrcamento.value = false
     limparPersonalizacoes()
   }
@@ -957,6 +958,39 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
+  // Dados de controle Kapazi/faturamento do pedido (ControlePedido por orca_id)
+  const controlePedido = ref<any | null>(null)
+
+  async function carregarControlePedido(orcaId: number) {
+    if (!orcaId) {
+      controlePedido.value = null
+      return
+    }
+    try {
+      const response = await xano.get('/api:-qqRIakp/controle_pedido_por_orca', {
+        orca_id: orcaId,
+      })
+      controlePedido.value = response.getBody() as any
+    } catch (err: any) {
+      console.error('Erro ao carregar controle do pedido:', err)
+      controlePedido.value = null
+    }
+  }
+
+  async function salvarControlePedido(orcaId: number, dados: Record<string, any>) {
+    try {
+      const response = await xano.post('/api:-qqRIakp/controle_pedido_salvar', {
+        orca_id: orcaId,
+        ...dados,
+      })
+      controlePedido.value = response.getBody() as any
+    } catch (err: any) {
+      console.error('Erro ao salvar controle do pedido:', err)
+      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar dados da fábrica'
+      throw err
+    }
+  }
+
   return {
     materiais,
     linhas,
@@ -1016,6 +1050,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     statusHistorico,
     carregandoHistorico,
     carregarStatusHistorico,
+    controlePedido,
+    carregarControlePedido,
+    salvarControlePedido,
     definirMargemPersonalizada,
     definirFretePersonalizado,
     limparPersonalizacoes,

@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useOrcamentoStore } from '@/stores/orcamento'
 import {
   useOrcamentosListActions,
+  STATUS_PEDIDO_FILTRO,
   statusLabel,
   formatarMoeda,
   formatarData,
   type OrcamentoRow,
 } from '@/utils/orcamentosList'
 
+const orcamentoStore = useOrcamentoStore()
+
 const termoBusca = ref('')
+const filtroStatus = ref<string>('')
 const resultados = ref<OrcamentoRow[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
@@ -18,11 +23,9 @@ const {
   gerandoPdfDe,
   enviandoWaDe,
   toastMsg,
-  novoOrcamento,
   editarOrcamento,
   gerarPdf,
   enviarWhatsApp,
-  excluirOrcamento,
   buscarLista,
 } = useOrcamentosListActions()
 
@@ -31,18 +34,25 @@ const perPage = ref(20)
 const hasNext = ref(false)
 const hasPrev = ref(false)
 
+// Filtro de status client-side sobre o status mesclado
+const resultadosVisiveis = computed(() =>
+  filtroStatus.value
+    ? resultados.value.filter((r) => r.status === filtroStatus.value)
+    : resultados.value,
+)
+
 async function buscar() {
   const termo = termoBusca.value.trim()
   loading.value = true
   errorMsg.value = ''
   try {
-    const res = await buscarLista(termo, curPage.value, perPage.value, false, true)
+    const res = await buscarLista(termo, curPage.value, perPage.value, true)
     resultados.value = res.items
     hasNext.value = res.hasNext
     hasPrev.value = res.hasPrev
   } catch (err: any) {
-    console.error('Erro na busca:', err)
-    errorMsg.value = 'Erro ao buscar orçamentos'
+    console.error('Erro na busca de pedidos:', err)
+    errorMsg.value = 'Erro ao buscar pedidos'
     resultados.value = []
   } finally {
     loading.value = false
@@ -61,14 +71,16 @@ function irPagina(pagina: number) {
   buscar()
 }
 
+watch(filtroStatus, () => {
+  curPage.value = 1
+})
+
 onMounted(() => {
   buscar()
 })
 
-async function excluir(row: OrcamentoRow) {
-  await excluirOrcamento(row, () => {
-    resultados.value = resultados.value.filter((r) => r.id !== row.id)
-  })
+function verPedido(row: OrcamentoRow) {
+  editarOrcamento(row, 'pedidos')
 }
 </script>
 
@@ -76,16 +88,26 @@ async function excluir(row: OrcamentoRow) {
   <div class="orc-list-page">
     <section class="card header-card">
       <div class="header-top">
-        <h2>Orçamentos</h2>
-        <button class="btn btn-primary" @click="novoOrcamento">+ Novo Orçamento</button>
+        <h2>Pedidos</h2>
       </div>
-      <div class="field busca-field">
-        <label>Buscar por código, cliente, contato, CPF, CNPJ, IE...</label>
-        <input
-          v-model="termoBusca"
-          placeholder="Digite pelo menos 3 caracteres..."
-          @input="onBuscaInput"
-        />
+      <div class="filtros-row">
+        <div class="field busca-field">
+          <label>Buscar por código, cliente, contato, CPF, CNPJ...</label>
+          <input
+            v-model="termoBusca"
+            placeholder="Digite pelo menos 3 caracteres..."
+            @input="onBuscaInput"
+          />
+        </div>
+        <div class="field filtro-status">
+          <label>Status</label>
+          <select v-model="filtroStatus">
+            <option value="">Todos</option>
+            <option v-for="s in STATUS_PEDIDO_FILTRO" :key="s" :value="s">
+              {{ statusLabel(s) }}
+            </option>
+          </select>
+        </div>
       </div>
     </section>
 
@@ -97,7 +119,7 @@ async function excluir(row: OrcamentoRow) {
       <p class="error-msg">{{ errorMsg }}</p>
     </section>
 
-    <section v-if="!loading && resultados.length" class="card tabela-card">
+    <section v-if="!loading && resultadosVisiveis.length" class="card tabela-card">
       <div class="tabela-orcamentos-wrap">
         <table class="tabela-orcamentos">
           <thead>
@@ -107,19 +129,21 @@ async function excluir(row: OrcamentoRow) {
               <th>Contato</th>
               <th>CNPJ/CPF</th>
               <th>Total Venda</th>
-              <th>Data</th>
+              <th>Total c/ B2C</th>
+              <th>Data Envio</th>
               <th>Status</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in resultados" :key="row.id">
+            <tr v-for="row in resultadosVisiveis" :key="row.id">
               <td class="cell-cod">{{ row.cod_orca }}</td>
               <td class="cell-cliente">{{ row.nome_fantasia || row.razao_social }}</td>
               <td class="cell-contato">{{ row.contato }}</td>
               <td class="cell-doc">{{ row.cnpj || row.cpf || '-' }}</td>
               <td class="cell-valor">{{ formatarMoeda(row.vnd_tot) }}</td>
-              <td class="cell-data">{{ formatarData(row.created_at) }}</td>
+              <td class="cell-valor">{{ formatarMoeda(row.vnd_B2B_B2C_tot) }}</td>
+              <td class="cell-data">{{ formatarData(row.data_envio) }}</td>
               <td class="cell-status">
                 <span
                   class="badge-status"
@@ -129,11 +153,7 @@ async function excluir(row: OrcamentoRow) {
                 </span>
               </td>
               <td class="cell-acoes">
-                <button
-                  class="btn-icon"
-                  title="Editar orçamento"
-                  @click="editarOrcamento(row, 'orcamentos')"
-                >
+                <button class="btn-icon" title="Ver pedido" @click="verPedido(row)">
                   <svg
                     width="16"
                     height="16"
@@ -144,8 +164,8 @@ async function excluir(row: OrcamentoRow) {
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   >
-                    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                    <path d="m15 5 4 4" />
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                 </button>
                 <button
@@ -182,28 +202,6 @@ async function excluir(row: OrcamentoRow) {
                     />
                   </svg>
                 </button>
-                <button
-                  class="btn-icon btn-icon-danger"
-                  title="Excluir orçamento"
-                  @click="excluir(row)"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    <line x1="10" x2="10" y1="11" y2="17" />
-                    <line x1="14" x2="14" y1="11" y2="17" />
-                  </svg>
-                </button>
               </td>
             </tr>
           </tbody>
@@ -212,7 +210,7 @@ async function excluir(row: OrcamentoRow) {
 
       <!-- Cards mobile -->
       <div class="orc-cards-mobile">
-        <div v-for="row in resultados" :key="row.id" class="orc-card-mobile">
+        <div v-for="row in resultadosVisiveis" :key="row.id" class="orc-card-mobile">
           <div class="orc-card-header">
             <span class="orc-card-cod">{{ row.cod_orca }}</span>
             <span class="orc-card-data">{{ formatarData(row.created_at) }}</span>
@@ -228,24 +226,20 @@ async function excluir(row: OrcamentoRow) {
               <span class="orc-card-value">{{ row.nome_fantasia || row.razao_social }}</span>
             </div>
             <div class="orc-card-field">
-              <span class="orc-card-label">Contato</span>
-              <span class="orc-card-value">{{ row.contato }}</span>
-            </div>
-            <div class="orc-card-field">
-              <span class="orc-card-label">CNPJ/CPF</span>
-              <span class="orc-card-value">{{ row.cnpj || row.cpf || '-' }}</span>
-            </div>
-            <div class="orc-card-field">
               <span class="orc-card-label">Total</span>
               <span class="orc-card-value">{{ formatarMoeda(row.vnd_tot) }}</span>
             </div>
+            <div class="orc-card-field">
+              <span class="orc-card-label">Total c/ B2C</span>
+              <span class="orc-card-value">{{ formatarMoeda(row.vnd_B2B_B2C_tot) }}</span>
+            </div>
+            <div class="orc-card-field">
+              <span class="orc-card-label">Data Envio</span>
+              <span class="orc-card-value">{{ formatarData(row.data_envio) }}</span>
+            </div>
           </div>
           <div class="orc-card-actions">
-            <button
-              class="btn-icon"
-              title="Editar orçamento"
-              @click="editarOrcamento(row, 'orcamentos')"
-            >
+            <button class="btn-icon" title="Ver pedido" @click="verPedido(row)">
               <svg
                 width="16"
                 height="16"
@@ -256,8 +250,8 @@ async function excluir(row: OrcamentoRow) {
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                <path d="m15 5 4 4" />
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
             </button>
             <button
@@ -294,28 +288,6 @@ async function excluir(row: OrcamentoRow) {
                 />
               </svg>
             </button>
-            <button
-              class="btn-icon btn-icon-danger"
-              title="Excluir orçamento"
-              @click="excluir(row)"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 6h18" />
-                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                <line x1="10" x2="10" y1="11" y2="17" />
-                <line x1="14" x2="14" y1="11" y2="17" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
@@ -331,14 +303,8 @@ async function excluir(row: OrcamentoRow) {
       </div>
     </section>
 
-    <section v-if="!loading && termoBusca.length >= 3 && !resultados.length" class="card">
-      <p class="empty-msg">Nenhum orçamento encontrado para "{{ termoBusca }}"</p>
-    </section>
-
-    <section v-if="!loading && !resultados.length && termoBusca.length < 3" class="card hint-card">
-      <p class="hint-msg">
-        Digite ao menos 3 caracteres para filtrar, ou veja os últimos orçamentos acima.
-      </p>
+    <section v-if="!loading && !resultadosVisiveis.length" class="card">
+      <p class="empty-msg">Nenhum pedido encontrado.</p>
     </section>
 
     <Transition name="toast-fade">
@@ -378,7 +344,32 @@ async function excluir(row: OrcamentoRow) {
   margin: 0;
 }
 
-.busca-field label {
+.filtros-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filtros-row .busca-field {
+  flex: 1;
+}
+
+.filtro-status {
+  min-width: 220px;
+}
+
+.filtro-status select {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  outline: none;
+  background: #fff;
+}
+
+.field label {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
@@ -418,13 +409,8 @@ async function excluir(row: OrcamentoRow) {
   transform: scale(0.97);
 }
 
-.btn-primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #2a52a3;
+.btn-outline {
+  border-color: #d1d5db;
 }
 
 .btn-sm {
@@ -441,31 +427,6 @@ async function excluir(row: OrcamentoRow) {
 
 .btn-sm:hover {
   background: #f3f4f6;
-}
-
-.btn-outline {
-  border-color: #d1d5db;
-}
-
-.btn-danger-outline {
-  border-color: #fecaca;
-  color: var(--danger, #dc2626);
-}
-
-.btn-danger-outline:hover {
-  background: #fef2f2;
-}
-
-.btn-whatsapp {
-  background: #25d366;
-  border-color: #25d366;
-  color: #fff;
-}
-
-.btn-whatsapp:hover:not(:disabled) {
-  background: #1fb959;
-  border-color: #1fb959;
-  color: #fff;
 }
 
 .btn-icon {
@@ -511,11 +472,6 @@ async function excluir(row: OrcamentoRow) {
 .btn-icon-whatsapp:hover:not(:disabled) {
   background: #ecfdf5;
   color: #1fb959;
-}
-
-.btn-icon-danger:hover:not(:disabled) {
-  background: #fef2f2;
-  color: var(--danger, #dc2626);
 }
 
 .badge-status {
@@ -591,15 +547,13 @@ async function excluir(row: OrcamentoRow) {
   margin: 0;
 }
 
-.empty-msg,
-.hint-msg {
+.empty-msg {
   text-align: center;
   color: var(--secondary);
   margin: 0;
   font-size: 0.9rem;
 }
 
-/* Table */
 .tabela-orcamentos-wrap {
   overflow-x: auto;
 }
@@ -654,7 +608,6 @@ async function excluir(row: OrcamentoRow) {
   gap: 0.15rem;
 }
 
-/* Pagination */
 .pagination {
   display: flex;
   align-items: center;
@@ -671,7 +624,6 @@ async function excluir(row: OrcamentoRow) {
   font-weight: 600;
 }
 
-/* Mobile cards */
 .orc-cards-mobile {
   display: none;
   flex-direction: column;
@@ -747,6 +699,12 @@ async function excluir(row: OrcamentoRow) {
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
+  }
+  .filtros-row {
+    flex-direction: column;
+  }
+  .filtro-status {
+    min-width: 100%;
   }
   .orc-list-page {
     padding: 0.75rem;

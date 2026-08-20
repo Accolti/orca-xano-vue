@@ -146,8 +146,13 @@ onMounted(async () => {
   if (isEditMode.value && codOrcaParam) {
     try {
       await orcamentoStore.carregarOrcamento(codOrcaParam)
+      // Pedido (convertido) é read-only: abre direto na tela finalizada
+      if (isVinculado.value) mostrarResumo.value = true
       const orcaId = orcamentoStore.orcamentoHeader?.id
-      if (orcaId) await orcamentoStore.carregarStatusHistorico(orcaId)
+      if (orcaId) {
+        await orcamentoStore.carregarStatusHistorico(orcaId)
+        await orcamentoStore.carregarControlePedido(orcaId)
+      }
       sincronizarSimulacao()
       const header = orcamentoStore.orcamentoHeader
       if (header?._cliente) {
@@ -351,10 +356,28 @@ const custoTotalBase = computed(() => orcamentoStore.orcamentoHeader?.cst_tot ??
 // Custo pago à Kapazi = Σ (vlr_cst_nota_unit × qtd) — só visualização
 const custoKapaziTotal = computed(() =>
   orcamentoStore.itensInseridos.reduce(
-    (acc, it) => acc + (it.vlr_cst_nota_unit ?? it.vlr_custo_nota_unit ?? 0) * (it.qtd ?? 1),
+    (acc, it) =>
+      acc + (it.vlr_cst_nota_unit ?? it.vlr_custo_nota_unit ?? it.vlr_custo ?? 0) * (it.qtd ?? 1),
     0,
   ),
 )
+
+// Desconto Kapazi (metadado no ControlePedido) — só aumenta o lucro, não altera a venda.
+// desconto = custoKapaziTotal × perc/100; lucro real = luc_tot + desconto.
+const descontoKapazi = computed(() => {
+  const perc = Number(orcamentoStore.controlePedido?.desconto_kapazi_perc) || 0
+  if (perc <= 0) return 0
+  return (custoKapaziTotal.value * perc) / 100
+})
+const custoKapaziEfetivo = computed(() => custoKapaziTotal.value - descontoKapazi.value)
+const lucroRealKapazi = computed(
+  () => (orcamentoStore.orcamentoHeader?.luc_tot ?? 0) + descontoKapazi.value,
+)
+const margemRealKapazi = computed(() => {
+  const vnd = orcamentoStore.orcamentoHeader?.vnd_tot ?? 0
+  if (vnd <= 0) return 0
+  return (lucroRealKapazi.value / vnd) * 100
+})
 
 // Preview ao vivo da negociação (valores simulados, não persistidos)
 const previewVenda = computed(() => novoValorVendaResumo.value)
@@ -509,7 +532,12 @@ const codOrcaAtual = computed(() => orcamentoStore.numeroOrcamento ?? codOrcaPar
 const orcaIdAtual = computed(() => orcamentoStore.orcamentoHeader?.id ?? null)
 
 function voltarLista() {
-  router.push('/orcamentos')
+  const origem = route.query.origem
+  if (origem === 'pedidos') {
+    router.push('/pedidos')
+  } else {
+    router.push('/orcamentos')
+  }
 }
 
 function editarItem(item: any) {
@@ -582,6 +610,16 @@ function formatarDataHora(ts: number | string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatarMargemReal(): string {
+  const mr = margemRealResumo.value || 0
+  return `${mr.toFixed(2).replace('.', ',')}%`
+}
+
+function formatarMargemRealKapazi(): string {
+  const mr = margemRealKapazi.value || 0
+  return `${mr.toFixed(2).replace('.', ',')}%`
 }
 
 // Persiste as condições de pagamento editadas na ORCA antes de enviar.
@@ -769,6 +807,84 @@ async function converterParaPedido() {
     /* error já definido no store */
   } finally {
     atualizandoStatus.value = false
+  }
+}
+
+// ── Dados para Kapazi / Controle do Pedido ──────────────────────────────────
+// Campos manuais do fluxo da fábrica (ordem lógica): data_envio_fabrica →
+// num_pedido_fabrica → data_aprovacao_layout → num_pedido_venda → num_nf →
+// forma de pagamento → cod_rastreio (+ transportadora/datas/fretes reais).
+const kapaziForm = ref({
+  data_envio_fabrica: '',
+  num_pedido_fabrica: '',
+  data_aprovacao_layout: '',
+  num_pedido_venda: '',
+  num_nf: '',
+  forma_pagamento_fabrica: '',
+  desconto_kapazi_perc: '',
+  cod_rastreio: '',
+  transportadoraB2B: '',
+  transportadoraB2C: '',
+  dataPrevisao: '',
+  dataChegada: '',
+  freteB2BReal: '',
+  freteB2CReal: '',
+})
+const salvandoKapazi = ref(false)
+
+function kapaziParaForm(c: any) {
+  if (!c) return
+  kapaziForm.value = {
+    data_envio_fabrica: c.data_envio_fabrica ?? '',
+    num_pedido_fabrica: c.num_pedido_fabrica ?? '',
+    data_aprovacao_layout: c.data_aprovacao_layout ?? '',
+    num_pedido_venda: c.num_pedido_venda ?? '',
+    num_nf: c.num_nf ?? '',
+    forma_pagamento_fabrica: c.forma_pagamento_fabrica ?? '',
+    desconto_kapazi_perc: c.desconto_kapazi_perc ?? '',
+    cod_rastreio: c.cod_rastreio ?? '',
+    transportadoraB2B: c.transportadoraB2B ?? '',
+    transportadoraB2C: c.transportadoraB2C ?? '',
+    dataPrevisao: c.dataPrevisao ?? '',
+    dataChegada: c.dataChegada ?? '',
+    freteB2BReal: c.freteB2BReal ?? '',
+    freteB2CReal: c.freteB2CReal ?? '',
+  }
+}
+
+watch(
+  () => orcamentoStore.controlePedido,
+  (c) => kapaziParaForm(c),
+  { immediate: true },
+)
+
+async function salvarDadosKapazi() {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return
+  salvandoKapazi.value = true
+  try {
+    const f = kapaziForm.value
+    await orcamentoStore.salvarControlePedido(orcaId, {
+      data_envio_fabrica: f.data_envio_fabrica || null,
+      num_pedido_fabrica: f.num_pedido_fabrica || null,
+      data_aprovacao_layout: f.data_aprovacao_layout || null,
+      num_pedido_venda: f.num_pedido_venda || null,
+      num_nf: f.num_nf || null,
+      forma_pagamento_fabrica: f.forma_pagamento_fabrica || null,
+      desconto_kapazi_perc: f.desconto_kapazi_perc !== '' ? Number(f.desconto_kapazi_perc) : null,
+      cod_rastreio: f.cod_rastreio || null,
+      transportadoraB2B: f.transportadoraB2B || null,
+      transportadoraB2C: f.transportadoraB2C || null,
+      dataPrevisao: f.dataPrevisao || null,
+      dataChegada: f.dataChegada || null,
+      freteB2BReal: f.freteB2BReal !== '' ? Number(f.freteB2BReal) : null,
+      freteB2CReal: f.freteB2CReal !== '' ? Number(f.freteB2CReal) : null,
+    })
+    mostrarToast('Dados da fábrica salvos.')
+  } catch {
+    /* error já definido no store */
+  } finally {
+    salvandoKapazi.value = false
   }
 }
 
@@ -1917,6 +2033,34 @@ async function enviarWhatsApp() {
             }}</span>
           </div>
           <div class="resumo-total-item">
+            <span class="resumo-label">Custo Kapazi</span>
+            <span class="resumo-preco">{{ formatarMoeda(custoKapaziTotal) }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Mão de Obra</span>
+            <span class="resumo-preco">{{
+              formatarMoeda(orcamentoStore.orcamentoHeader?.mao_de_obra ?? 0)
+            }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Margem Real</span>
+            <span class="resumo-preco">{{ formatarMargemReal() }}</span>
+          </div>
+          <template v-if="descontoKapazi > 0">
+            <div class="resumo-total-item">
+              <span class="resumo-label">Custo Kapazi efetivo</span>
+              <span class="resumo-preco">{{ formatarMoeda(custoKapaziEfetivo) }}</span>
+            </div>
+            <div class="resumo-total-item">
+              <span class="resumo-label">Lucro Real (c/ desconto)</span>
+              <span class="resumo-preco">{{ formatarMoeda(lucroRealKapazi) }}</span>
+            </div>
+            <div class="resumo-total-item">
+              <span class="resumo-label">Margem Real (c/ desconto)</span>
+              <span class="resumo-preco">{{ formatarMargemRealKapazi() }}</span>
+            </div>
+          </template>
+          <div class="resumo-total-item">
             <span class="resumo-label">Frete B2C</span>
             <span class="resumo-preco">{{
               formatarMoeda(orcamentoStore.orcamentoHeader?.frtB2C ?? 0)
@@ -1926,12 +2070,6 @@ async function enviarWhatsApp() {
             <span class="resumo-label">Desconto</span>
             <span class="resumo-preco">{{
               formatarMoeda(orcamentoStore.orcamentoHeader?.desconto ?? 0)
-            }}</span>
-          </div>
-          <div class="resumo-total-item">
-            <span class="resumo-label">Mão de Obra</span>
-            <span class="resumo-preco">{{
-              formatarMoeda(orcamentoStore.orcamentoHeader?.mao_de_obra ?? 0)
             }}</span>
           </div>
           <div class="resumo-total-item">
@@ -2145,6 +2283,95 @@ async function enviarWhatsApp() {
               @click="pedirConfirmacao('AGUARDANDO_RETORNO')"
             >
               ← Voltar para Aguardando Retorno
+            </button>
+          </div>
+        </div>
+
+        <div v-if="isVinculado || statusAtual === 'APROVADO'" class="kapazi-card">
+          <h3 class="kapazi-title">Dados para Kapazi (Fábrica)</h3>
+          <div class="kapazi-grid">
+            <div class="field">
+              <label>Data envio p/ fábrica</label>
+              <input v-model="kapaziForm.data_envio_fabrica" type="date" />
+            </div>
+            <div class="field">
+              <label>Nº Pedido da Fábrica *</label>
+              <input
+                v-model="kapaziForm.num_pedido_fabrica"
+                type="text"
+                placeholder="Retornado pela Kapazi"
+              />
+            </div>
+            <div class="field">
+              <label>Data aprovação layout</label>
+              <input v-model="kapaziForm.data_aprovacao_layout" type="date" />
+            </div>
+            <div class="field">
+              <label>Nº Pedido de Venda</label>
+              <input
+                v-model="kapaziForm.num_pedido_venda"
+                type="text"
+                placeholder="Email da Kapazi"
+              />
+            </div>
+            <div class="field">
+              <label>Nº NF</label>
+              <input v-model="kapaziForm.num_nf" type="text" />
+            </div>
+            <div class="field">
+              <label>Acerto (boleto / CC / Pix)</label>
+              <input v-model="kapaziForm.forma_pagamento_fabrica" type="text" />
+            </div>
+            <div class="field">
+              <label>Desconto Kapazi (%)</label>
+              <input
+                v-model="kapaziForm.desconto_kapazi_perc"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Ex.: 10"
+              />
+            </div>
+            <div class="field">
+              <label>Transportadora B2B</label>
+              <input v-model="kapaziForm.transportadoraB2B" type="text" />
+            </div>
+            <div class="field">
+              <label>Transportadora B2C</label>
+              <input v-model="kapaziForm.transportadoraB2C" type="text" />
+            </div>
+            <div class="field">
+              <label>Previsão de chegada</label>
+              <input v-model="kapaziForm.dataPrevisao" type="date" />
+            </div>
+            <div class="field">
+              <label>Data de chegada</label>
+              <input v-model="kapaziForm.dataChegada" type="date" />
+            </div>
+            <div class="field">
+              <label>Frete B2B real</label>
+              <input v-model="kapaziForm.freteB2BReal" type="number" step="0.01" />
+            </div>
+            <div class="field">
+              <label>Frete B2C real</label>
+              <input v-model="kapaziForm.freteB2CReal" type="number" step="0.01" />
+            </div>
+            <div class="field kapazi-full">
+              <label>Código de rastreio</label>
+              <input
+                v-model="kapaziForm.cod_rastreio"
+                type="text"
+                placeholder="Código dos Correios"
+              />
+            </div>
+          </div>
+          <div class="kapazi-actions">
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="salvandoKapazi"
+              @click="salvarDadosKapazi"
+            >
+              {{ salvandoKapazi ? 'Salvando…' : 'Salvar Dados da Fábrica' }}
             </button>
           </div>
         </div>
@@ -3369,6 +3596,70 @@ async function enviarWhatsApp() {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid #e2e8f0;
+}
+
+.kapazi-card {
+  max-width: 600px;
+  margin: 0 auto 1.25rem;
+  padding: 0.9rem 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.kapazi-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kapazi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 0.75rem;
+}
+
+.kapazi-grid .field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.2rem;
+}
+
+.kapazi-grid .field input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #1f2937;
+  background: #fff;
+}
+
+.kapazi-grid .field input:focus {
+  outline: none;
+  border-color: var(--primary, #3366cc);
+  box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.15);
+}
+
+.kapazi-full {
+  grid-column: 1 / -1;
+}
+
+.kapazi-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 520px) {
+  .kapazi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .status-modal-overlay {
