@@ -533,7 +533,7 @@ async function buscarCEP() {
             <button
               v-if="!props.readonly"
               type="button"
-              class="btn btn-primary"
+              class="btn btn-accent"
               :disabled="salvando"
               @click="submit"
             >
@@ -560,7 +560,7 @@ async function buscarCEP() {
 }
 
 .modal-card {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 14px;
   width: 100%;
   max-width: 600px;
@@ -576,21 +576,21 @@ async function buscarCEP() {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -602,8 +602,8 @@ async function buscarCEP() {
 }
 
 .modal-close:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -621,10 +621,10 @@ async function buscarCEP() {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-bottom: 1rem;
   padding-bottom: 0.35rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .field {
@@ -635,7 +635,7 @@ async function buscarCEP() {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 0.25rem;
 }
 
@@ -644,11 +644,11 @@ async function buscarCEP() {
 .field textarea {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--card-bg);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -656,7 +656,7 @@ async function buscarCEP() {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  border-color: #3b82f6;
+  border-color: var(--primary-light);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
@@ -689,7 +689,7 @@ async function buscarCEP() {
 .btn-search {
   margin-top: 0.35rem;
   padding: 0.4rem 1rem;
-  background: #3b82f6;
+  background: var(--primary-light);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -700,7 +700,7 @@ async function buscarCEP() {
 }
 
 .btn-search:hover {
-  background: #2563eb;
+  background: var(--primary-hover);
 }
 
 .btn-search:disabled {
@@ -731,24 +731,24 @@ async function buscarCEP() {
 .phone-fields input {
   flex: 1;
   padding: 0.5rem 0.6rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--card-bg);
   outline: none;
   transition: border-color 0.15s;
 }
 
 .phone-fields select:focus,
 .phone-fields input:focus {
-  border-color: #3b82f6;
+  border-color: var(--primary-light);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
 .btn-remove-phone {
   background: none;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   width: 34px;
   height: 34px;
@@ -774,10 +774,10 @@ async function buscarCEP() {
   margin-bottom: 1rem;
   padding: 0.4rem 1rem;
   background: none;
-  border: 1px dashed #d1d5db;
+  border: 1px dashed var(--border-light);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #3b82f6;
+  color: var(--primary-light);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -786,13 +786,13 @@ async function buscarCEP() {
 }
 
 .btn-add-phone:hover {
-  background: #eff6ff;
-  border-color: #3b82f6;
+  background: var(--primary-soft);
+  border-color: var(--primary-light);
 }
 
 .loading-msg {
   text-align: center;
-  color: #6b7280;
+  color: var(--text-secondary);
   padding: 2rem 0;
 }
 
@@ -807,7 +807,7 @@ async function buscarCEP() {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-light);
   flex-shrink: 0;
 }
 
@@ -827,21 +827,30 @@ async function buscarCEP() {
 }
 
 .btn-primary {
-  background: #3366cc;
+  background: var(--primary);
   color: #fff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2a52a3;
+  background: var(--primary-hover);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .btn-cancel {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: var(--border-light);
 }
 
 /* Transition */

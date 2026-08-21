@@ -2,11 +2,14 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
+import { useUiStore } from '@/stores/ui'
+import PerfilModal from '@/components/PerfilModal.vue'
 
 defineEmits<{ toggleSidebar: [] }>()
 
 const authStore = useAuthStore()
 const catalogoStore = useCatalogoStore()
+const uiStore = useUiStore()
 
 const versaoMenuOpen = ref(false)
 
@@ -82,6 +85,42 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <div class="header-right">
+      <button
+        class="header-icon"
+        :title="uiStore.tema === 'dark' ? 'Modo claro' : 'Modo escuro'"
+        :aria-label="uiStore.tema === 'dark' ? 'Modo claro' : 'Modo escuro'"
+        @click="uiStore.alternarTema()"
+      >
+        <svg
+          v-if="uiStore.tema === 'dark'"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2" />
+          <path d="M12 20v2" />
+          <path d="m4.93 4.93 1.41 1.41" />
+          <path d="m17.66 17.66 1.41 1.41" />
+          <path d="M2 12h2" />
+          <path d="M20 12h2" />
+          <path d="m6.34 17.66-1.41 1.41" />
+          <path d="m19.07 4.93-1.41 1.41" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      </button>
       <button class="header-icon" title="Notificações" aria-label="Notificações">
         <svg
           viewBox="0 0 24 24"
@@ -94,7 +133,12 @@ onBeforeUnmount(() => {
           <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
       </button>
-      <button class="header-icon" title="Perfil" aria-label="Perfil">
+      <button
+        class="header-icon"
+        title="Perfil"
+        aria-label="Perfil"
+        @click="uiStore.perfilOpen = true"
+      >
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -107,6 +151,8 @@ onBeforeUnmount(() => {
         </svg>
       </button>
     </div>
+
+    <PerfilModal v-model="uiStore.perfilOpen" />
   </header>
 </template>
 
@@ -117,8 +163,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   height: 56px;
   padding: 0 1rem;
-  background: #1e1f24;
-  color: #e5e7eb;
+  background: var(--header-bg, #0f1c3a);
+  color: var(--header-text, #e5e7eb);
   position: sticky;
   top: 0;
   z-index: 90;
@@ -189,13 +235,13 @@ onBeforeUnmount(() => {
   top: calc(100% + 8px);
   left: 0;
   z-index: 95;
-  background: #fff;
-  color: #1f2937;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #1f2937);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 0.75rem;
   min-width: 200px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-light, #e5e7eb);
 }
 
 .versao-popover-title {
@@ -203,10 +249,10 @@ onBeforeUnmount(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--secondary);
+  color: var(--text-secondary, #6b7280);
   margin-bottom: 0.5rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-subtle, #f3f4f6);
 }
 
 .versao-row {
@@ -215,11 +261,11 @@ onBeforeUnmount(() => {
   gap: 1rem;
   font-size: 0.85rem;
   padding: 0.25rem 0;
-  color: #4b5563;
+  color: var(--text-secondary, #4b5563);
 }
 
 .versao-row strong {
-  color: #1f2937;
+  color: var(--text-primary, #1f2937);
   font-variant-numeric: tabular-nums;
 }
 
@@ -268,7 +314,6 @@ onBeforeUnmount(() => {
     background 0.15s,
     color 0.15s;
 }
-
 .header-icon:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #e5e7eb;

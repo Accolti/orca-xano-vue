@@ -67,19 +67,20 @@ function voltarLogin() {
 }
 
 .auth-card {
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 2.5rem 2rem;
   width: 100%;
   max-width: 400px;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card);
 }
 
 .auth-card h1 {
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
+  color: var(--text-primary);
 }
 
 .callback-status {
@@ -87,15 +88,15 @@ function voltarLogin() {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  color: #4b5563;
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid #d1d5db;
-  border-top-color: #3366cc;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -107,7 +108,7 @@ function voltarLogin() {
 }
 
 .error-msg {
-  color: #e74c3c;
+  color: var(--danger);
   font-size: 0.875rem;
   margin-bottom: 1.25rem;
 }
@@ -115,7 +116,7 @@ function voltarLogin() {
 .btn {
   width: 100%;
   padding: 0.7rem;
-  background: #42b883;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -126,6 +127,6 @@ function voltarLogin() {
 }
 
 .btn:hover {
-  background: #38a071;
+  background: var(--primary-hover);
 }
 </style>

@@ -26,6 +26,8 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-page, #f8fafc);
+  color: var(--text-primary, #0f172a);
 }
 
 h1,

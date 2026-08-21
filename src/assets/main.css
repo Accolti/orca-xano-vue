@@ -1,17 +1,85 @@
 @import './base.css';
 
 :root {
-  --bg-page: #f4f5f7;
+  /* ── Modo claro ─────────────────────────────── */
+  --bg-page: #f8fafc;
   --card-bg: #ffffff;
-  --primary: #3366cc;
-  --primary-light: #5280db;
-  --secondary: #6b7280;
+  --input-bg: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-light: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --hover-bg: #f1f5f9;
+  --table-hover: #f8fafc;
+
+  --primary: #1e40af;
+  --primary-hover: #1d4ed8;
+  --primary-light: #3b82f6;
+  --primary-soft: #eff6ff;
+
+  /* Alias legado (cor de texto secundário) */
+  --secondary: #475569;
+
+  --accent: #f97316;
+  --accent-hover: #ea580c;
+  --accent-soft: #fff7ed;
+
+  --success: #16a34a;
+  --success-soft: #dcfce7;
   --danger: #dc2626;
-  --danger-light: #fca5a5;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --border-light: #e5e7eb;
-  --border-subtle: #f3f4f6;
+  --danger-soft: #fee2e2;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --neutral: #6b7280;
+  --neutral-soft: #f3f4f6;
+
+  --header-bg: #0f1c3a;
+  --header-text: #e5e7eb;
+  --sidebar-bg: #0f1c3a;
+  --sidebar-text: #e5e7eb;
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+:root[data-theme='dark'] {
+  /* ── Modo escuro (sem preto puro / branco puro) ── */
+  --bg-page: #0f172a;
+  --card-bg: #1e293b;
+  --input-bg: #0f172a;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-light: #334155;
+  --border-subtle: #1e293b;
+  --hover-bg: #334155;
+  --table-hover: #263449;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-light: #60a5fa;
+  --primary-soft: rgba(59, 130, 246, 0.15);
+
+  /* Alias legado (cor de texto secundário) */
+  --secondary: #94a3b8;
+
+  --accent: #fb923c;
+  --accent-hover: #f97316;
+  --accent-soft: rgba(251, 146, 60, 0.15);
+
+  --success: #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.15);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.15);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.15);
+  --neutral: #94a3b8;
+  --neutral-soft: #334155;
+
+  --header-bg: #0b1220;
+  --header-text: #e2e8f0;
+  --sidebar-bg: #0b1220;
+  --sidebar-text: #e2e8f0;
+  --sidebar-hover: rgba(255, 255, 255, 0.08);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 #app {
@@ -19,6 +87,7 @@
   padding: 0;
   font-weight: normal;
   background: var(--bg-page);
+  color: var(--text-primary);
   min-height: 100vh;
 }
 

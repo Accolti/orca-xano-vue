@@ -248,7 +248,7 @@ function limparBusca() {
 
 .btn-novo {
   padding: 0.5rem 1rem;
-  background: #3366cc;
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -261,7 +261,7 @@ function limparBusca() {
 }
 
 .btn-novo:hover {
-  background: #2a52a3;
+  background: var(--accent-hover);
 }
 
 .btn-novo:active {
@@ -272,8 +272,8 @@ function limparBusca() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--color-background-soft, #f9fafb);
-  border: 1px solid var(--color-border, #d1d5db);
+  background: var(--color-background-soft, var(--table-hover));
+  border: 1px solid var(--color-border, var(--border-light));
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   margin-bottom: 1rem;
@@ -282,7 +282,7 @@ function limparBusca() {
 .search-icon {
   width: 18px;
   height: 18px;
-  color: #9ca3af;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -291,7 +291,7 @@ function limparBusca() {
   border: none;
   background: transparent;
   font-size: 0.9rem;
-  color: var(--color-text, #1f2937);
+  color: var(--color-text, var(--text-primary));
   outline: none;
 }
 
@@ -299,7 +299,7 @@ function limparBusca() {
   background: none;
   border: none;
   cursor: pointer;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 1rem;
   line-height: 1;
   padding: 0.1rem 0.3rem;
@@ -307,12 +307,12 @@ function limparBusca() {
 }
 
 .btn-limpar:hover {
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--border-subtle);
 }
 
 .status {
-  color: #6b7280;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -322,8 +322,8 @@ function limparBusca() {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid #d1d5db;
-  border-top-color: #2563eb;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--primary-light);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
@@ -335,7 +335,7 @@ function limparBusca() {
 }
 
 .erro {
-  color: #ff4d4d;
+  color: var(--danger);
 }
 
 .erro-bloco {
@@ -347,9 +347,9 @@ function limparBusca() {
 
 .btn-retry {
   padding: 0.4rem 0.9rem;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-soft);
   border-radius: 6px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -357,7 +357,7 @@ function limparBusca() {
 }
 
 .btn-retry:hover {
-  background: #fecaca;
+  background: var(--danger-soft);
 }
 
 .vazio-bloco {
@@ -371,10 +371,8 @@ function limparBusca() {
 .tabela-clientes {
   width: 100%;
   border-collapse: collapse;
-  font-family: sans-serif;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+  font-family: var(--font-body, sans-serif);
+  box-shadow: var(--shadow-card);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -383,12 +381,12 @@ function limparBusca() {
 .tabela-clientes td {
   padding: 12px 12px;
   text-align: left;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-light);
   white-space: nowrap;
 }
 
 .tabela-clientes th {
-  background-color: #3366cc;
+  background-color: var(--primary);
   color: white;
   font-weight: 600;
 }
@@ -404,16 +402,16 @@ function limparBusca() {
 }
 
 .tabela-clientes tr:hover {
-  background-color: #f5f5f5;
+  background-color: var(--table-hover);
 }
 
 .nome-fantasia {
   font-weight: bold;
-  color: #2c3e50;
+  color: var(--text-primary);
 }
 
 .razao-social {
-  color: #7f8c8d;
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
@@ -427,15 +425,15 @@ function limparBusca() {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #6b7280;
+  color: var(--text-secondary);
   transition:
     background 0.15s,
     color 0.15s;
 }
 
 .btn-icon:hover {
-  background: #f3f4f6;
-  color: #2563eb;
+  background: var(--border-subtle);
+  color: var(--primary-light);
 }
 
 .btn-icon-danger:hover {
@@ -454,12 +452,11 @@ function limparBusca() {
 }
 
 .cliente-card {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 10px;
   padding: 1rem;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-subtle);
 }
 
 .card-header {
@@ -471,12 +468,12 @@ function limparBusca() {
 
 .card-nome {
   font-size: 1rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .card-id {
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -484,12 +481,12 @@ function limparBusca() {
   display: flex;
   gap: 0.5rem;
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin-bottom: 0.2rem;
 }
 
 .card-label {
-  color: #9ca3af;
+  color: var(--text-secondary);
   min-width: 5rem;
   flex-shrink: 0;
 }
@@ -499,7 +496,7 @@ function limparBusca() {
   gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .btn-card {
@@ -509,19 +506,19 @@ function limparBusca() {
   justify-content: center;
   gap: 0.4rem;
   padding: 0.6rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--table-hover);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .btn-card:hover {
-  background: #f3f4f6;
-  color: #2563eb;
+  background: var(--border-subtle);
+  color: var(--primary-light);
 }
 
 .btn-card-danger:hover {
@@ -536,10 +533,10 @@ function limparBusca() {
 .erro-excluir {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-soft);
   border-radius: 6px;
-  color: #b91c1c;
+  color: var(--danger);
   font-size: 0.875rem;
   cursor: pointer;
 }

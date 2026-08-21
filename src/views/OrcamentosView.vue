@@ -2222,7 +2222,7 @@ async function enviarWhatsApp() {
             </button>
             <button
               v-if="statusAtual === 'APROVADO' && !isVinculado"
-              class="btn btn-primary btn-sm"
+              class="btn btn-accent btn-sm"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('AGUARDANDO_FATURAMENTO')"
             >
@@ -2230,7 +2230,7 @@ async function enviarWhatsApp() {
             </button>
             <button
               v-if="statusAtual === 'AGUARDANDO_FATURAMENTO' && isVinculado"
-              class="btn btn-primary btn-sm"
+              class="btn btn-accent btn-sm"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('FATURADO')"
             >
@@ -2238,7 +2238,7 @@ async function enviarWhatsApp() {
             </button>
             <button
               v-if="statusAtual === 'FATURADO' && isVinculado"
-              class="btn btn-primary btn-sm"
+              class="btn btn-accent btn-sm"
               :disabled="atualizandoStatus"
               @click="pedirConfirmacao('ENTREGUE')"
             >
@@ -2367,7 +2367,7 @@ async function enviarWhatsApp() {
           </div>
           <div class="kapazi-actions">
             <button
-              class="btn btn-primary btn-sm"
+              class="btn btn-accent btn-sm"
               :disabled="salvandoKapazi"
               @click="salvarDadosKapazi"
             >
@@ -2444,19 +2444,22 @@ async function enviarWhatsApp() {
   background: var(--card-bg, #fff);
   border-radius: 10px;
   padding: 1.25rem;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
-  border: 1px solid transparent;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-subtle, var(--border-subtle));
 }
 
 .card-totais {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--primary-soft, var(--primary-soft));
+  border: 1px solid var(--primary-light, #3b82f6);
 }
 
 .resumo-b2b {
   color: var(--danger) !important;
+}
+
+.welcome-card {
+  background: var(--primary-soft, var(--primary-soft));
+  border: 1px solid var(--primary-light, #3b82f6);
 }
 
 .welcome-card .welcome-top {
@@ -2470,12 +2473,12 @@ async function enviarWhatsApp() {
   display: flex;
   gap: 0.75rem;
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .welcome-cliente strong {
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .welcome-card h2 {
@@ -2504,7 +2507,7 @@ async function enviarWhatsApp() {
 
 .metric {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .section-title {
@@ -2512,10 +2515,12 @@ async function enviarWhatsApp() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--secondary);
+  color: var(--primary, #1e40af);
   margin: 0 0 1rem;
-  padding-bottom: 0.4rem;
-  border-bottom: 1px solid var(--border-light);
+  padding: 0.35rem 0 0.4rem 0.6rem;
+  border-left: 4px solid;
+  border-image: linear-gradient(180deg, var(--primary, #1e40af), var(--accent, #f97316)) 1;
+  border-bottom: 1px solid var(--border-light, var(--border-light));
 }
 
 .field {
@@ -2526,7 +2531,7 @@ async function enviarWhatsApp() {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 0.25rem;
 }
 
@@ -2535,11 +2540,11 @@ async function enviarWhatsApp() {
 .field textarea {
   width: 100%;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--input-bg);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -2548,7 +2553,7 @@ async function enviarWhatsApp() {
 .field select:focus,
 .field textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.12);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
 }
 
 .field textarea {
@@ -2557,9 +2562,9 @@ async function enviarWhatsApp() {
 }
 
 .input-readonly {
-  background: #f3f4f6 !important;
+  background: var(--border-subtle) !important;
   cursor: default;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .input-big {
@@ -2599,8 +2604,8 @@ async function enviarWhatsApp() {
 }
 
 .btn-clear:hover {
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--border-subtle);
 }
 
 .dimensoes-row {
@@ -2623,10 +2628,10 @@ async function enviarWhatsApp() {
 
 .btn-seg {
   padding: 0.4rem 0.9rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
-  color: #4b5563;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -2681,16 +2686,25 @@ async function enviarWhatsApp() {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2a52a3;
+  background: var(--primary-hover);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: var(--border-light);
 }
 
 .btn-whatsapp {
@@ -2733,7 +2747,7 @@ async function enviarWhatsApp() {
 
 .btn-eye {
   background: none;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   width: 36px;
   height: 36px;
@@ -2750,7 +2764,7 @@ async function enviarWhatsApp() {
 }
 
 .btn-eye:hover {
-  background: #f3f4f6;
+  background: var(--border-subtle);
 }
 
 .btn-eye.active {
@@ -2784,7 +2798,7 @@ async function enviarWhatsApp() {
 .price-label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #4b5563;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
 }
@@ -2798,8 +2812,8 @@ async function enviarWhatsApp() {
 }
 
 .price-bg {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .price-b2b {
@@ -2819,7 +2833,7 @@ async function enviarWhatsApp() {
 
 .btn-recalc {
   background: none;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   width: 34px;
   height: 34px;
@@ -2834,13 +2848,13 @@ async function enviarWhatsApp() {
 }
 
 .btn-recalc:hover {
-  background: #eff6ff;
+  background: var(--primary-soft);
 }
 
 .recalc-card {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px dashed #bbf7d0;
+  border-top: 1px dashed var(--primary-light);
 }
 
 .recalc-title {
@@ -2860,7 +2874,7 @@ async function enviarWhatsApp() {
   display: block;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin-bottom: 0.3rem;
 }
 
@@ -2913,7 +2927,7 @@ async function enviarWhatsApp() {
   gap: 0.5rem;
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  border-top: 1px dashed #bbf7d0;
+  border-top: 1px dashed var(--primary-light);
 }
 
 .preview-item {
@@ -3003,8 +3017,8 @@ async function enviarWhatsApp() {
   gap: 1rem;
   width: 100%;
   padding: 0.55rem 0.75rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--table-hover);
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   text-align: left;
   cursor: pointer;
@@ -3013,12 +3027,12 @@ async function enviarWhatsApp() {
 }
 
 .cliente-item:hover {
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-color: var(--primary);
 }
 
 .cliente-item strong {
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .cliente-item span {
@@ -3041,7 +3055,7 @@ async function enviarWhatsApp() {
 }
 
 .cliente-info strong {
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .cliente-info span {
@@ -3066,18 +3080,18 @@ async function enviarWhatsApp() {
 }
 
 .btn-outline {
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  color: var(--text-secondary);
 }
 
 .btn-outline:hover:not(:disabled) {
-  background: #f3f4f6;
+  background: var(--border-subtle);
 }
 
 .btn-danger-outline {
   border: 1px solid #dc2626;
-  background: #fff;
+  background: var(--card-bg);
   color: #dc2626;
 }
 
@@ -3104,7 +3118,7 @@ async function enviarWhatsApp() {
 }
 
 .summary-header:hover {
-  background: #f9fafb;
+  background: var(--table-hover);
 }
 
 .summary-title {
@@ -3129,8 +3143,8 @@ async function enviarWhatsApp() {
 }
 
 .card-totais {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-light);
 }
 
 .totais-header {
@@ -3142,7 +3156,7 @@ async function enviarWhatsApp() {
 
 .totais-cliente {
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
@@ -3158,7 +3172,7 @@ async function enviarWhatsApp() {
   gap: 0.5rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px dashed #bbf7d0;
+  border-top: 1px dashed var(--primary-light);
   background: rgba(187, 247, 208, 0.25);
   border-radius: 8px;
   padding-left: 0.75rem;
@@ -3183,7 +3197,7 @@ async function enviarWhatsApp() {
 .totais-valor {
   font-size: 1rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -3196,8 +3210,8 @@ async function enviarWhatsApp() {
 }
 
 .read-only-badge {
-  background: #e5e7eb;
-  color: #4b5563;
+  background: var(--border-light);
+  color: var(--text-secondary);
 }
 
 .edit-badge {
@@ -3205,7 +3219,7 @@ async function enviarWhatsApp() {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background: #fef3c7;
+  background: var(--warning-soft);
   color: #92400e;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
@@ -3238,18 +3252,18 @@ async function enviarWhatsApp() {
   color: var(--secondary);
   font-size: 0.75rem;
   text-transform: uppercase;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .itens-item + .itens-item {
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .itens-obs {
   display: block;
   padding: 0 0.75rem 0.4rem 2.5rem;
   font-size: 0.78rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -3307,7 +3321,7 @@ async function enviarWhatsApp() {
     color 0.15s;
 }
 .btn-icon:hover {
-  background: #f3f4f6;
+  background: var(--border-subtle);
   color: var(--primary);
 }
 .btn-icon-danger:hover {
@@ -3342,7 +3356,7 @@ async function enviarWhatsApp() {
 }
 
 .resumo-sensivel {
-  border-top: 1px dashed #bbf7d0;
+  border-top: 1px dashed var(--primary-light);
   padding-top: 1rem;
   background: rgba(187, 247, 208, 0.2);
   border-radius: 8px;
@@ -3368,7 +3382,7 @@ async function enviarWhatsApp() {
   font-size: 0.9rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .resumo-card {
@@ -3431,8 +3445,8 @@ async function enviarWhatsApp() {
   max-width: 600px;
   margin: 1.25rem auto;
   padding: 0.9rem 1.1rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   text-align: left;
 }
@@ -3440,13 +3454,13 @@ async function enviarWhatsApp() {
 .resumo-obs h3 {
   font-size: 0.95rem;
   margin: 0 0 0.35rem;
-  color: #334155;
+  color: var(--text-primary);
 }
 
 .resumo-obs p {
   margin: 0;
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: pre-wrap;
 }
 
@@ -3455,10 +3469,10 @@ async function enviarWhatsApp() {
   font-size: 0.9rem;
   font-family: inherit;
   padding: 0.5rem 0.6rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
-  background: #fff;
-  color: #1e293b;
+  background: var(--card-bg);
+  color: var(--card-bg);
   resize: vertical;
 }
 
@@ -3476,7 +3490,7 @@ async function enviarWhatsApp() {
 
 .switch-label {
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .switch {
@@ -3497,7 +3511,7 @@ async function enviarWhatsApp() {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: #cbd5e1;
+  background-color: var(--border-light);
   transition: 0.2s;
   border-radius: 24px;
 }
@@ -3554,15 +3568,15 @@ async function enviarWhatsApp() {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
 }
 
 .status-top-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -3571,8 +3585,8 @@ async function enviarWhatsApp() {
   max-width: 600px;
   margin: 0 auto 1.25rem;
   padding: 0.9rem 1rem;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
 }
 
@@ -3580,7 +3594,7 @@ async function enviarWhatsApp() {
   margin: 0 0 0.6rem;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -3595,15 +3609,15 @@ async function enviarWhatsApp() {
 .resumo-toolbar {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-light);
 }
 
 .kapazi-card {
   max-width: 600px;
   margin: 0 auto 1.25rem;
   padding: 0.9rem 1rem;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
 }
 
@@ -3611,7 +3625,7 @@ async function enviarWhatsApp() {
   margin: 0 0 0.6rem;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -3626,24 +3640,24 @@ async function enviarWhatsApp() {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
   margin-bottom: 0.2rem;
 }
 
 .kapazi-grid .field input {
   width: 100%;
   padding: 0.45rem 0.6rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--card-bg);
 }
 
 .kapazi-grid .field input:focus {
   outline: none;
   border-color: var(--primary, #3366cc);
-  box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.15);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .kapazi-full {
@@ -3674,7 +3688,7 @@ async function enviarWhatsApp() {
 }
 
 .status-modal-card {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
   max-width: 420px;
@@ -3686,7 +3700,7 @@ async function enviarWhatsApp() {
 .status-modal-card h3 {
   margin: 0 0 1rem;
   font-size: 1rem;
-  color: #1f2937;
+  color: var(--text-primary);
   line-height: 1.4;
 }
 
@@ -3701,7 +3715,7 @@ async function enviarWhatsApp() {
   text-align: left;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
   margin-bottom: 1rem;
 }
 
@@ -3710,17 +3724,17 @@ async function enviarWhatsApp() {
   width: 100%;
   margin-top: 0.35rem;
   padding: 0.5rem 0.65rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--card-bg);
 }
 
 .status-modal-input:focus {
   outline: none;
   border-color: var(--primary, #3366cc);
-  box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.15);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .status-historico {
@@ -3760,18 +3774,18 @@ async function enviarWhatsApp() {
 
 .status-historico-de {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .status-historico-data {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .status-historico-motivo {
   font-size: 0.8rem;
-  color: #475569;
-  background: #f8fafc;
+  color: var(--text-secondary);
+  background: var(--border-subtle);
   border-left: 3px solid var(--primary, #3366cc);
   padding: 0.3rem 0.6rem;
   border-radius: 4px;
@@ -3800,44 +3814,44 @@ async function enviarWhatsApp() {
 }
 
 .badge-rascunho {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .badge-enviado,
 .badge-aguardando_retorno {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .badge-aprovado {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .badge-faturado {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .badge-aguardando_faturamento {
-  background: #ede9fe;
-  color: #6d28d9;
+  background: var(--primary-soft);
+  color: var(--primary-light);
 }
 
 .badge-entregue {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .badge-recusado {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .badge-cancelado {
-  background: #e5e7eb;
-  color: #374151;
+  background: var(--border-light);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 480px) {
@@ -3881,12 +3895,12 @@ async function enviarWhatsApp() {
     align-items: stretch;
     gap: 0.25rem;
     padding: 0.75rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-light);
     border-radius: 8px;
   }
 
   .itens-item + .itens-item {
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-light);
   }
 
   .itens-obs {
@@ -3933,7 +3947,7 @@ async function enviarWhatsApp() {
     justify-content: flex-start;
     margin-top: 0.35rem;
     padding-top: 0.35rem;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid var(--border-subtle);
   }
 
   .btn-row {

@@ -131,7 +131,7 @@ const opcoesPagamento = computed(() => {
 }
 
 .modal-card {
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 14px;
   width: 100%;
   max-width: 520px;
@@ -146,21 +146,21 @@ const opcoesPagamento = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -171,8 +171,8 @@ const opcoesPagamento = computed(() => {
 }
 
 .modal-close:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -190,7 +190,7 @@ const opcoesPagamento = computed(() => {
 }
 
 .sim-custo {
-  color: var(--secondary, #6b7280);
+  color: var(--secondary, var(--text-secondary));
   font-weight: 600;
 }
 
@@ -200,9 +200,9 @@ const opcoesPagamento = computed(() => {
   width: 100%;
   padding: 0.75rem 1rem;
   margin-bottom: 0.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
-  background: #fff;
+  background: var(--card-bg);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -212,7 +212,7 @@ const opcoesPagamento = computed(() => {
 }
 
 .sim-row:hover {
-  background: #f9fafb;
+  background: var(--table-hover);
   border-color: var(--primary-light, #3b82f6);
 }
 
@@ -220,7 +220,7 @@ const opcoesPagamento = computed(() => {
   font-weight: 700;
   font-size: 1rem;
   min-width: 2.5rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .sim-venda {
@@ -228,32 +228,32 @@ const opcoesPagamento = computed(() => {
   text-align: center;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .sim-lucro {
   text-align: right;
   font-size: 0.9rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   min-width: 5rem;
 }
 
 .modal-footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-light);
   flex-shrink: 0;
 }
 
 .footer-text {
   font-size: 0.85rem;
-  color: var(--secondary, #6b7280);
+  color: var(--secondary, var(--text-secondary));
   margin-bottom: 0.5rem;
 }
 
 .pagamento-text {
   font-size: 0.8rem;
-  color: #374151;
-  background: #f9fafb;
+  color: var(--text-secondary);
+  background: var(--table-hover);
   padding: 0.75rem;
   border-radius: 6px;
   white-space: pre-wrap;

@@ -327,9 +327,8 @@ function verPedido(row: OrcamentoRow) {
   background: var(--card-bg, #fff);
   border-radius: 10px;
   padding: 1.25rem;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-subtle, #f1f5f9);
 }
 
 .header-top {
@@ -361,36 +360,36 @@ function verPedido(row: OrcamentoRow) {
 .filtro-status select {
   width: 100%;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
+  color: var(--text-primary);
   outline: none;
-  background: #fff;
+  background: var(--card-bg);
 }
 
 .field label {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 0.25rem;
 }
 
 .busca-field input {
   width: 100%;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #1f2937;
+  color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
 }
 
 .busca-field input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.12);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
 }
 
 .btn {
@@ -410,7 +409,7 @@ function verPedido(row: OrcamentoRow) {
 }
 
 .btn-outline {
-  border-color: #d1d5db;
+  border-color: var(--border-light);
 }
 
 .btn-sm {
@@ -419,14 +418,14 @@ function verPedido(row: OrcamentoRow) {
   border-radius: 5px;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #374151;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  color: var(--text-secondary);
   transition: background 0.15s;
 }
 
 .btn-sm:hover {
-  background: #f3f4f6;
+  background: var(--border-subtle);
 }
 
 .btn-icon {
@@ -436,7 +435,7 @@ function verPedido(row: OrcamentoRow) {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--secondary, #6b7280);
+  color: var(--secondary, var(--text-secondary));
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -447,7 +446,7 @@ function verPedido(row: OrcamentoRow) {
 }
 
 .btn-icon:hover:not(:disabled) {
-  background: #f3f4f6;
+  background: var(--border-subtle);
   color: var(--primary);
 }
 
@@ -487,44 +486,44 @@ function verPedido(row: OrcamentoRow) {
 }
 
 .badge-rascunho {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .badge-enviado,
 .badge-aguardando_retorno {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .badge-aprovado {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .badge-faturado {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .badge-aguardando_faturamento {
-  background: #ede9fe;
-  color: #6d28d9;
+  background: var(--primary-soft);
+  color: var(--primary-light);
 }
 
 .badge-entregue {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .badge-recusado {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .badge-cancelado {
-  background: #e5e7eb;
-  color: #374151;
+  background: var(--border-light);
+  color: var(--text-secondary);
 }
 
 .orc-card-status {
@@ -568,7 +567,7 @@ function verPedido(row: OrcamentoRow) {
 .tabela-orcamentos td {
   padding: 0.6rem 0.5rem;
   text-align: left;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
 }
 
@@ -577,12 +576,13 @@ function verPedido(row: OrcamentoRow) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--secondary);
-  border-bottom: 1px solid #e5e7eb;
+  color: #fff;
+  background: var(--primary);
+  border-bottom: 1px solid var(--primary);
 }
 
 .tabela-orcamentos tbody tr:hover {
-  background: #f9fafb;
+  background: var(--table-hover);
 }
 
 .cell-cliente {
@@ -615,7 +615,7 @@ function verPedido(row: OrcamentoRow) {
   gap: 1rem;
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .page-info {
@@ -631,10 +631,10 @@ function verPedido(row: OrcamentoRow) {
 }
 
 .orc-card-mobile {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 0.75rem;
-  background: #fafafa;
+  background: var(--border-subtle);
 }
 
 .orc-card-header {
@@ -673,7 +673,7 @@ function verPedido(row: OrcamentoRow) {
 }
 
 .orc-card-value {
-  color: #1f2937;
+  color: var(--text-primary);
   text-align: right;
   max-width: 60%;
   overflow: hidden;

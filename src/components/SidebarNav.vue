@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 
 defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -8,12 +9,14 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const uiStore = useUiStore()
 
 interface MenuItem {
   icon: string
   label: string
   path?: string
   disabled?: boolean
+  modal?: boolean
 }
 
 const menuItems: MenuItem[] = [
@@ -24,11 +27,21 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F4CB}', label: 'Controle de Pedidos', disabled: true },
   { icon: '\u{1F4B3}', label: 'Boletos', disabled: true },
   { icon: '\u{1F4CA}', label: 'Relatórios', disabled: true },
-  { icon: '\u{1F4D1}', label: 'Dados Gerais', disabled: true },
+  { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true },
 ]
 
 function isActive(item: MenuItem) {
   return !!item.path && route.path === item.path
+}
+
+function abrirItem(item: MenuItem) {
+  if (item.disabled) return
+  if (item.modal) {
+    uiStore.perfilOpen = true
+    close()
+    return
+  }
+  close()
 }
 
 function close() {
@@ -81,8 +94,19 @@ function handleLogout() {
           <div class="drawer-divider" />
 
           <nav class="drawer-nav">
+            <button
+              v-for="item in menuItems.filter((i) => i.modal)"
+              :key="item.label"
+              type="button"
+              class="nav-item"
+              :class="{ disabled: item.disabled }"
+              @click="abrirItem(item)"
+            >
+              <span class="nav-icon">{{ item.icon }}</span>
+              <span class="nav-label">{{ item.label }}</span>
+            </button>
             <RouterLink
-              v-for="item in menuItems"
+              v-for="item in menuItems.filter((i) => !i.modal)"
               :key="item.label"
               :to="item.path ?? ''"
               :class="{
@@ -135,7 +159,7 @@ function handleLogout() {
 .drawer {
   width: 280px;
   height: 100%;
-  background: #1e1f24;
+  background: var(--sidebar-bg, #0f1c3a);
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 16px rgba(0, 0, 0, 0.25);
@@ -160,7 +184,7 @@ function handleLogout() {
 }
 
 .brand-name {
-  color: #fff;
+  color: var(--header-text, #fff);
   font-weight: 700;
   font-size: 1.1rem;
 }
@@ -206,28 +230,39 @@ function handleLogout() {
   overflow-y: auto;
 }
 
-.drawer-nav a {
+.drawer-nav a,
+.drawer-nav .nav-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.7rem 1rem;
-  color: #e5e7eb;
+  color: var(--sidebar-text, #e5e7eb);
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 500;
   transition: background 0.15s;
 }
 
-.drawer-nav a:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.06);
+.drawer-nav .nav-item {
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.drawer-nav a:hover:not(.disabled),
+.drawer-nav .nav-item:hover:not(.disabled) {
+  background: var(--sidebar-hover, rgba(255, 255, 255, 0.06));
 }
 
 .drawer-nav a.active {
-  background: #3366cc;
+  background: var(--primary, #3366cc);
   color: #fff;
 }
 
-.drawer-nav a.disabled {
+.drawer-nav a.disabled,
+.drawer-nav .nav-item.disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -253,19 +288,19 @@ function handleLogout() {
   cursor: pointer;
   width: 100%;
   text-align: left;
-  color: #e5e7eb;
+  color: var(--sidebar-text, #e5e7eb);
   transition: background 0.15s;
 }
 
 .footer-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--sidebar-hover, rgba(255, 255, 255, 0.06));
 }
 
 .user-avatar {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: #3b82f6;
+  background: var(--primary, #3b82f6);
   display: flex;
   align-items: center;
   justify-content: center;
