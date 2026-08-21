@@ -304,18 +304,6 @@ const valorVendaUnitB2B = computed(() => {
   return orcamentoStore.func1?.Valor_Venda_Unit_B2B ?? 0
 })
 
-const valorVendaTotal = computed(() => {
-  if (simulacaoSelecionada.value) return simulacaoSelecionada.value.Valor_Venda_Total
-  if (itemCalc.value) return itemCalc.value.vlr_vnd_tot ?? 0
-  return orcamentoStore.func1?.Valor_Venda_Total ?? 0
-})
-
-const valorVendaUnit = computed(() => {
-  if (simulacaoSelecionada.value) return simulacaoSelecionada.value.Valor_Venda_Unit
-  if (itemCalc.value) return itemCalc.value.vlr_vnd_unit ?? 0
-  return orcamentoStore.func1?.Valor_Venda_Unit ?? 0
-})
-
 const lucroTotal = computed(() => {
   if (simulacaoSelecionada.value) return simulacaoSelecionada.value.Valor_Lucro_Total
   if (itemCalc.value) return itemCalc.value.vlr_lucro_tot ?? 0
@@ -577,6 +565,7 @@ function editarItem(item: any) {
   orcamentoStore.largura = item.larg ?? 0
   orcamentoStore.comprimento = item.comp ?? 0
   orcamentoStore.quantidade = item.qtd ?? 1
+  orcamentoStore.medidaExata = item.com_medida_exata === true
   if (orcamentoStore.ehML) {
     orcamentoStore.areaML = item.area_calc ?? 0
     modoEntradaML.value = item.area_calc ? 'area' : 'dimensoes'
@@ -1251,6 +1240,26 @@ async function enviarWhatsApp() {
             </div>
           </template>
 
+          <div
+            v-if="orcamentoStore.produtoSelecionado?.com_medida_exata"
+            class="field medida-exata-wrap"
+          >
+            <label class="checkbox-inline">
+              <input type="checkbox" v-model="orcamentoStore.medidaExata" />
+              <span>
+                Medida exata —
+                <strong
+                  >acréscimo de
+                  {{ orcamentoStore.produtoSelecionado.porcentagem_acrescimo || 0 }}%</strong
+                >
+                no custo de fábrica
+              </span>
+            </label>
+            <small class="field-hint"
+              >Para tapetes com a medida exata, a fábrica cobra uma taxa adicional.</small
+            >
+          </div>
+
           <div class="btn-row">
             <button
               class="btn btn-secondary"
@@ -1348,14 +1357,7 @@ async function enviarWhatsApp() {
             <h3 class="section-title">Valores</h3>
 
             <div class="price-grid">
-              <div class="price-label">Valor Vnd Unit</div>
-              <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnit) }}</div>
-              <div class="price-label">Valor Vnd Unit B2B</div>
-              <div class="price-value price-bg">{{ formatarMoeda(valorVendaUnitB2B) }}</div>
-
-              <div class="price-label">Valor Vnd Total</div>
-              <div class="price-value price-bg">{{ formatarMoeda(valorVendaTotal) }}</div>
-              <div class="price-label">Valor Vnd Tot B2B</div>
+              <div class="price-label">Valor Venda Total</div>
               <div class="price-value price-b2b">{{ formatarMoeda(valorVendaTotalB2B) }}</div>
             </div>
           </section>
@@ -1389,24 +1391,20 @@ async function enviarWhatsApp() {
                 formatarMoeda(itemCalc?.vlr_custo_nota_unit ?? 0)
               }}</span>
 
-              <span v-if="(itemCalc?.vlr_st_unit ?? 0) > 0" class="price-label">ST Unit</span>
-              <span v-if="(itemCalc?.vlr_st_unit ?? 0) > 0" class="price-value price-bg">{{
-                formatarMoeda(itemCalc?.vlr_st_unit)
+              <span class="price-label">ST Unit</span>
+              <span class="price-value price-bg">{{
+                formatarMoeda(itemCalc?.vlr_st_unit ?? 0)
               }}</span>
 
-              <span v-if="(itemCalc?.vlr_difal_unit ?? 0) > 0" class="price-label">DIFAL Unit</span>
-              <span v-if="(itemCalc?.vlr_difal_unit ?? 0) > 0" class="price-value price-bg">{{
-                formatarMoeda(itemCalc?.vlr_difal_unit)
+              <span class="price-label">DIFAL Unit</span>
+              <span class="price-value price-bg">{{
+                formatarMoeda(itemCalc?.vlr_difal_unit ?? 0)
               }}</span>
 
-              <span v-if="(itemCalc?.vlr_credito_icms_unit ?? 0) > 0" class="price-label"
-                >Crédito ICMS Unit</span
-              >
-              <span
-                v-if="(itemCalc?.vlr_credito_icms_unit ?? 0) > 0"
-                class="price-value price-bg"
-                >{{ formatarMoeda(itemCalc?.vlr_credito_icms_unit) }}</span
-              >
+              <span class="price-label">Crédito ICMS Unit</span>
+              <span class="price-value price-bg">{{
+                formatarMoeda(itemCalc?.vlr_credito_icms_unit ?? 0)
+              }}</span>
 
               <span class="price-label">Cst Fiscal Unit</span>
               <span class="price-value price-bg">{{
@@ -1415,7 +1413,7 @@ async function enviarWhatsApp() {
 
               <span class="price-label">Frete B2B Unit</span>
               <span class="price-value price-bg">{{
-                formatarMoeda(itemCalc?.frete_b2b ?? 0)
+                formatarMoeda(itemCalc?.vlr_frete_b2b_unit ?? itemCalc?.frete_b2b ?? 0)
               }}</span>
 
               <span class="price-label">Cst Entrada Unit</span>
@@ -1428,29 +1426,19 @@ async function enviarWhatsApp() {
                 >{{ orcamentoStore.margemPersonalizada ?? margemPadrao }}%</span
               >
 
-              <span v-if="itemCalc?.perc_marguem_real ?? 0" class="price-label">Margem Real</span>
-              <span v-if="itemCalc?.perc_marguem_real ?? 0" class="price-value price-bg"
-                >{{ itemCalc?.perc_marguem_real?.toFixed?.(2) }}%</span
+              <span class="price-label">Margem Real</span>
+              <span class="price-value price-bg"
+                >{{ (itemCalc?.perc_marguem_real ?? 0).toFixed?.(2) }}%</span
               >
 
-              <span v-if="(itemCalc?.vlr_aliq_inter ?? 0) > 0" class="price-label"
-                >Alíq. Inter</span
-              >
-              <span v-if="(itemCalc?.vlr_aliq_inter ?? 0) > 0" class="price-value price-bg"
-                >{{ itemCalc?.vlr_aliq_inter }}%</span
-              >
+              <span class="price-label">Alíq. Inter</span>
+              <span class="price-value price-bg">{{ itemCalc?.vlr_aliq_inter ?? 0 }}%</span>
 
-              <span v-if="(itemCalc?.vlr_aliq_interna ?? 0) > 0" class="price-label"
-                >Alíq. Interna</span
-              >
-              <span v-if="(itemCalc?.vlr_aliq_interna ?? 0) > 0" class="price-value price-bg"
-                >{{ itemCalc?.vlr_aliq_interna }}%</span
-              >
+              <span class="price-label">Alíq. Interna</span>
+              <span class="price-value price-bg">{{ itemCalc?.vlr_aliq_interna ?? 0 }}%</span>
 
-              <span v-if="(itemCalc?.vlr_perc_difal ?? 0) > 0" class="price-label">% DIFAL</span>
-              <span v-if="(itemCalc?.vlr_perc_difal ?? 0) > 0" class="price-value price-bg"
-                >{{ itemCalc?.vlr_perc_difal }}%</span
-              >
+              <span class="price-label">% DIFAL</span>
+              <span class="price-value price-bg">{{ itemCalc?.vlr_perc_difal ?? 0 }}%</span>
 
               <template v-if="itemCalc && orcamentoStore.ehML">
                 <span class="price-label">Metros Lineares</span>
@@ -1463,10 +1451,10 @@ async function enviarWhatsApp() {
               <span class="price-label">Custo Total (Entrada)</span>
               <span class="price-value price-bg">{{ formatarMoeda(custoTotal) }}</span>
 
-              <span class="price-label">Venda Unit (B2B)</span>
+              <span class="price-label">Venda Unit (c/ Frete B2B)</span>
               <span class="price-value price-bg">{{ formatarMoeda(valorVendaUnitB2B) }}</span>
 
-              <span class="price-label">Venda Total (B2B)</span>
+              <span class="price-label">Venda Total (c/ Frete B2B)</span>
               <span class="price-value price-b2b">{{ formatarMoeda(valorVendaTotalB2B) }}</span>
 
               <span class="price-label">Lucro Unitário</span>
@@ -2743,6 +2731,43 @@ async function enviarWhatsApp() {
 
 .area-fc-input input {
   flex: 1;
+}
+
+.medida-exata-wrap {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--accent, #f97316);
+  border-radius: 8px;
+  background: var(--accent-soft, rgba(249, 115, 22, 0.08));
+}
+
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.checkbox-inline input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent, #f97316);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-inline strong {
+  color: var(--accent, #f97316);
+}
+
+.field-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
 }
 
 .btn-eye {

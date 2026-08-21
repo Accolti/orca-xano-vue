@@ -93,6 +93,8 @@ export interface ProdutoCatalogo {
   linha_nome: string | null
   tipo_nome: string | null
   nivel_nome: string | null
+  com_medida_exata?: boolean
+  porcentagem_acrescimo?: number
   _variacao: Variacao[]
 }
 
@@ -221,6 +223,7 @@ export interface OrcamentoNovoResult {
   vlr_custo_fiscal_tot: number
   eh_importado: boolean
   frete_b2b: number
+  vlr_frete_b2b_unit?: number
   vlr_cst_entrada_unit: number
   vlr_cst_entrada_tot: number
   vlr_vnd_unit: number
@@ -245,6 +248,8 @@ export interface OrcamentoNovoResult {
   regime_id: number
   tipo_fator_id: number
   fator_de_corte_id: number
+  com_medida_exata?: boolean
+  porcentagem_acrescimo?: number
   fc: number[]
 }
 
@@ -297,6 +302,8 @@ export interface OrcamentoInsertPayload {
   vlr_st_unit: number
   vlr_custo_fiscal_unit: number
   eh_importado: boolean
+  com_medida_exata?: boolean
+  porcentagem_acrescimo?: number
   perc_margem_real: number
   fc: number[]
 }

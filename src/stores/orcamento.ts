@@ -45,6 +45,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const quantidade = ref<number>(1)
   // Área em m² para produtos ML (metro linear)
   const areaML = ref<number>(0)
+  // Medida exata (marcada pelo vendedor) — aplica porcentagem_acrescimo do produto
+  const medidaExata = ref(false)
 
   const resultado = ref<OrcamentoResult | null>(null)
   const loading = ref(false)
@@ -441,6 +443,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       orca_id: orcamentoHeader.value?.id ?? 0,
       uf_destino: user?.uf ?? 'SP',
       regime_id: user?.regime_id ?? 0,
+      com_medida_exata: medidaExata.value,
     }
 
     // Área: largura=0 e quantidade=0. Dimensões: comprimento_ou_area=comp, largura=larg
@@ -526,11 +529,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       aliq_inter: it.vlr_aliq_inter ?? 0,
       aliq_interna: it.vlr_aliq_interna ?? 0,
       perc_difal: it.vlr_perc_difal ?? 0,
-      vlr_frete_b2b_unit: it.frete_b2b ?? 0,
+      vlr_frete_b2b_unit: it.vlr_frete_b2b_unit ?? it.frete_b2b ?? 0,
       vlr_st_unit: it.vlr_st_unit ?? 0,
       vlr_custo_fiscal_unit: it.vlr_custo_fiscal_unit ?? 0,
       eh_importado: it.eh_importado ?? false,
       perc_margem_real: it.perc_marguem_real ?? 0,
+      com_medida_exata: it.com_medida_exata ?? false,
+      porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
       fc: it.fc ?? [],
     }
   }
@@ -627,11 +632,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           aliq_inter: it.vlr_aliq_inter ?? 0,
           aliq_interna: it.vlr_aliq_interna ?? 0,
           perc_difal: it.vlr_perc_difal ?? 0,
-          vlr_frete_b2b_unit: it.frete_b2b ?? 0,
+          vlr_frete_b2b_unit: it.vlr_frete_b2b_unit ?? it.frete_b2b ?? 0,
           vlr_st_unit: it.vlr_st_unit ?? 0,
           vlr_custo_fiscal_unit: it.vlr_custo_fiscal_unit ?? 0,
           eh_importado: it.eh_importado ?? false,
           perc_margem_real: it.perc_marguem_real ?? 0,
+          com_medida_exata: it.com_medida_exata ?? false,
+          porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
           fc: it.fc ?? [],
         }
       } else {
@@ -698,6 +705,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           vlr_custo_fiscal_unit: r.func_1.Valor_Custo_Unit ?? 0,
           eh_importado: false,
           perc_margem_real: 0,
+          com_medida_exata: medidaExata.value,
+          porcentagem_acrescimo: produtoSelecionado.value?.porcentagem_acrescimo ?? 0,
           fc: fator?._fator_de_corte?.valor ?? [],
         }
       }
@@ -763,6 +772,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     comprimento.value = 0
     quantidade.value = 1
     areaML.value = 0
+    medidaExata.value = false
     resultado.value = null
     resultadoNovo.value = null
     error.value = null
@@ -878,7 +888,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       })
       const body = response.getBody() as any
       orcamentoHeader.value = body?.ORCA_1 ?? null
-      itensInseridos.value = (itensInseridos.value ?? []).filter((i) => i.id !== itemId)
+      itensInseridos.value =
+        body?.itemS ?? (itensInseridos.value ?? []).filter((i) => i.id !== itemId)
       resultadoNovo.value = null
       resultado.value = null
     } catch (err: any) {
@@ -1008,6 +1019,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     comprimento,
     quantidade,
     areaML,
+    medidaExata,
     resultado,
     resultadoNovo,
     produtoSelecionado,
