@@ -22,7 +22,10 @@ const route = useRoute()
 const router = useRouter()
 const codOrcaParam = route.params.codOrca as string | undefined
 const isEditMode = computed(() => !!codOrcaParam)
-const isVinculado = computed(() => orcamentoStore.orcamentoHeader?.eh_pedido === true)
+const isVinculado = computed(() => {
+  const e = orcamentoStore.orcamentoHeader?.eh_pedido
+  return e === true || e === 'true' || e === 1 || e === '1'
+})
 
 const orcamentoStore = useOrcamentoStore()
 const authStore = useAuthStore()
