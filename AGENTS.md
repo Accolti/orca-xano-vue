@@ -104,6 +104,8 @@ O **conteúdo** da combo de Nível não vem mais de `niveisFiltrados` (só por `
 
 A tabela `Produto.ativo` (default `true`) controla se o produto existe na precificação. `fTodos_Produtos` (endpoint `produtos_all`), `Ret_Suc_Filtrado` (`produtos_suc_filtrado`) e `Ret_TabMaeEFilhas_2` (suc base) filtram `$db.Produto.ativo == true`. O `output` de `fTodos_Produtos` inclui `ativo` para o front filtrar defensivamente (protege contra cache antigo até o bump de `versao_produtos`). Para "desativar" um produto, basta setar `ativo=false` no dashboard — ele sai da listbox sem JS nem exceção.
 
+**Borda** segue o mesmo padrão: a tabela `Borda.ativo` é respeitada em `f_produtos_selecao` (catálogo), `Ret_Suc_Filtrado` e `Ret_TabMaeEFilhas_2`, e `bordasFiltradas` filtra `ativo !== false` defensivamente.
+
 ### Recálculo dinâmico (resumo tela verde)
 
 O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, frete B2C, desconto) dispara `Orcamento_Recalcular_Totais` que refaz o **frete B2B sobre o somatório dos custos**, rateia proporcionalmente, aplica markup (efetivo), desconto e frete B2C, e atualiza itens + cabeçalho ORCA.

@@ -53,6 +53,7 @@ export interface Borda {
   material_id: number
   valor: number
   Unidade: string
+  ativo?: boolean
   created_at: number
 }
 

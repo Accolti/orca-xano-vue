@@ -95,7 +95,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   )
 
   const bordasFiltradas = computed(() =>
-    allBordas.value.filter((b) => b.material_id === selectedMaterialId.value),
+    allBordas.value.filter((b) => b.material_id === selectedMaterialId.value && b.ativo !== false),
   )
 
   function lerCache(key: string): { versao: number } | null {
