@@ -26,9 +26,41 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const tipos = computed(() =>
     materialSelecionado.value?.suc?.Tipo ? catalogo.tiposFiltrados : [],
   )
-  const niveis = computed(() =>
-    materialSelecionado.value?.suc?.Nivel ? catalogo.niveisFiltrados : [],
-  )
+  const niveis = computed<Nivel[]>(() => {
+    const m = materialSelecionado.value
+    if (!m) return []
+
+    const linhaId = linhaSelecionada.value?.id ?? 0
+    const tipoId = tipoSelecionado.value?.id ?? 0
+
+    const vistos = new Map<number, Nivel>()
+    for (const p of catalogo.allProdutos) {
+      if (
+        p.material_id === m.id &&
+        p.ativo !== false &&
+        (p.nivel_id ?? 0) > 0 &&
+        (linhaId === 0 || p.linha_id === linhaId) &&
+        (tipoId === 0 || p.tipo_id === tipoId)
+      ) {
+        if (!vistos.has(p.nivel_id!)) {
+          const completo = catalogo.allNiveis.find((n) => n.id === p.nivel_id)
+          vistos.set(p.nivel_id!, {
+            id: p.nivel_id!,
+            nome: p.nivel_nome ?? completo?.nome ?? `Nível ${p.nivel_id}`,
+            Descricao: completo?.Descricao ?? '',
+            material_id: m.id,
+            created_at: completo?.created_at ?? 0,
+          })
+        }
+      }
+    }
+
+    const ordem = new Map(catalogo.allNiveis.map((n, i) => [n.id, i]))
+    return [...vistos.values()].sort(
+      (a, b) =>
+        (ordem.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (ordem.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    )
+  })
   const bordas = computed(() =>
     materialSelecionado.value?.suc?.Borda ? catalogo.bordasFiltradas : [],
   )
@@ -140,21 +172,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   })
 
   const mostrarNivel = computed(() => {
-    const m = materialSelecionado.value
-    if (!m) return false
     if (!sucAtual.value) return false
     if (sucAtual.value.Nivel <= 0) return false
-
-    const linhaNome = linhaSelecionada.value?.nome ?? ''
-    const tipoNome = tipoSelecionado.value?.nome ?? ''
-
-    const isVinil = /vinil/i.test(m.nome)
-    const isGoldOuAltTrafego = /^(gold|alto\s*tr[áa]fego)$/i.test(linhaNome)
-    const isLiso = /^liso$/i.test(tipoNome)
-
-    if (isVinil && isGoldOuAltTrafego && isLiso) return false
-
-    return true
+    return niveis.value.length > 0
   })
 
   watch(mostrarNivel, (val) => {

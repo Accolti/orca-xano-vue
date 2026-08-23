@@ -95,6 +95,7 @@ export interface ProdutoCatalogo {
   nivel_nome: string | null
   com_medida_exata?: boolean
   porcentagem_acrescimo?: number
+  ativo?: boolean
   _variacao: Variacao[]
 }
 

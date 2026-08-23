@@ -28,7 +28,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Catálogo versionado** — cache localStorage com controle por versão (`versao_materiais` + `versao_produtos`) via `/configuracoes`; baixa produtos mães/filhos e variações (`/produtos_all`)
 - **Variação** — listbox com `_variacao` do produto quando o produto tem `detalhe_id > 0`
 - **Versões no header** — badge `M2P1` com popover mostrando as versões (badge de versão no cabeçalho)
-- **Exceção Vinil+Liso** — oculta campo Nível quando Material=Vinil, Linha=Gold/Alto Tráfego, Tipo=Liso
+- **Nível inteligente** — a combo de Nível é derivada dos produtos reais ativos (`ativo` na tabela `Produto`) cruzando a seleção Material+Linha+Tipo; sem exceções hardcoded (Vinil+Liso some sozinho; Vinil Alto Tráfego Vulcanizado sem Nível 3)
 
 ## Rotas
 

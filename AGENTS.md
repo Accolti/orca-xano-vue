@@ -92,11 +92,17 @@ Solução: nova função **`Ret_Suc_Filtrado`** + endpoint **`GET /produtos_suc_
 
 - `catalogo.ts`: `sucFiltrado` ref + action `filtrarSuc(materialId, linhaId?, tipoId?)` que chama o endpoint e guarda a resposta.
 - `orcamento.ts`: computed `sucAtual` (usa `catalogo.sucFiltrado` se houver, senão `material.suc`) alimenta `mostrarLinha/Tipo/Nivel/Borda`. `watch([linhaSelecionada, tipoSelecionado])` dispara `filtrarSuc`. Limpa `sucFiltrado` em `selecionarMaterial`/`limparMaterial`/`limparFormItem`.
-- Exceção hardcoded Vinil+Liso continua coexistindo como proteção extra.
 
-### Exceção Vinil+Liso (`mostrarNivel`)
+### Nível derivado dos produtos reais (sem exceção hardcoded)
 
-Quando Material = Vinil, Linha = Gold ou Alto Tráfego, Tipo = Liso → Nível (cores) não faz sentido, então `mostrarNivel` retorna `false` e o campo some. Um `watch` limpa `nivelSelecionado` automaticamente.
+O **conteúdo** da combo de Nível não vem mais de `niveisFiltrados` (só por `material_id`). `niveis` em `orcamento.ts` cruza `catalogo.allProdutos` com a seleção atual (`material_id` + `linha_id`/`tipo_id` quando selecionados), exige `ativo !== false` e `nivel_id > 0`, dedupe por id e ordena pela ordem de `allNiveis`. Assim:
+
+- **Vinil Alto Tráfego Vulcanizado** sem Nível 3 → o produto com `ativo=false` some do `/produtos_all` (backend filtra `$db.Produto.ativo == true` em `fTodos_Produtos`/`Ret_Suc_Filtrado`/`Ret_TabMaeEFilhas_2`) e o dropdown só mostra níveis 1 e 2.
+- **Vinil+Liso** → nenhum produto ativo com nível para essa combinação → `niveis` vazio → dropdown some. **A exceção hardcoded foi removida** (`mostrarNivel` agora é `sucAtual.Nivel > 0 && niveis.length > 0`).
+
+### Produtos inativos (flag `ativo`)
+
+A tabela `Produto.ativo` (default `true`) controla se o produto existe na precificação. `fTodos_Produtos` (endpoint `produtos_all`), `Ret_Suc_Filtrado` (`produtos_suc_filtrado`) e `Ret_TabMaeEFilhas_2` (suc base) filtram `$db.Produto.ativo == true`. O `output` de `fTodos_Produtos` inclui `ativo` para o front filtrar defensivamente (protege contra cache antigo até o bump de `versao_produtos`). Para "desativar" um produto, basta setar `ativo=false` no dashboard — ele sai da listbox sem JS nem exceção.
 
 ### Recálculo dinâmico (resumo tela verde)
 
