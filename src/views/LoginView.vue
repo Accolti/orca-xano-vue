@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const sessaoExpirada = ref(route.query.expired === '1')
 
 const email = ref('')
 const password = ref('')
 
 async function handleSubmit() {
+  sessaoExpirada.value = false
   try {
     await authStore.login(email.value, password.value)
     router.push('/')
@@ -48,6 +52,8 @@ async function handleSubmit() {
             autocomplete="current-password"
           />
         </div>
+
+        <p v-if="sessaoExpirada" class="info-msg">Sessão expirada. Faça login novamente.</p>
 
         <p v-if="authStore.error" class="error-msg">{{ authStore.error }}</p>
 
@@ -160,6 +166,14 @@ async function handleSubmit() {
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
   text-align: center;
+}
+
+.info-msg {
+  color: var(--primary);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+  font-weight: 600;
 }
 
 .btn {

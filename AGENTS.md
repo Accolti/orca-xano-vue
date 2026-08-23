@@ -24,7 +24,7 @@
 
 - `src/main.ts` — bootstrap: global CSS, Pinia, router, mount
 - `src/router/index.ts` — routes: `/` (HomeView, eager), `/about` (AboutView, lazy)
-- `src/services/xano.ts` — singleton `XanoClient` from `@xano/js-sdk`, configured via `VITE_XANO_BASE_URL` env var
+- `src/services/xano.ts` — singleton `XanoClient` do `@xano/js-sdk`, configurado via `VITE_XANO_BASE_URL`. Expõe um **wrapper** (`get/post/put/patch/delete/setAuthToken`) que detecta `XanoRequestError` com status **401** e dispara o handler global `onUnauthorized` (registrado em `main.ts`). O handler faz `logout()` + redireciona para `/login?expired=1` (ignora rotas guest). `unauthorizedFired` guarda múltiplos 401 em paralelo e é resetado quando um novo token é definido.
 - `src/stores/catalogo.ts` — `useCatalogoStore`: árvore completa Material/Linha/Tipo/Nivel/Borda, cache localStorage por versão via `/configuracoes`, loaded flag de sessão
 - `src/stores/counter.ts` — scaffold example store (not used by any view)
 - `.env` contains `VITE_XANO_BASE_URL` (committed — override via `.env.local` for production)

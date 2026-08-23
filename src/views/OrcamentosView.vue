@@ -762,8 +762,19 @@ function cancelarStatus() {
 
 async function confirmarStatus() {
   const confirm = statusConfirm.value
-  statusConfirm.value = null
   if (!confirm) return
+
+  // Valida pré-requisito obrigatório antes de fechar o modal (conversão em pedido)
+  if (
+    confirm.destino === 'AGUARDANDO_FATURAMENTO' &&
+    !kapaziForm.value.num_pedido_fabrica?.trim()
+  ) {
+    statusConfirm.value = null
+    mostrarToast('Preencha o Nº do Pedido da Fábrica (Kapazi) antes de converter em pedido.')
+    return
+  }
+
+  statusConfirm.value = null
   if (confirm.destino === 'AGUARDANDO_FATURAMENTO') {
     await converterParaPedido()
   } else {
@@ -778,8 +789,9 @@ async function mudarStatus(status: string, motivo?: string) {
   atualizandoStatus.value = true
   try {
     await orcamentoStore.atualizarStatus(orcaId, status, motivo)
+    mostrarToast(`Status atualizado para ${statusLabel(status)}.`)
   } catch {
-    /* error já definido no store */
+    mostrarToast(orcamentoStore.error || 'Erro ao atualizar status')
   } finally {
     atualizandoStatus.value = false
   }
@@ -788,12 +800,19 @@ async function mudarStatus(status: string, motivo?: string) {
 async function converterParaPedido() {
   const orcaId = orcaIdAtual.value
   if (!orcaId) return
+
+  // Pré-requisito obrigatório: Nº do Pedido da Fábrica (Kapazi) antes de converter.
+  if (!kapaziForm.value.num_pedido_fabrica?.trim()) {
+    mostrarToast('Preencha o Nº do Pedido da Fábrica (Kapazi) antes de converter em pedido.')
+    return
+  }
+
   atualizandoStatus.value = true
   try {
     await orcamentoStore.converterEmPedido(orcaId)
     mostrarToast('Orçamento convertido em pedido.')
   } catch {
-    /* error já definido no store */
+    mostrarToast(orcamentoStore.error || 'Erro ao converter em pedido')
   } finally {
     atualizandoStatus.value = false
   }
@@ -2273,6 +2292,7 @@ async function enviarWhatsApp() {
               ← Voltar para Aguardando Retorno
             </button>
           </div>
+          <p v-if="orcamentoStore.error" class="error-msg">{{ orcamentoStore.error }}</p>
         </div>
 
         <div v-if="isVinculado || statusAtual === 'APROVADO'" class="kapazi-card">
