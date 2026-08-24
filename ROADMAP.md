@@ -63,6 +63,7 @@ Status: registrada (implementação futura)
 - [ ] Visibilidade por permissão: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
 - [ ] Limite de desconto por vendedor
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
+- [ ] **Tela de comissões pagas aos vendedores-filhos**: lista por vendedor, período, valor da comissão, status (calculada/paga) — depende de `vendedor_pai_id` + `percentual_comissao`. Rota própria `/comissoes`
 
 ## 📊 Frente 4 — Relatórios e controle financeiro
 
@@ -127,3 +128,29 @@ Status: registrada (implementação futura)
 - [ ] **Perfil 2ª fase**: telefone/endereço do usuário, logo, troca de e-mail com verificação (a 1ª fase já existe — `PerfilModal.vue`)
 - [ ] **Automação Kapazi** (futura): integração para receber/registrar status e dados da fábrica automaticamente
 - [ ] **Limpeza do legado**: rodar `MigrarPedidosParaOrca`, depois excluir as funções/endpoints `PARA EXCLUIR` do `LEGADO.md`, dropar tabelas `Pedido`/`item_ped`/`controle_pedido` e a coluna `orca.pedido_id`
+
+## 💵 Frente 6 — Controle de Pagamentos
+
+Status: registrada (implementação futura)
+
+- [ ] Página `/pagamentos` (ativa o menu "Boletos"): lista de parcelas por pedido (boleto: valor + nº de parcelas + vencimentos; pix; etc.)
+- [ ] Abas/filtros: Em aberto / A vencer / Vencidos / Pago (reusa `fBoleto_*` com `Tipo: "Dados"`)
+- [ ] Baixa manual de pagamento (registrar `pagamento`) + ajuste de valor/vencimento
+- [ ] **Migrar `Boleto` para `Orca`**: tabela ganha `orca_id` (substitui `pedido_id` legado); `fBoleto_Vencido`/`A_Vencer`/`Pago`, `f_relatorio_recebidos` e `fSumPedidosBoletos` passam a usar Orca (vínculo resolvido por `Orca.pedido_id` legado → `cod_orca` ou direto)
+
+## 📈 Frente 7 — Relatórios gerenciais
+
+Status: registrada (implementação futura)
+
+- [ ] Página `/relatorios` (ativa o menu "Relatórios")
+- [ ] **Relatório financeiro**: custo Kapazi, desconto Kapazi, frete efetivo, lucro/margem real (fórmulas já mapeadas na Frente 4; fonte = `Desconto_Kapazi_Log`)
+- [ ] **Recebidos por período** (reusa `f_relatorio_recebidos` adequado para Orca)
+- [ ] **Funil de status** (`Orca_Status_Log`)
+
+## 📊 Frente 8 — Dashboard (HomeView)
+
+Status: registrada (implementação futura)
+
+- [ ] HomeView vira dashboard: cards com Orçamentos, Pedidos, Boletos vencidos / a vencer / pagos (já calculados em `fDadosDashBoard`)
+- [ ] **Status em destaque** (funil: RASCUNHO / AGUARDANDO_RETORNO / APROVADO / PEDIDO / ...)
+- [ ] Gráficos simples (vendas por mês, recebido vs a receber)
