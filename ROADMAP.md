@@ -42,3 +42,21 @@ Status: registrada (implementação futura)
 - [ ] Visibilidade por permissão: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
 - [ ] Limite de desconto por vendedor
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
+
+## 📊 Frente 4 — Relatórios e controle financeiro
+
+Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do projeto
+
+- [ ] **Relatório de funil/apontamentos** usando o `Orca_Status_Log` (histórico de transições RASCUNHO → … → ENTREGUE, tempos por etapa, taxas de conversão)
+- [ ] **Relatório financeiro com lucro real** (Opção A decidida): `lucro_real = luc_tot + (custoKapazi × desconto_kapazi_perc/100)` — não assar no banco, calcular no relatório
+- [ ] **Boletos**: base já existe no backend (`Boleto`, `f_boleto_pago`, `f_boleto_a_vencer`, `f_boleto_vencido`, `f_sum_pedidos_boletos`) — construir telas de controle (em aberto / a vencer / vencidos / recebidos) e fluxo de baixa
+- [ ] **Controle de Pedidos**: painel consolidado do fluxo Kapazi (enviado → nº fábrica → aprovação layout → NF → boletos → entregue) com status e prazos
+- [ ] **SAC (pós-venda)**: tabela própria de atendimento/reclamações por pedido (não engessar no fluxo atual)
+
+## 🧹 Frente 5 — Perfil do usuário (2ª fase) e limpeza do legado
+
+Status: registrada (implementação futura)
+
+- [ ] **Perfil 2ª fase**: telefone/endereço do usuário, logo, troca de e-mail com verificação (a 1ª fase já existe — `PerfilModal.vue`)
+- [ ] **Automação Kapazi** (futura): integração para receber/registrar status e dados da fábrica automaticamente
+- [ ] **Limpeza do legado**: rodar `MigrarPedidosParaOrca`, depois excluir as funções/endpoints `PARA EXCLUIR` do `LEGADO.md`, dropar tabelas `Pedido`/`item_ped`/`controle_pedido` e a coluna `orca.pedido_id`
