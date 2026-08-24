@@ -25,7 +25,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Busca de clientes** — server-side com debounce de 350ms, mínimo 3 caracteres
 - **Orçamento multi-item** — calculadora com Material/Linha/Tipo/Nível/Borda, dimensões, quantidade
 - **Recálculo em tempo real** — 4 mecanismos (Novo Vlr Venda B2B, Nova Margem, Novo Frete B2B, Novo Lcr Total)
-- **Simulação** — condições de pagamento (Pix/boleto)
+- **Simulação de margens** — gerada no front (faixa 50–100 passo 10, rótulos c5..c10), com olho 👁 para custo/lucro e condições de pagamento ao clicar na linha
 - **Edição de orçamento** — suporte a `/orcamentos/:codOrca` com modo read-only se vinculado
 - **Catálogo versionado** — cache localStorage com controle por versão (`versao_materiais` + `versao_produtos`) via `/configuracoes`; baixa produtos mães/filhos e variações (`/produtos_all`)
 - **Variação** — listbox com `_variacao` do produto quando o produto tem `detalhe_id > 0`

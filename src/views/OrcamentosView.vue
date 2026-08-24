@@ -15,6 +15,7 @@ import {
 import { xano } from '@/services/xano'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
+import { gerarSimulacaoFront } from '@/utils/simulacao'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 
@@ -203,13 +204,19 @@ async function handleCalcular() {
 }
 
 async function handleSimular() {
-  // Simulação será implementada depois — por enquanto só calcula
   simulacaoSelecionada.value = null
   await orcamentoStore.calcularOrquestrador(modoEntradaML.value)
+  if (simulacaoLista.value.length) {
+    simulacaoModalOpen.value = true
+  }
 }
 
 function selecionarSimulacao(item: SimulacaoItem) {
   simulacaoSelecionada.value = item
+  // Aplica a margem escolhida no quadro de totais (Ajustar Orçamento)
+  novaMargemResumo.value = item.margem
+  if (custoTotalBase.value > 0) simularPorMargem()
+  simulacaoModalOpen.value = false
 }
 
 const inserirOk = ref(false)
@@ -289,10 +296,12 @@ const areaMLEfetiva = computed(() => {
   return (orcamentoStore.largura || 0) * (orcamentoStore.comprimento || 0)
 })
 
-// Lista de simulação de margens (legado por nomes; novo fluxo ainda sem simulação)
+// Lista de simulação de margens gerada no front (faixa padrão 50–100, rótulos c5..c10).
+// Base de custo: item calculado (novo orquestrador) → cabeçalho cst_tot.
 const simulacaoLista = computed(() => {
-  if (orcamentoStore.resultadoNovo?.simulacao?.length) return orcamentoStore.resultadoNovo.simulacao
-  return orcamentoStore.resultado?.simulacao ?? []
+  const custo = Number(itemCalc.value?.vlr_cst_entrada_tot) || Number(custoTotalBase.value) || 0
+  const qtd = Number(itemCalc.value?.qtd) || 1
+  return custo > 0 ? gerarSimulacaoFront(custo, qtd) : []
 })
 
 const valorVendaTotalB2B = computed(() => {
@@ -1806,6 +1815,13 @@ async function enviarWhatsApp() {
 
                 <div class="recalc-item recalc-item-action">
                   <button class="btn btn-primary btn-sm" @click="aplicarNegociacao">Aplicar</button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    :disabled="!simulacaoLista.length"
+                    @click="simulacaoModalOpen = true"
+                  >
+                    Simulação
+                  </button>
                 </div>
               </div>
 

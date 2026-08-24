@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { SimulacaoItem } from '@/types/orcamento'
+import { rotuloMargem } from '@/utils/simulacao'
 
 const props = defineProps<{
   modelValue: boolean
@@ -14,6 +15,9 @@ const emit = defineEmits<{
 }>()
 
 const itemSelecionado = ref<SimulacaoItem | null>(null)
+
+// Olho 👁 — mostra/oculta custo e lucro (oculto por padrão)
+const mostrarCustoLucro = ref(false)
 
 function formatarMoeda(valor: number): string {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`
@@ -90,21 +94,65 @@ const opcoesPagamento = computed(() => {
 
           <div class="modal-body">
             <div class="sim-header">
-              <strong>Simulação (M V L)</strong>
-              <span v-if="simulacao[0]" class="sim-custo"
-                >C {{ simulacao[0].Valor_Custo_Total.toFixed(2) }}</span
-              >
+              <strong>Simulação de Margens</strong>
+              <div class="sim-header-right">
+                <span v-if="mostrarCustoLucro && simulacao[0]" class="sim-custo"
+                  >C {{ formatarMoeda(simulacao[0].Valor_Custo_Total) }}</span
+                >
+                <button
+                  class="btn-eye"
+                  :class="{ active: mostrarCustoLucro }"
+                  @click="mostrarCustoLucro = !mostrarCustoLucro"
+                  title="Mostrar custo e lucro"
+                >
+                  <svg
+                    v-if="!mostrarCustoLucro"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    width="16"
+                    height="16"
+                  >
+                    <path
+                      d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"
+                    />
+                    <path
+                      d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"
+                    />
+                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <button
               v-for="item in simulacao"
               :key="item.margem"
               class="sim-row"
+              :class="{ selected: itemSelecionado?.margem === item.margem }"
               @click="selecionar(item)"
             >
-              <span class="sim-margem">{{ item.margem }}</span>
+              <span class="sim-margem">{{ rotuloMargem(item.margem) }}</span>
               <span class="sim-venda">{{ formatarMoeda(item.Valor_Venda_Total_FRT_B2B) }}</span>
-              <span class="sim-lucro">{{ formatarMoeda(item.Valor_Lucro_Total) }}</span>
+              <span v-if="mostrarCustoLucro" class="sim-lucro">{{
+                formatarMoeda(item.Valor_Lucro_Total)
+              }}</span>
             </button>
           </div>
 
@@ -189,6 +237,40 @@ const opcoesPagamento = computed(() => {
   font-size: 0.9rem;
 }
 
+.sim-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-eye {
+  background: none;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.btn-eye:hover {
+  background: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.btn-eye.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 .sim-custo {
   color: var(--secondary, var(--text-secondary));
   font-weight: 600;
@@ -214,6 +296,11 @@ const opcoesPagamento = computed(() => {
 .sim-row:hover {
   background: var(--table-hover);
   border-color: var(--primary-light, #3b82f6);
+}
+
+.sim-row.selected {
+  background: var(--primary-soft, #eef2ff);
+  border-color: var(--primary);
 }
 
 .sim-margem {

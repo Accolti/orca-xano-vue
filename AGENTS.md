@@ -108,7 +108,9 @@ A tabela `Produto.ativo` (default `true`) controla se o produto existe na precif
 
 ### Recálculo dinâmico (resumo tela verde)
 
-O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, frete B2C, desconto) dispara `Orcamento_Recalcular_Totais` que refaz o **frete B2B sobre o somatório dos custos**, rateia proporcionalmente, aplica markup (efetivo), desconto e frete B2C, e atualiza itens + cabeçalho ORCA.
+O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, frete B2C, desconto) dispara `Orcamento_Recalcular_Totais` que refaz o **frete B2B sobre o somatório dos custos**, rateia proporcionalmente, aplica markup (efetivo), desconto e frete B2C, e atualiza itens + cabeçalho ORCA. O mínimo do frete B2B vem de **`User.frtB2B`** (`f_calcula_frete` lê `$User1.frtB2B`); o parâmetro morto `seu_frete_minimo: 52` foi removido do `Orcamento_Recalcular_Totais`.
+
+**Simulação de margens (front JS)**: `src/utils/simulacao.ts` — `gerarSimulacaoFront(custo, qtd)` gera a lista (faixa padrão **50–100 passo 10**, rótulos **`c5..c10`** = margem ÷ 10) sem depender do backend (o orquestrador novo não gera `simulacao`; a modal antes nunca abria). `handleSimular` e o botão "Simulação" no Ajustar Orçamento abrem a `SimulacaoModal`; escolher uma linha aplica a margem no resumo (`simularPorMargem`). A modal tem **olho 👁** (`btn-eye`) para mostrar/ocultar custo e lucro (oculto por padrão) e clique na linha mostra condições de pagamento.
 
 **Ajustar Orçamento** (tela verde, `.card-totais` `#f0fdf4`):
 - **Nova Margem (%)** → `POST /orcamento_recalcular { newMargem }` (markup **efetivo** — Opção B)
@@ -192,7 +194,6 @@ O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orq
 ### Pendências
 
 - `user.uf` adicionado à tabela User e à interface TS; `user.regime_id` precisa ser **preenchido no perfil** de cada vendedor (e `user.uf`) para a precificação funcionar. Atualmente o frontend usa fallbacks (`SP`/`regime_id=0`).
-- Simulação de margens (`bSimulaMargens`) **ainda não** é suportada pelo orquestrador — `handleSimular` chama o orquestrador sem simulação.
 - Stub vazia `orcamento_orquestrador` (lowercase, id antigo) ainda existe no workspace — remover manualmente no dashboard.
 - O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
 - Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
