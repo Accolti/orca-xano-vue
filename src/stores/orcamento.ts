@@ -811,6 +811,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   async function carregarOrcamento(codOrca: string, newMargem?: number) {
     carregandoOrcamento.value = true
+    error.value = null
     try {
       // Leitura read-only: 1 chamada, sem recalcular e sem escrever no banco.
       const response = await xano.get('/api:-qqRIakp/orca_detalhes', {
@@ -932,6 +933,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   // Atualiza o status do orçamento (RASCUNHO → AGUARDANDO_RETORNO → APROVADO →
   // AGUARDANDO_FATURAMENTO → FATURADO → ENTREGUE). Grava o histórico de auditoria no backend.
   async function atualizarStatus(orcaId: number, status: string, motivo?: string) {
+    error.value = null
     try {
       const response = await xano.post('/api:-qqRIakp/orcamento_status', {
         orca_id: orcaId,
@@ -951,6 +953,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   // Converte um orçamento APROVADO em pedido (eh_pedido=true + AGUARDANDO_FATURAMENTO).
   // A partir daí a edição fica bloqueada (front e backend).
   async function converterEmPedido(orcaId: number) {
+    error.value = null
     try {
       const response = await xano.post('/api:-qqRIakp/orcamento_converter_pedido', {
         orca_id: orcaId,
