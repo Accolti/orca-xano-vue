@@ -34,6 +34,27 @@ Status: registrada (implementação futura)
 - [ ] Trava no front (dropdown de parcelas limitado + aviso)
 - [ ] Simulador em tempo real no painel de config ("Liberado em até 4x no boleto")
 
+### Simulação parametrizável (margens) + olho de custo/lucro
+
+- [ ] Campos no `User` (perfil): `margem_sim_inicio`, `margem_sim_fim`, `margem_sim_passo`
+- [ ] Default: **50 a 100, passo 10** (quando o vendedor não configurar)
+- [ ] Função JS no front `gerarSimulacaoFront(custo, inicio, fim, passo)`:
+      substitui a dependência do backend (`bSimulaMargens` legado tem margens fixas;
+      o orquestrador novo NÃO gera `simulacao`). Usa o custo já retornado (`cst_tot`/`vlr_cst_entrada_tot`)
+      e monta a lista em memória (venda = custo × (1+m/100), lucro = venda − custo)
+- [ ] **Rótulo disfarçado**: coluna de margem mostra **`c5, c6, ... c10`** (margem ÷ 10;
+      c5 = 50%, c10 = 100%) — mesma identidade da simulação antiga. Padrão segue quando
+      configurar outra faixa (ex.: 40–120 → c4..c12)
+- [ ] **Olho (👁) na simulação**: botão `btn-eye` (mesmo padrão já existente na tela —
+      `toggleCustos`/`toggleCustosHeader`) controla a visibilidade do **custo e lucro**
+      nas linhas da modal. Oculta por padrão; ao clicar, mostra
+- [ ] **Clique na linha → condições de pagamento**: manter o comportamento atual da modal
+      (já existe: seleciona o item e exibe Pix/Boleto/Faturado no rodapé)
+- [ ] Guardrails: **passo mínimo 5, amplitude máxima 200** (aviso + clamp se exceder);
+      se inicio > fim inverte; se não for múltiplo do passo, trunca o último
+- [ ] `simulacaoLista` (OrcamentosView) passa a usar a função JS quando o User tem faixa;
+      `SimulacaoModal.vue` recebe a lista (fonte muda; UI mantém clique→pagamento)
+
 ## 👥 Frente 3 — Multi-vendedor, planos, comissão e permissões
 
 Status: registrada (implementação futura)
