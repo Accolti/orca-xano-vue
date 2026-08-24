@@ -48,7 +48,14 @@ Status: registrada (implementação futura)
 Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do projeto
 
 - [ ] **Relatório de funil/apontamentos** usando o `Orca_Status_Log` (histórico de transições RASCUNHO → … → ENTREGUE, tempos por etapa, taxas de conversão)
-- [ ] **Relatório financeiro com lucro real** (Opção A decidida): `lucro_real = luc_tot + (custoKapazi × desconto_kapazi_perc/100)` — não assar no banco, calcular no relatório. A fonte do histórico é o `Desconto_Kapazi_Log` (abaixo).
+- [ ] **Relatório financeiro com lucro/margem real** (Opção A decidida — não assar no banco, calcular no relatório). A fonte do histórico é o `Desconto_Kapazi_Log` (abaixo). Cálculo:
+  - `custo_kapazi_total` = Σ (`item.vlr_cst_nota_unit` × `qtd`) — custo da mercadoria, **sem frete**
+  - `desconto_kapazi` = `custo_kapazi_total` × `desconto_kapazi_perc` / 100
+  - **Frete efetivo**: usar `ControlePedido.freteB2BReal` quando preenchido; senão `Orca.frtB2B` (o frete **fechado no orçamento** — nunca recalcular do zero nem buscar na tabela User atual)
+  - `lucro_real = luc_tot + desconto_kapazi + (Orca.frtB2B − frete_efetivo_real)`
+  - `margem_real = lucro_real / vnd_tot × 100`
+  - Base de desconto usa `vlr_cst_nota_unit` (mercadoria pura); o frete é somado à parte (proporcional na criação, efetivo no fechamento)
+- [ ] **Frete B2B (regra do mínimo)**: o mínimo NÃO é R$ 52 fixo — é **`User.frtB2B`** (perfil do vendedor; `f_calcula_frete.xs` já lê `$User1.frtB2B`). No `orcamento_recalcular_totais` o input `seu_frete_minimo: 52` é **ignorado** pela função (ela só declara `valor_total_compra`) — padronizar para sempre passar/ler `User.frtB2B`. O relatório usa `Orca.frtB2B` (valor fechado), não a tabela. Comparativo calculado × efetivo quando `freteB2BReal` preenchido.
 - [ ] **Log de descontos Kapazi**: tabela append-only `Desconto_Kapazi_Log` (padrão `Orca_Status_Log`) — registra **toda mudança** de `ControlePedido.desconto_kapazi_perc`, consumida **só pelos relatórios** (o resumo da finalizada continua mostrando o valor atual). Gravada pelo `controle_pedido_salvar` quando o % muda; o campo `desconto_kapazi_perc` segue sendo o "valor vivo". Schema sugerido:
 
   ```xano
@@ -67,6 +74,9 @@ Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do 
 
       // Valor do desconto em R$ na data do log (base = Σ vlr_cst_nota_unit × qtd)
       decimal valor_desconto_rs?
+
+      // Frete efetivo em uso no momento do log (Orca.frtB2B ou ControlePedido.freteB2BReal)
+      decimal frete_efetivo_rs?
 
       // Quem gravou
       int user_id? { table = "User" }
