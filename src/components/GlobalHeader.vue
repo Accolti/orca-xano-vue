@@ -203,6 +203,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
+  min-width: 0;
 }
 
 .versao-wrap {
@@ -285,12 +286,31 @@ onBeforeUnmount(() => {
 .brand {
   font-weight: 700;
   font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 .brand-sub {
   font-size: 0.7rem;
   color: #9ca3af;
   font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+@media (max-width: 480px) {
+  .brand {
+    max-width: 130px;
+    font-size: 0.95rem;
+  }
+
+  .brand-sub {
+    max-width: 130px;
+  }
 }
 
 .header-right {
