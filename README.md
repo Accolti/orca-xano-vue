@@ -2,6 +2,8 @@
 
 Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, CRUD de clientes, orçamento multi-item com calculadora de preços, catálogo de produtos com cache por versão, e backend Xano.
 
+> **Roadmap de ideias** (pastas compartilhadas/Google Drive, parametrização de condições de pagamento, multi-vendedor/comissão/permissões): ver [`ROADMAP.md`](./ROADMAP.md)
+
 ## Stack
 
 - **Vue 3.5** + **TypeScript 6** com `<script setup lang="ts">`
