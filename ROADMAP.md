@@ -36,24 +36,14 @@ Status: registrada (implementação futura)
 
 ### Simulação parametrizável (margens) + olho de custo/lucro
 
+> Status: **parcialmente feito** — faixa fixa 50–100 passo 10 com rótulos `c5..c10`, olho 👁 e clique→pagamento implementados (`src/utils/simulacao.ts`). Falta: parametrização no perfil (campos `margem_sim_inicio/fim/passo`).
+
+- [x] Função JS no front `gerarSimulacaoFront(custo, qtd)` (faixa fixa 50–100 passo 10, rótulos `c5..c10`)
+- [x] **Olho (👁) na simulação**: botão `btn-eye` para mostrar/ocultar custo e lucro (oculto por padrão)
+- [x] **Clique na linha → condições de pagamento** (mantido da modal existente)
+- [x] Botão "Simulação" no Ajustar Orçamento (quadro de totais) abre a modal
 - [ ] Campos no `User` (perfil): `margem_sim_inicio`, `margem_sim_fim`, `margem_sim_passo`
-- [ ] Default: **50 a 100, passo 10** (quando o vendedor não configurar)
-- [ ] Função JS no front `gerarSimulacaoFront(custo, inicio, fim, passo)`:
-      substitui a dependência do backend (`bSimulaMargens` legado tem margens fixas;
-      o orquestrador novo NÃO gera `simulacao`). Usa o custo já retornado (`cst_tot`/`vlr_cst_entrada_tot`)
-      e monta a lista em memória (venda = custo × (1+m/100), lucro = venda − custo)
-- [ ] **Rótulo disfarçado**: coluna de margem mostra **`c5, c6, ... c10`** (margem ÷ 10;
-      c5 = 50%, c10 = 100%) — mesma identidade da simulação antiga. Padrão segue quando
-      configurar outra faixa (ex.: 40–120 → c4..c12)
-- [ ] **Olho (👁) na simulação**: botão `btn-eye` (mesmo padrão já existente na tela —
-      `toggleCustos`/`toggleCustosHeader`) controla a visibilidade do **custo e lucro**
-      nas linhas da modal. Oculta por padrão; ao clicar, mostra
-- [ ] **Clique na linha → condições de pagamento**: manter o comportamento atual da modal
-      (já existe: seleciona o item e exibe Pix/Boleto/Faturado no rodapé)
-- [ ] Guardrails: **passo mínimo 5, amplitude máxima 200** (aviso + clamp se exceder);
-      se inicio > fim inverte; se não for múltiplo do passo, trunca o último
-- [ ] `simulacaoLista` (OrcamentosView) passa a usar a função JS quando o User tem faixa;
-      `SimulacaoModal.vue` recebe a lista (fonte muda; UI mantém clique→pagamento)
+- [ ] Guardrails configuráveis (atualmente: passo mínimo 5, amplitude máxima 200)
 
 ## 👥 Frente 3 — Multi-vendedor, planos, comissão e permissões
 
@@ -77,7 +67,7 @@ Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do 
   - `lucro_real = luc_tot + desconto_kapazi + (Orca.frtB2B − frete_efetivo_real)`
   - `margem_real = lucro_real / vnd_tot × 100`
   - Base de desconto usa `vlr_cst_nota_unit` (mercadoria pura); o frete é somado à parte (proporcional na criação, efetivo no fechamento)
-- [ ] **Frete B2B (regra do mínimo)**: o mínimo NÃO é R$ 52 fixo — é **`User.frtB2B`** (perfil do vendedor; `f_calcula_frete.xs` já lê `$User1.frtB2B`). No `orcamento_recalcular_totais` o input `seu_frete_minimo: 52` é **ignorado** pela função (ela só declara `valor_total_compra`) — padronizar para sempre passar/ler `User.frtB2B`. O relatório usa `Orca.frtB2B` (valor fechado), não a tabela. Comparativo calculado × efetivo quando `freteB2BReal` preenchido.
+- [x] **Frete B2B (regra do mínimo)**: removido o parâmetro morto `seu_frete_minimo: 52` do `Orcamento_Recalcular_Totais` — o mínimo agora vem só de **`User.frtB2B`** (`f_calcula_frete` lê `$User1.frtB2B`). **Falta**: comparativo calculado × efetivo (`freteB2BReal`) no relatório, que usa `Orca.frtB2B` (valor fechado).
 - [ ] **Log de descontos Kapazi**: tabela append-only `Desconto_Kapazi_Log` (padrão `Orca_Status_Log`) — registra **toda mudança** de `ControlePedido.desconto_kapazi_perc`, consumida **só pelos relatórios** (o resumo da finalizada continua mostrando o valor atual). Gravada pelo `controle_pedido_salvar` quando o % muda; o campo `desconto_kapazi_perc` segue sendo o "valor vivo". Schema sugerido:
 
   ```xano
