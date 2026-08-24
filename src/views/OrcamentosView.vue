@@ -1301,8 +1301,7 @@ async function enviarWhatsApp() {
             </button>
             <button
               class="btn btn-primary"
-              :disabled="true"
-              title="Em breve"
+              :disabled="orcamentoStore.loading || !formValido"
               @click="handleSimular"
             >
               Simular
@@ -2950,17 +2949,26 @@ async function enviarWhatsApp() {
 .recalc-item-action {
   display: flex;
   align-items: flex-end;
+  gap: 0.5rem;
 }
 
 .recalc-item-action .btn {
-  width: 100%;
+  flex: 1;
+  width: auto;
+}
+
+.recalc-item-action .btn-primary {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
 }
 
-.recalc-item-action .btn:hover:not(:disabled) {
+.recalc-item-action .btn-primary:hover:not(:disabled) {
   background: var(--primary-light);
+}
+
+.recalc-item-action .btn-outline {
+  background: transparent;
 }
 
 .recalc-obs {
