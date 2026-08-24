@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   useOrcamentosListActions,
   statusLabel,
+  STATUS_ORCAMENTO_FILTRO,
   formatarMoeda,
   formatarData,
   type OrcamentoRow,
 } from '@/utils/orcamentosList'
 
 const termoBusca = ref('')
+const filtroStatus = ref('')
 const resultados = ref<OrcamentoRow[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
@@ -30,6 +32,13 @@ const curPage = ref(1)
 const perPage = ref(20)
 const hasNext = ref(false)
 const hasPrev = ref(false)
+
+// Filtro de status client-side sobre o status mesclado
+const resultadosVisiveis = computed(() =>
+  filtroStatus.value
+    ? resultados.value.filter((r) => r.status === filtroStatus.value)
+    : resultados.value,
+)
 
 async function buscar() {
   const termo = termoBusca.value.trim()
@@ -61,6 +70,10 @@ function irPagina(pagina: number) {
   buscar()
 }
 
+watch(filtroStatus, () => {
+  curPage.value = 1
+})
+
 onMounted(() => {
   buscar()
 })
@@ -79,13 +92,24 @@ async function excluir(row: OrcamentoRow) {
         <h2>Orçamentos</h2>
         <button class="btn btn-accent" @click="novoOrcamento">+ Novo Orçamento</button>
       </div>
-      <div class="field busca-field">
-        <label>Buscar por código, cliente, contato, CPF, CNPJ, IE...</label>
-        <input
-          v-model="termoBusca"
-          placeholder="Digite pelo menos 3 caracteres..."
-          @input="onBuscaInput"
-        />
+      <div class="filtros-row">
+        <div class="field busca-field">
+          <label>Buscar por código, cliente, contato, CPF, CNPJ, IE...</label>
+          <input
+            v-model="termoBusca"
+            placeholder="Digite pelo menos 3 caracteres..."
+            @input="onBuscaInput"
+          />
+        </div>
+        <div class="field filtro-status">
+          <label>Status</label>
+          <select v-model="filtroStatus">
+            <option value="">Todos</option>
+            <option v-for="s in STATUS_ORCAMENTO_FILTRO" :key="s" :value="s">
+              {{ statusLabel(s) }}
+            </option>
+          </select>
+        </div>
       </div>
     </section>
 
@@ -97,7 +121,7 @@ async function excluir(row: OrcamentoRow) {
       <p class="error-msg">{{ errorMsg }}</p>
     </section>
 
-    <section v-if="!loading && resultados.length" class="card tabela-card">
+    <section v-if="!loading && resultadosVisiveis.length" class="card tabela-card">
       <div class="tabela-orcamentos-wrap">
         <table class="tabela-orcamentos">
           <thead>
@@ -113,7 +137,7 @@ async function excluir(row: OrcamentoRow) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in resultados" :key="row.id">
+            <tr v-for="row in resultadosVisiveis" :key="row.id">
               <td class="cell-cod">{{ row.cod_orca }}</td>
               <td class="cell-cliente">{{ row.nome_fantasia || row.razao_social }}</td>
               <td class="cell-contato">{{ row.contato }}</td>
@@ -212,7 +236,7 @@ async function excluir(row: OrcamentoRow) {
 
       <!-- Cards mobile -->
       <div class="orc-cards-mobile">
-        <div v-for="row in resultados" :key="row.id" class="orc-card-mobile">
+        <div v-for="row in resultadosVisiveis" :key="row.id" class="orc-card-mobile">
           <div class="orc-card-header">
             <span class="orc-card-cod">{{ row.cod_orca }}</span>
             <span class="orc-card-data">{{ formatarData(row.created_at) }}</span>
@@ -331,8 +355,15 @@ async function excluir(row: OrcamentoRow) {
       </div>
     </section>
 
-    <section v-if="!loading && termoBusca.length >= 3 && !resultados.length" class="card">
+    <section v-if="!loading && termoBusca.length >= 3 && !resultadosVisiveis.length" class="card">
       <p class="empty-msg">Nenhum orçamento encontrado para "{{ termoBusca }}"</p>
+    </section>
+
+    <section
+      v-if="!loading && filtroStatus && !resultadosVisiveis.length && termoBusca.length < 3"
+      class="card"
+    >
+      <p class="empty-msg">Nenhum orçamento com o status "{{ statusLabel(filtroStatus) }}"</p>
     </section>
 
     <section v-if="!loading && !resultados.length && termoBusca.length < 3" class="card hint-card">
@@ -399,6 +430,31 @@ async function excluir(row: OrcamentoRow) {
 .busca-field input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.filtros-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filtros-row .busca-field {
+  flex: 1;
+}
+
+.filtro-status {
+  min-width: 220px;
+}
+
+.filtro-status select {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  outline: none;
+  background: var(--card-bg);
 }
 
 .btn {
@@ -756,6 +812,12 @@ async function excluir(row: OrcamentoRow) {
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
+  }
+  .filtros-row {
+    flex-direction: column;
+  }
+  .filtro-status {
+    min-width: 100%;
   }
   .orc-list-page {
     padding: 0.75rem;

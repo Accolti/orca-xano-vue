@@ -58,6 +58,16 @@ export const STATUS_PEDIDO_FILTRO = [
   'CANCELADO',
 ]
 
+// Status possíveis de um orçamento (pré-pedido) — sem os de pedido convertido
+export const STATUS_ORCAMENTO_FILTRO = [
+  'RASCUNHO',
+  'ENVIADO',
+  'AGUARDANDO_RETORNO',
+  'APROVADO',
+  'RECUSADO',
+  'CANCELADO',
+]
+
 export function statusLabel(status?: string): string {
   return STATUS_LABELS[status ?? ''] ?? status ?? 'Rascunho'
 }
