@@ -297,7 +297,12 @@ onMounted(async () => {
     <section class="card header-card">
       <div class="header-top">
         <h2>Dev — Cadastro de Produtos</h2>
-        <button class="btn btn-primary btn-sm" @click="abrirNovo">+ Novo Produto</button>
+        <div class="header-actions">
+          <RouterLink to="/dev/fatores" class="btn btn-outline btn-sm">
+            Fatores de Corte
+          </RouterLink>
+          <button class="btn btn-primary btn-sm" @click="abrirNovo">+ Novo Produto</button>
+        </div>
       </div>
       <div class="filtros-row">
         <div class="field busca-field">
@@ -661,6 +666,15 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.header-actions a.btn {
+  text-decoration: none;
 }
 .filtros-row {
   display: flex;
