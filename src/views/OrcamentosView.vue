@@ -262,19 +262,6 @@ function cancelarEdicaoItem() {
   observacao.value = ''
 }
 async function handleFinalizar() {
-  // Alerta se não houver condições de pagamento (editadas ou salvas) antes de finalizar
-  const temCondicoes = !!(
-    condicoesPagamento.value.trim() || orcamentoStore.orcamentoHeader?.condicoes_pagamento?.trim()
-  )
-  if (!temCondicoes) {
-    if (
-      !confirm(
-        'Não há condições de pagamento definidas. Deseja prosseguir? Lembre-se: as condições precisam ser salvas antes de enviar.',
-      )
-    ) {
-      return
-    }
-  }
   // Persiste condições, observação e negociação antes de mostrar a tela finalizada
   await persistirCondicoesPagamento()
   finalizando.value = true
