@@ -4,19 +4,21 @@ Status geral: ideias registradas; implementação por fases (decidir prioridade 
 
 ## 🗂 Frente 1 — Documentos em pastas compartilhadas (Google Drive)
 
-Status: PRÓXIMA a implementar (fase simples primeiro; migrar para API depois)
+Status: **decisão tomada** — hoje = escolha de destino local; upload/link = futuro (depende de plano Xano pago)
 
-### Fase 1A — Link de pastas compartilhadas (simples)
+> **Decisão (2026-08)**: configurar pasta compartilhada **por usuário** é inviável (credencial de cada vendedor). Upload para o Xano (storage) + enviar **link** ao cliente em vez do arquivo só faz sentido quando o Xano for pago. Por enquanto, o PDF é gerado no front e o usuário **escolhe o destino**:
+> - **Desktop (Chrome/Edge)**: diálogo nativo "Salvar como" (`showSaveFilePicker`) — o usuário navega até a pasta que quiser (ex.: `G:\orcamentos\`).
+> - **Mobile**: Web Share API com o arquivo (`navigator.share({ files })`) — o SO oferece salvar em Arquivos/Drive/enviar.
+> - **Fallback** (Firefox/Safari desktop): download padrão do navegador (como antes).
+> Implementado em `src/services/pdf.ts` (helper `salvarPdf` usado por `gerarPdfOrcamento` e `gerarPdfPedidoVenda`). **Sem tabela.**
 
-- [ ] Nova tabela (ex.: `Pasta_Compartilhada` por `Organizacao`) com links do Google Drive
-- [ ] Duas pastas de prima: **Orçamentos (PDF)** e **Pedidos de Venda**
-- [ ] Página para o usuário cadastrar os links/credenciais + **manual para os vendedores**
+### Futuro (plano Xano pago / Google Drive API)
+
+- [ ] Migrar para API (service account / OAuth) — pasta global por CNPJ
+- [ ] Upload automático do PDF na pasta correta ao gerar/converter em pedido
+- [ ] Enviar **link** ao cliente em vez do arquivo
+- [ ] Página para cadastrar os links/credenciais + manual para os vendedores
 - [ ] Botão "Abrir pasta" no app (Orçamentos e Pedidos)
-
-### Fase 1B — Upload automático via Google Drive API
-
-- [ ] Migrar para API (service account / OAuth)
-- [ ] Upload automático do PDF na pasta correta ao converter em pedido
 
 ### PDF de Pedido de Venda
 

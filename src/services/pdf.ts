@@ -286,6 +286,44 @@ function ehDispositivoMovel(): boolean {
   return false
 }
 
+// Salva o PDF com o usuário escolhendo o destino:
+// 1º Desktop (Chrome/Edge): diálogo nativo "Salvar como" (showSaveFilePicker) — o usuário
+//    navega até a pasta que quiser (ex.: G:\orcamentos\) e grava lá.
+// 2º Mobile: Web Share API com o arquivo — o SO oferece salvar em Arquivos/Drive/enviar.
+// 3º Fallback (Firefox/Safari desktop, mobile sem share): download padrão do navegador.
+async function salvarPdf(doc: TDocumentDefinitions, nomeArquivo: string): Promise<void> {
+  const picker = (window as any).showSaveFilePicker
+  if (typeof picker === 'function' && !ehDispositivoMovel()) {
+    try {
+      const handle = await picker({
+        suggestedName: nomeArquivo,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+      })
+      const blob = await pdfMake.createPdf(doc).getBlob()
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      return
+    } catch {
+      // Cancelado pelo usuário → não faz nada
+      return
+    }
+  }
+
+  if (ehDispositivoMovel() && navigator.canShare?.({ files: [] })) {
+    try {
+      const blob = await pdfMake.createPdf(doc).getBlob()
+      const file = new File([blob], nomeArquivo, { type: 'application/pdf' })
+      await navigator.share({ files: [file] })
+      return
+    } catch {
+      // Cancelado ou não suportado → cai no download padrão
+    }
+  }
+
+  pdfMake.createPdf(doc).download(nomeArquivo)
+}
+
 // Envia a mensagem para o WhatsApp preservando emojis:
 // 1º Web Share API (SÓ celular — texto nativo, mais automático) → 'shared';
 // 2º copia para o clipboard e abre o wa.me sem texto (desktop e fallback) → 'copied';
@@ -360,7 +398,7 @@ function formatarEnderecoEmpresa(user?: User | null): string {
   return partes.join(' - ')
 }
 
-export function gerarPdfOrcamento({
+export async function gerarPdfOrcamento({
   header,
   itens,
   cliente,
@@ -655,7 +693,7 @@ export function gerarPdfOrcamento({
     pageMargins: [40, 40, 40, 60],
   }
 
-  pdfMake.createPdf(doc).download(nomeArquivoOrcamento(header, cliente))
+  await salvarPdf(doc, nomeArquivoOrcamento(header, cliente))
 }
 
 // ── PEDIDO DE VENDA ────────────────────────────────────────────────────────────
@@ -703,7 +741,7 @@ function enderecoClienteLinha(cliente?: Cliente | null): {
   }
 }
 
-export function gerarPdfPedidoVenda({
+export async function gerarPdfPedidoVenda({
   header,
   itens,
   cliente,
@@ -974,5 +1012,5 @@ export function gerarPdfPedidoVenda({
     pageMargins: [40, 40, 40, 40],
   }
 
-  pdfMake.createPdf(doc).download(nomeArquivoPedidoVenda(header, cliente))
+  await salvarPdf(doc, nomeArquivoPedidoVenda(header, cliente))
 }
