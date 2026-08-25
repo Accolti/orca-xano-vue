@@ -206,6 +206,11 @@ O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orq
 - **No `typed-router.d.ts`** — VS Code file-nesting config references it, but it doesn't exist. Generate if needed (Vue Router 5 typegen).
 - **No commit hooks** — no Husky or lint-staged.
 
+## Lições aprendidas (erros a evitar)
+
+- **Sempre avaliar TODOS os ramos de um `switch`/dispatcher antes de alterar o contrato de saída.**
+  Erro: adicionei `com_medida_exata`/`acrescimo_medida_exata` ao response de `f_valor_custo_m2` e `f_valor_custo_ml`, mas `f_Orcamento_Orquestrador` lê `$mod1.com_medida_exata`/`$mod1.acrescimo_medida_exata` para **todas** as bases de cálculo (`switch` M2/ML/UND/KIT → `$mod1`). `f_valor_custo_und` e `f_valor_custo_kit` não retornam esses campos → `ERROR_FATAL: Unable to locate var: mod1.com_medida_exata` ao precificar UND/KIT. **Regra**: quando o orquestrador (ou qualquer função com dispatch por `Base_de_Calculo`) consumir `$mod1.<campo>`, TODAS as funções de cálculo (M2, ML, UND, KIT) devem retornar esse campo — mesmo que `false`/`0` (medida exata não se aplica a UND/KIT). Antes de dar push, conferir cada branch do switch.
+
 ## Conventions
 
 - Composition API with `<script setup lang="ts">` for all components

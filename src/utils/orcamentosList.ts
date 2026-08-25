@@ -5,6 +5,7 @@ import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import {
   gerarPdfOrcamento,
+  gerarPdfPedidoVenda as gerarPdfPedidoVendaDoc,
   montarTextoWhatsApp,
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
@@ -169,6 +170,25 @@ export function useOrcamentosListActions() {
     }
   }
 
+  async function gerarPdfPedidoVenda(row: OrcamentoRow) {
+    gerandoPdfDe.value = row.id
+    try {
+      await orcamentoStore.carregarOrcamento(row.cod_orca)
+      const header = orcamentoStore.orcamentoHeader
+      const cliente = montarClienteDoHeader(header)
+      gerarPdfPedidoVendaDoc({
+        header,
+        itens: orcamentoStore.itensInseridos,
+        cliente,
+        user: authStore.user,
+      })
+    } catch {
+      /* erro silencioso: header já fica no store */
+    } finally {
+      gerandoPdfDe.value = null
+    }
+  }
+
   async function enviarWhatsApp(row: OrcamentoRow) {
     enviandoWaDe.value = row.id
     try {
@@ -246,6 +266,7 @@ export function useOrcamentosListActions() {
     novoOrcamento,
     excluirOrcamento,
     gerarPdf,
+    gerarPdfPedidoVenda,
     enviarWhatsApp,
     buscarLista,
   }

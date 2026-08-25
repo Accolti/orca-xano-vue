@@ -657,3 +657,322 @@ export function gerarPdfOrcamento({
 
   pdfMake.createPdf(doc).download(nomeArquivoOrcamento(header, cliente))
 }
+
+// ── PEDIDO DE VENDA ────────────────────────────────────────────────────────────
+// Layout profissional A4 retrato: cabeçalho (logo + dados), CLIENTE + INFORMAÇÕES
+// GERAIS em duas colunas, Condições e Entrega, tabela de itens (Código | Descrição |
+// Qtde | Preço unit | Subtotal) com linha de DESCONTO e FRETE e TOTAL em destaque,
+// e rodapé "Obrigado por fazer negócio conosco!".
+
+interface PdfPedidoVendaInput {
+  header: any
+  itens: any[]
+  cliente?: Cliente | null
+  user?: User | null
+  condicoesPagamento?: string
+}
+
+export function nomeArquivoPedidoVenda(header: any, cliente?: Cliente | null): string {
+  const codOrca = header?.cod_orca || 'PDV'
+  const contato = sanitizarNome(cliente?.contato || '')
+  const nomeCliente = sanitizarNome(
+    cliente?.nome_fantasia || cliente?.razao_social || cliente?.nome_cpf || '',
+  )
+  const quem = [contato, nomeCliente].filter(Boolean).join('-')
+  const dataHora = nomeDataHora()
+  const base = [codOrca, quem, dataHora].filter(Boolean).join('_')
+  return `PDV_${base}_.pdf`
+}
+
+// Endereço do cliente em uma linha: "Av. Nações Unidas, 18801 - São Paulo/SP - CEP: 04757-025"
+function enderecoClienteLinha(cliente?: Cliente | null): {
+  cidade: string
+  uf: string
+  cep: string
+  endereco: string
+} {
+  const end = cliente?._enderecos?.find((e) => e?.Tipo === 'Comercial') || cliente?._enderecos?.[0]
+  const logradouro = [end?.endereco, end?.numero ? `nº ${end.numero}` : '', end?.complemento]
+    .filter(Boolean)
+    .join(', ')
+  return {
+    cidade: end?.cidade || '',
+    uf: end?.estado || '',
+    cep: end?.cep || '',
+    endereco: logradouro,
+  }
+}
+
+export function gerarPdfPedidoVenda({
+  header,
+  itens,
+  cliente,
+  user,
+  condicoesPagamento,
+}: PdfPedidoVendaInput) {
+  const codOrca = header?.cod_orca || 'PDV'
+  const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
+  const cnpjEmpresa = user?.cnpj || ''
+  const ieEmpresa = user?.ie || ''
+  const vendedor = user?.name || ''
+
+  const nomeCliente =
+    cliente?.nome_fantasia || cliente?.razao_social || cliente?.nome_cpf || cliente?.contato || ''
+  const docCliente = cliente?.cnpj || cliente?.cpf || ''
+  const endCliente = enderecoClienteLinha(cliente)
+  const telefoneCliente = obterWhatsappCliente(cliente)
+  const contatoCliente = cliente?.contato || ''
+  const ieCliente = cliente?.inscricao_estadual || ''
+  const emailCliente = cliente?.['e-mail'] || ''
+
+  const condicoes = condicoesPagamento?.trim() || header?.condicoes_pagamento || ''
+  const desconto = Number(header?.desconto) || 0
+  const freteB2C = Number(header?.frtB2C) || 0
+  const totalGeral = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+
+  // Cabeçalho: esquerda = logo + identificação; direita = bloco de dados (Data, Pedido nº, Vendedor, Compra Nº)
+  const cabecalho = {
+    columns: [
+      {
+        width: '*',
+        stack: [
+          { image: logoOrca, width: 150, margin: [0, 0, 0, 6] },
+          { text: 'Comércio e Representação', fontSize: 10, bold: true, color: '#1f2937' },
+          { text: 'DISTRIBUIDOR AUTORIZADO', fontSize: 8, color: '#6b7280', margin: [0, 2, 0, 8] },
+          {
+            text: `Nome: ${nomeEmpresa} CNPJ ${cnpjEmpresa}${ieEmpresa ? ` IE: ${ieEmpresa}` : ''}`,
+            fontSize: 8,
+            color: '#4b5563',
+          },
+        ],
+      },
+      {
+        width: 230,
+        table: {
+          widths: [85, '*'],
+          body: [
+            [
+              { text: 'Data:', bold: true, fontSize: 8 },
+              { text: formatarDataHoraAgora(), fontSize: 8 },
+            ],
+            [
+              { text: 'Pedido nº:', bold: true, fontSize: 8 },
+              { text: codOrca, fontSize: 8 },
+            ],
+            [
+              { text: 'Vendedor:', bold: true, fontSize: 8 },
+              { text: vendedor, fontSize: 8 },
+            ],
+            [
+              { text: 'Compra Nº:', bold: true, fontSize: 8 },
+              { text: '', fontSize: 8 },
+            ],
+          ],
+        },
+        layout: {
+          hLineWidth: () => 0,
+          vLineWidth: () => 0,
+          paddingLeft: () => 6,
+          paddingRight: () => 6,
+          paddingTop: () => 4,
+          paddingBottom: () => 4,
+        },
+        margin: [12, 0, 0, 0],
+      },
+    ],
+    columnGap: 10,
+    margin: [0, 0, 0, 12],
+  } as any
+
+  // Bloco CLIENTE + INFORMAÇÕES GERAIS em duas colunas
+  const clienteGerais = {
+    table: {
+      widths: ['*', '*'],
+      body: [
+        [
+          {
+            stack: [
+              { text: 'CLIENTE', bold: true, fontSize: 10, color: '#1f2937', margin: [0, 0, 0, 4] },
+              { text: `Nome: ${nomeCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `CNPJ: ${docCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `Cidade: ${endCliente.cidade}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `Endereço: ${endCliente.endereco}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `Telefone: ${telefoneCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+            ],
+          },
+          {
+            stack: [
+              {
+                text: 'INFORMAÇÕES GERAIS',
+                bold: true,
+                fontSize: 10,
+                color: '#1f2937',
+                margin: [0, 0, 0, 4],
+              },
+              { text: `Contato: ${contatoCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `I.E.: ${ieCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `UF: ${endCliente.uf}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `CEP: ${endCliente.cep}`, fontSize: 9, margin: [0, 1, 0, 1] },
+              { text: `E-mail: ${emailCliente}`, fontSize: 9, margin: [0, 1, 0, 1] },
+            ],
+          },
+        ],
+      ],
+    },
+    layout: {
+      hLineColor: () => '#d1d5db',
+      hLineWidth: () => 0.5,
+      vLineColor: () => '#d1d5db',
+      vLineWidth: () => 0.5,
+      paddingLeft: () => 8,
+      paddingRight: () => 8,
+      paddingTop: () => 6,
+      paddingBottom: () => 6,
+    },
+    margin: [0, 0, 0, 12],
+  } as any
+
+  // Condições e Entrega
+  const condicoesEntrega = {
+    table: {
+      widths: [120, '*'],
+      body: [
+        [
+          { text: 'Condição de pagamento:', bold: true, fontSize: 9 },
+          { text: condicoes, fontSize: 9 },
+        ],
+        [
+          { text: 'Transportadora:', bold: true, fontSize: 9 },
+          { text: '', fontSize: 9 },
+        ],
+        [
+          { text: 'Previsão de entrega:', bold: true, fontSize: 9 },
+          { text: 'em 5 dias', fontSize: 9 },
+        ],
+        [
+          { text: 'Observações:', bold: true, fontSize: 9 },
+          {
+            text: freteB2C > 0 ? `frete R$ ${formatarMoeda(freteB2C)} incluído acima` : '',
+            fontSize: 9,
+          },
+        ],
+      ],
+    },
+    layout: {
+      hLineColor: () => '#d1d5db',
+      hLineWidth: () => 0.5,
+      vLineColor: () => '#d1d5db',
+      vLineWidth: () => 0.5,
+      paddingLeft: () => 8,
+      paddingRight: () => 8,
+      paddingTop: () => 5,
+      paddingBottom: () => 5,
+    },
+    margin: [0, 0, 0, 12],
+  } as any
+
+  // Tabela de itens (5 colunas) + DESCONTO + FRETE + TOTAL
+  const th: any = {
+    bold: true,
+    color: '#1f2937',
+    fontSize: 9,
+    fillColor: '#f3f4f6',
+    margin: [4, 5, 4, 5],
+  }
+  const td: any = { fontSize: 9, margin: [4, 5, 4, 5] }
+  const body: any[] = [
+    [
+      { text: 'Código', ...th },
+      { text: 'Descrição', ...th },
+      { text: 'Qtde.', ...th, alignment: 'center' },
+      { text: 'Preço unit', ...th, alignment: 'right' },
+      { text: 'Subtotal', ...th, alignment: 'right' },
+    ],
+  ]
+
+  let subtotalItens = 0
+  ;(itens || []).forEach((item) => {
+    const qtd = Number(item.qtd) || 1
+    const precoUnit = Number(item.vlr_vnd_unit) || 0
+    const subtotal = precoUnit * qtd
+    subtotalItens += subtotal
+    body.push([
+      { text: String(item.produto_id ?? ''), ...td },
+      { text: item.Descricao || item.descricao || '', ...td },
+      { text: String(qtd), ...td, alignment: 'center' },
+      { text: formatarMoeda(precoUnit), ...td, alignment: 'right' },
+      { text: formatarMoeda(subtotal), ...td, alignment: 'right' },
+    ])
+  })
+
+  if (desconto > 0) {
+    body.push([
+      { text: '', ...td },
+      { text: 'DESCONTO', ...td },
+      { text: '1', ...td, alignment: 'center' },
+      { text: `-${formatarMoeda(desconto)}`, ...td, alignment: 'right' },
+      { text: `-${formatarMoeda(desconto)}`, ...td, alignment: 'right' },
+    ])
+  }
+  if (freteB2C > 0) {
+    body.push([
+      { text: '', ...td },
+      { text: 'FRETE', ...td },
+      { text: '1', ...td, alignment: 'center' },
+      { text: formatarMoeda(freteB2C), ...td, alignment: 'right' },
+      { text: formatarMoeda(freteB2C), ...td, alignment: 'right' },
+    ])
+  }
+  body.push([
+    { text: 'TOTAL', ...td, bold: true, fontSize: 11, fillColor: '#eef2ff' },
+    { text: '', ...td, fillColor: '#eef2ff' },
+    { text: '', ...td, fillColor: '#eef2ff' },
+    { text: '', ...td, fillColor: '#eef2ff' },
+    {
+      text: formatarMoeda(totalGeral),
+      ...td,
+      bold: true,
+      fontSize: 11,
+      alignment: 'right',
+      fillColor: '#eef2ff',
+    },
+  ])
+
+  const tabelaItens = {
+    table: {
+      headerRows: 1,
+      widths: [55, '*', 45, 70, 70],
+      body,
+    },
+    layout: {
+      hLineColor: () => '#d1d5db',
+      hLineWidth: () => 0.5,
+      vLineColor: () => '#d1d5db',
+      vLineWidth: () => 0.5,
+    },
+    margin: [0, 0, 0, 16],
+  } as any
+
+  const doc: TDocumentDefinitions = {
+    pageSize: 'A4',
+    pageOrientation: 'portrait',
+    content: [
+      cabecalho,
+      clienteGerais,
+      condicoesEntrega,
+      tabelaItens,
+      {
+        text: 'Obrigado por fazer negócio conosco!',
+        alignment: 'center',
+        fontSize: 11,
+        italics: true,
+        color: '#1f2937',
+      },
+    ],
+    styles: {},
+    defaultStyle: { fontSize: 10 },
+    pageMargins: [40, 40, 40, 40],
+  }
+
+  pdfMake.createPdf(doc).download(nomeArquivoPedidoVenda(header, cliente))
+}

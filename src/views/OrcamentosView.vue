@@ -7,6 +7,7 @@ import { useClienteStore } from '@/stores/cliente'
 import { useCatalogoStore } from '@/stores/catalogo'
 import {
   gerarPdfOrcamento,
+  gerarPdfPedidoVenda,
   montarTextoWhatsApp,
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
@@ -695,6 +696,17 @@ async function gerarPdf() {
     cliente: clienteSelecionado.value,
     user: authStore.user,
     faturar: faturarCliente.value,
+    condicoesPagamento: cond,
+  })
+}
+
+async function gerarPdfPedidoVendaView() {
+  const cond = await condicoesParaEnvio()
+  gerarPdfPedidoVenda({
+    header: orcamentoStore.orcamentoHeader,
+    itens: orcamentoStore.itensInseridos,
+    cliente: clienteSelecionado.value,
+    user: authStore.user,
     condicoesPagamento: cond,
   })
 }
@@ -2419,6 +2431,13 @@ async function enviarWhatsApp() {
             {{ enviandoWhatsApp ? 'Enviando…' : 'WhatsApp' }}
           </button>
           <button class="btn btn-secondary btn-lg" @click="gerarPdf">Gerar PDF</button>
+          <button
+            v-if="isVinculado"
+            class="btn btn-secondary btn-lg"
+            @click="gerarPdfPedidoVendaView"
+          >
+            PDF Pedido de Venda
+          </button>
         </div>
       </section>
     </template>

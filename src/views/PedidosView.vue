@@ -25,6 +25,7 @@ const {
   toastMsg,
   editarOrcamento,
   gerarPdf,
+  gerarPdfPedidoVenda,
   enviarWhatsApp,
   buscarLista,
 } = useOrcamentosListActions()
@@ -191,6 +192,28 @@ function verPedido(row: OrcamentoRow) {
                   </svg>
                 </button>
                 <button
+                  class="btn-icon btn-icon-pdf"
+                  :disabled="gerandoPdfDe === row.id"
+                  title="PDF Pedido de Venda"
+                  @click="gerarPdfPedidoVenda(row)"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M9 13h6" />
+                    <path d="M9 17h6" />
+                  </svg>
+                </button>
+                <button
                   class="btn-icon btn-icon-whatsapp"
                   :disabled="enviandoWaDe === row.id"
                   title="Enviar via WhatsApp"
@@ -259,6 +282,28 @@ function verPedido(row: OrcamentoRow) {
               :disabled="gerandoPdfDe === row.id"
               title="Baixar PDF"
               @click="gerarPdf(row)"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M9 13h6" />
+                <path d="M9 17h6" />
+              </svg>
+            </button>
+            <button
+              class="btn-icon btn-icon-pdf"
+              :disabled="gerandoPdfDe === row.id"
+              title="PDF Pedido de Venda"
+              @click="gerarPdfPedidoVenda(row)"
             >
               <svg
                 width="16"
