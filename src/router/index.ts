@@ -50,6 +50,11 @@ const router = createRouter({
       name: 'auth-callback',
       component: () => import('../views/OAuthCallbackView.vue'),
     },
+    {
+      path: '/dev/produtos',
+      name: 'dev-produtos',
+      component: () => import('../views/DevProdutosView.vue'),
+    },
   ],
 })
 
@@ -63,6 +68,11 @@ router.beforeEach((to) => {
 
   if (!guestRoutes.includes(to.name as string) && !auth.isAuthenticated) {
     return { name: 'login' }
+  }
+
+  // Ferramenta dev: acessível apenas em desenvolvimento
+  if (to.name === 'dev-produtos' && !import.meta.env.DEV) {
+    return { name: 'home' }
   }
 })
 

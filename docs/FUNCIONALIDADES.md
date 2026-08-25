@@ -125,3 +125,12 @@ RASCUNHO → AGUARDANDO_RETORNO → APROVADO (cliente aprova) → vendedor envia
 ## Docs de referência
 
 - `docs/exemplo-precificacao.md` + `docs/exemplo-precificacao.pdf` — exemplo completo de precificação (medida exata + frete B2B Kapazi com faixas 52/10%/grátis, rateio proporcional, comparativo COM vs SEM medida exata, efeito ao excluir item).
+
+## Dev Tools (cadastro de Produto + Variação)
+
+Ferramenta **apenas em desenvolvimento** (guard `import.meta.env.DEV`) para cadastrar produtos e variações sem errar. Acesso por **URL direta `/dev/produtos`** (não aparece no menu/sidebar; em produção o guard redireciona para Home).
+
+- **`DevProdutosView.vue`** — lista todos os produtos (ativos e inativos) com busca/filtro; form com Material (do catálogo) → Classificação/Linha/Tipo/Nível dependentes, Unidade, Base_de_Calculo, custo `valor`, `com_medida_exata`+`porcentagem_acrescimo`, `ativo`; seção editável de **Variações** (tipo_variacao, cor, modelo, LxC, comp, larg, qtd_kit, valor_custo, fator_de_corte_id, ordem, ativo) com adicionar/remover linha. Dropdowns de apoio via GET `/classificacao`, `/cor`, `/modelo`, `/tipo_variacao`, `/fatordecorte`.
+- **`produto_cadastrar` POST** (auth User) — **transação única**: cria/atualiza `Detalhe` quando há variações (senão `detalhe_id = 0`), grava/atualiza o `Produto`, sincroniza `Variacao` (cria sem id, edita com id, **apaga as que não vieram no payload** / as órfãs do detalhe anterior). Retorna `{ produto_id, produto }`.
+- **`produtos_dev_lista` GET** (auth User) — lista **todos** os produtos (sem filtro `ativo`) com descrição + `_variacao` (isolado do `fTodos_Produtos`, que filtra `ativo`).
+- **Exclusão = flag `ativo`** (preserva histórico de orçamentos). Após salvar, o front **limpa `orca_catalogo_produtos_cache`** do localStorage para o app rebaixar produtos frescos sem depender de bump manual de `versao_produtos`.
