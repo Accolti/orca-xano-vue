@@ -501,6 +501,7 @@ onMounted(async () => {
                   <option value="ML">ML</option>
                   <option value="KIT">KIT</option>
                   <option value="UND">UND</option>
+                  <option value="PLAYKAP">PLAYKAP</option>
                 </select>
               </div>
             </div>

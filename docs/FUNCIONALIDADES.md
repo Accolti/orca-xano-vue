@@ -156,3 +156,26 @@ O fator de corte é definido pelo fornecedor (Kapazi) e varia por produto/linha/
 3. sem fator → dimensões originais
 
 ML/UND/KIT continuam usando o `fator_de_corte_id` da **Variação** (via `f_fator_corte_variacao`). No front do orçamento, o usuário entra com Largura × Comprimento e vê **Largura FC / Comprimento FC / Área Faturada** (readonly) — para passo, já saem múltiplos do passo.
+
+## Produto composto PLAYKAP (piso modular)
+
+**`Base_de_Calculo = PLAYKAP`** — produto vendido por M² composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e **Cantoneiras**. Modelado como **1 item** no orçamento; a composição é gravada em **`item.detalhes_calculo`** (JSON), sem poluir a `Descricao` (continua "PLAYKAP").
+
+### Configuração na base
+- `Produto.Base_de_Calculo = PLAYKAP` (novo valor no enum).
+- `Tipo_Variacao`: **Placa** (7), **Rampa** (8), **Cantoneira** (9).
+- Variações do produto (mesmo `detalhe_id`): Placa (custo 11,50 / 0,30×0,30), Rampa (4,99 / 0,30), Cantoneira (5,49) — cada uma com `tipo_variacao_id` respectivo.
+- `Material` pai/filho "PLAYKAP" é **só organizacional** (não usado no cálculo).
+
+### Cálculo (`f_valor_custo_playkap`)
+Retorna o **mesmo `$mod1`** (mesmo contrato de saída do orquestrador — não compromete M2/ML/UND/KIT) + `detalhes_calculo`.
+- `placas = max(ceil(comp/0.30) × ceil(larg/0.30), 11)` (compra mínima 1 m²)
+- `rampas` por `lados_rampa` (0–4) → `macho=ceil(n/2)`, `femea=floor(n/2)` (automático)
+- `cantoneiras = min(4, qtd_cantos)`
+- `valores.custo_nota_tot` = Σ componente × custo (lido das variações por `tipo_variacao_id`) — markup/`Precificar` seguem o fluxo normal.
+- `quantidade` (item) = total de placas; `Descricao` = "PLAYKAP".
+
+### Integração
+- **`orcamento_calcular`** aceita `lados_rampa`/`qtd_cantos`.
+- **Front** (`OrcamentosView`): quando `ehPlaykap`, mostra "Lados com rampa (0-4)" e "Cantos (0-4)".
+- **`item.detalhes_calculo`** (JSON) gravado via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`, exposto em `orca_detalhes`/`Orcamento_Recalcular_Totais`. Também serve para detalhes do **ML** no futuro (rolos, metros fracionados, orientação) — sem mudar schema.

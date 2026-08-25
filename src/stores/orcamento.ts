@@ -265,6 +265,15 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   // true quando o produto é vendido por metro linear (mostra campo Área)
   const ehML = computed(() => unidadeSelecionada.value === 'ML')
 
+  // true quando o produto é o composto PLAYKAP (piso modular)
+  const ehPlaykap = computed(
+    () => produtoSelecionado.value?.Base_de_Calculo?.toUpperCase() === 'PLAYKAP',
+  )
+
+  // Inputs específicos do PLAYKAP (lados com rampa e cantos)
+  const ladosRampa = ref(0)
+  const qtdCantos = ref(0)
+
   // resultado do Orcamento_Orquestrador (novo fluxo)
   const resultadoNovo = ref<any | null>(null)
 
@@ -284,6 +293,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
+    ladosRampa.value = 0
+    qtdCantos.value = 0
   }
 
   function limparMaterial() {
@@ -298,6 +309,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
+    ladosRampa.value = 0
+    qtdCantos.value = 0
   }
 
   function getNomeBorda(): string {
@@ -464,6 +477,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       uf_destino: user?.uf ?? 'SP',
       regime_id: user?.regime_id ?? 0,
       com_medida_exata: medidaExata.value,
+      lados_rampa: ladosRampa.value,
+      qtd_cantos: qtdCantos.value,
     }
 
     // Área: largura=0 e quantidade=0. Dimensões: comprimento_ou_area=comp, largura=larg
@@ -660,6 +675,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           com_medida_exata: it.com_medida_exata ?? false,
           porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
           fc: it.fc ?? [],
+          detalhes_calculo: (it as any).detalhes_calculo ?? null,
         }
       } else {
         const r = resultado.value!
@@ -793,6 +809,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     quantidade.value = 1
     areaML.value = 0
     medidaExata.value = false
+    ladosRampa.value = 0
+    qtdCantos.value = 0
     resultado.value = null
     resultadoNovo.value = null
     error.value = null
@@ -1048,6 +1066,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     produtoSelecionado,
     unidadeSelecionada,
     ehML,
+    ehPlaykap,
+    ladosRampa,
+    qtdCantos,
     loading,
     error,
     numeroOrcamento,

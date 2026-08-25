@@ -308,4 +308,5 @@ export interface OrcamentoInsertPayload {
   porcentagem_acrescimo?: number
   perc_margem_real: number
   fc: number[]
+  detalhes_calculo?: Record<string, any>
 }

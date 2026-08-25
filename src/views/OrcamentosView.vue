@@ -1288,6 +1288,38 @@ async function enviarWhatsApp() {
             </div>
           </template>
 
+          <!-- PLAYKAP: piso modular composto (placas + rampas + cantoneiras) -->
+          <template v-if="orcamentoStore.ehPlaykap">
+            <div class="dimensoes-row">
+              <div class="field flex-1">
+                <label>Lados com rampa (0-4)</label>
+                <input
+                  v-model.number="orcamentoStore.ladosRampa"
+                  type="number"
+                  min="0"
+                  max="4"
+                  step="1"
+                  placeholder="0"
+                />
+              </div>
+              <div class="field flex-1">
+                <label>Cantos (0-4)</label>
+                <input
+                  v-model.number="orcamentoStore.qtdCantos"
+                  type="number"
+                  min="0"
+                  max="4"
+                  step="1"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <p class="field-hint">
+              Piso modular PLAYKAP — placas de 30×30cm com arredondamento para cima; rampas
+              (macho/fêmea) e cantoneiras somadas ao custo do conjunto.
+            </p>
+          </template>
+
           <div
             v-if="orcamentoStore.produtoSelecionado?.com_medida_exata"
             class="field medida-exata-wrap"
