@@ -55,6 +55,11 @@ const router = createRouter({
       name: 'dev-produtos',
       component: () => import('../views/DevProdutosView.vue'),
     },
+    {
+      path: '/dev/fatores',
+      name: 'dev-fatores',
+      component: () => import('../views/DevFatoresView.vue'),
+    },
   ],
 })
 
@@ -70,8 +75,8 @@ router.beforeEach((to) => {
     return { name: 'login' }
   }
 
-  // Ferramenta dev: acessível apenas em desenvolvimento
-  if (to.name === 'dev-produtos' && !import.meta.env.DEV) {
+  // Ferramentas dev: acessíveis apenas em desenvolvimento
+  if ((to.name === 'dev-produtos' || to.name === 'dev-fatores') && !import.meta.env.DEV) {
     return { name: 'home' }
   }
 })

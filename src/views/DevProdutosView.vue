@@ -33,6 +33,7 @@ interface ProdutoDev {
   Unidade: string
   Base_de_Calculo: string
   detalhe_id: number
+  fator_de_corte_id: number | null
   ativo: boolean
   descricao: string
   material_nome: string
@@ -67,6 +68,7 @@ const form = ref({
   com_medida_exata: false,
   porcentagem_acrescimo: 0,
   ativo: true,
+  fator_de_corte_id: null as number | null,
   variacoes: [] as VariacaoDev[],
 })
 
@@ -75,7 +77,14 @@ const tiposVariacao = ref<{ id: number; Descricao: string }[]>([])
 const cores = ref<{ id: number; Descricao: string }[]>([])
 const modelos = ref<{ id: number; Descricao: string }[]>([])
 const fatoresCorte = ref<
-  { id: number; nome: string; valor: number[]; larg_base: number; comp_corte: number }[]
+  {
+    id: number
+    nome: string
+    valor: number[]
+    larg_base: number
+    comp_corte: number
+    modo_corte: string
+  }[]
 >([])
 
 const resultadosVisiveis = computed(() => {
@@ -99,6 +108,12 @@ function buscar() {
 function limparBusca() {
   termoBusca.value = ''
   termoAplicado.value = ''
+}
+
+function nomeFatorCorte(id: number | null | undefined): string {
+  if (!id) return '—'
+  const f = fatoresCorte.value.find((x) => x.id === id)
+  return f?.nome || `#${id}`
 }
 
 async function carregarLista() {
@@ -150,6 +165,7 @@ function abrirNovo() {
     com_medida_exata: false,
     porcentagem_acrescimo: 0,
     ativo: true,
+    fator_de_corte_id: null,
     variacoes: [],
   }
   formOpen.value = true
@@ -170,6 +186,7 @@ function abrirEdicao(p: ProdutoDev) {
     com_medida_exata: p.com_medida_exata === true,
     porcentagem_acrescimo: p.porcentagem_acrescimo ?? 0,
     ativo: p.ativo !== false,
+    fator_de_corte_id: p.fator_de_corte_id ?? null,
     variacoes: (p._variacao ?? []).map((v) => ({
       id: v.id,
       detalhe_id: v.detalhe_id,
@@ -226,6 +243,7 @@ async function alternarAtivo(p: ProdutoDev) {
       com_medida_exata: p.com_medida_exata === true,
       porcentagem_acrescimo: p.porcentagem_acrescimo ?? 0,
       ativo: !(p.ativo !== false),
+      fator_de_corte_id: p.fator_de_corte_id ?? null,
       variacoes: (p._variacao ?? []).map((v) => ({ ...v })),
     })
     localStorage.removeItem('orca_catalogo_produtos_cache')
@@ -324,6 +342,7 @@ onMounted(async () => {
               <th>Nível</th>
               <th>Custo</th>
               <th>Base</th>
+              <th>Fator</th>
               <th>Variação</th>
               <th>Status</th>
               <th>Ações</th>
@@ -339,6 +358,12 @@ onMounted(async () => {
               <td>{{ p.nivel_nome || '-' }}</td>
               <td class="cell-valor">R$ {{ (Number(p.valor) || 0).toFixed(2) }}</td>
               <td>{{ p.Base_de_Calculo }}</td>
+              <td>
+                <span v-if="p.fator_de_corte_id" class="badge-status badge-aprovado">
+                  {{ nomeFatorCorte(p.fator_de_corte_id) }}
+                </span>
+                <span v-else class="badge-status">—</span>
+              </td>
               <td>
                 <span :class="['badge-status', p._variacao?.length ? 'badge-aprovado' : '']">
                   {{ p._variacao?.length ? `${p._variacao.length} var.` : 'sem' }}
@@ -497,6 +522,25 @@ onMounted(async () => {
                   Ativo
                 </label>
               </div>
+            </div>
+
+            <div class="field">
+              <label>Fator de Corte (fixo — prioridade 1 no M2)</label>
+              <select v-model="form.fator_de_corte_id">
+                <option :value="null">— (usar Tipo_Fator material+linha+borda)</option>
+                <option v-for="f in fatoresCorte" :key="f.id" :value="f.id">
+                  {{ f.nome }}
+                  {{
+                    f.modo_corte === 'passo'
+                      ? `(passo ${f.comp_corte})`
+                      : `(lista: ${f.valor?.[0] ?? ''}...)`
+                  }}
+                </option>
+              </select>
+              <p class="field-hint">
+                Preenchido → o cálculo M2 usa direto esse fator (ex.: passo 0,5). Vazio → cai no
+                Tipo_Fator.
+              </p>
             </div>
 
             <div class="dev-section">

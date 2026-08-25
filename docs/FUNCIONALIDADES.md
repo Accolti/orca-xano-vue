@@ -128,9 +128,31 @@ RASCUNHO → AGUARDANDO_RETORNO → APROVADO (cliente aprova) → vendedor envia
 
 ## Dev Tools (cadastro de Produto + Variação)
 
-Ferramenta **apenas em desenvolvimento** (guard `import.meta.env.DEV`) para cadastrar produtos e variações sem errar. Acesso por **URL direta `/dev/produtos`** (não aparece no menu/sidebar; em produção o guard redireciona para Home).
+Ferramentas **apenas em desenvolvimento** (guard `import.meta.env.DEV`). Acesso por **URL direta** (`/dev/produtos`, `/dev/fatores`; não aparecem no menu/sidebar; em produção o guard redireciona para Home).
 
-- **`DevProdutosView.vue`** — lista todos os produtos (ativos e inativos) com busca/filtro; form com Material (do catálogo) → Classificação/Linha/Tipo/Nível dependentes, Unidade, Base_de_Calculo, custo `valor`, `com_medida_exata`+`porcentagem_acrescimo`, `ativo`; seção editável de **Variações** (tipo_variacao, cor, modelo, LxC, comp, larg, qtd_kit, valor_custo, fator_de_corte_id, ordem, ativo) com adicionar/remover linha. Dropdowns de apoio via GET `/classificacao`, `/cor`, `/modelo`, `/tipo_variacao`, `/fatordecorte`.
-- **`produto_cadastrar` POST** (auth User) — **transação única**: cria/atualiza `Detalhe` quando há variações (senão `detalhe_id = 0`), grava/atualiza o `Produto`, sincroniza `Variacao` (cria sem id, edita com id, **apaga as que não vieram no payload** / as órfãs do detalhe anterior). Retorna `{ produto_id, produto }`.
-- **`produtos_dev_lista` GET** (auth User) — lista **todos** os produtos (sem filtro `ativo`) com descrição + `_variacao` (isolado do `fTodos_Produtos`, que filtra `ativo`).
+- **`DevProdutosView.vue`** (`/dev/produtos`) — lista todos os produtos (ativos e inativos) com busca/filtro; form com Material (do catálogo) → Classificação/Linha/Tipo/Nível dependentes, Unidade, Base_de_Calculo, custo `valor`, `com_medida_exata`+`porcentagem_acrescimo`, **Fator de Corte fixo** (prioridade 1 no M2), `ativo`; seção editável de **Variações** (tipo_variacao, cor, modelo, LxC, comp, larg, qtd_kit, valor_custo, fator_de_corte_id, ordem, ativo) com adicionar/remover linha. Dropdowns de apoio via GET `/classificacao`, `/cor`, `/modelo`, `/tipo_variacao`, `/fatordecorte`.
+- **`produto_cadastrar` POST** (auth User) — **transação única**: cria/atualiza `Detalhe` quando há variações (senão `detalhe_id = 0`), grava/atualiza o `Produto` (incl. `fator_de_corte_id`), sincroniza `Variacao` (cria sem id, edita com id, **apaga as que não vieram no payload** / as órfãs do detalhe anterior). **Herança de custo**: variação sem `valor_custo` herda `Produto.valor`; UND/KIT/ML exigem custo base `valor > 0` (badrequest). Retorna `{ produto_id, produto }`.
+- **`produtos_dev_lista` GET** (auth User) — lista **todos** os produtos (sem filtro `ativo`) com descrição + `_variacao` + `fator_de_corte_id` (isolado do `fTodos_Produtos`, que filtra `ativo`).
 - **Exclusão = flag `ativo`** (preserva histórico de orçamentos). Após salvar, o front **limpa `orca_catalogo_produtos_cache`** do localStorage para o app rebaixar produtos frescos sem depender de bump manual de `versao_produtos`.
+
+## Dev Tools (Fator de Corte)
+
+- **`DevFatoresView.vue`** (`/dev/fatores`) — CRUD de **`Fator_de_Corte`** (nome, `modo_corte` lista/passo, `valor[]` ou `comp_corte`, `larg_base`, `tam_total`, obs) e de **`Tipo_Fator`** (associação material+linha+borda → fator, o fallback do M2).
+- **`fatores_corte_dev` GET** — lista fatores + associações `Tipo_Fator` com nomes (material/linha/borda).
+- **`fator_corte_cadastrar` POST** — cria/edita um fator (modo lista/passo).
+- **`fator_corte_excluir` DELETE** — **bloqueia** se o fator estiver em uso (referenciado em `Tipo_Fator` ou `Produto.fator_de_corte_id`) — não quebra o cálculo.
+- **`tipo_fator_cadastrar` POST** — cria/edita (`excluir=false`) ou remove (`excluir=true`) uma associação `Tipo_Fator`.
+
+### Fator de Corte — `modo_corte` (lista | passo)
+
+O fator de corte é definido pelo fornecedor (Kapazi) e varia por produto/linha/borda. Para M2 há **dois modos**:
+
+- **`lista`** (padrão): usa `Fator_de_Corte.valor[]` (múltiplos fixos, ex.: Vinil). Arredonda ao **menor múltiplo >= dimensão** e **mantém a dimensão original** se passar do maior valor da lista (`f_retorna_fc`).
+- **`passo`**: usa `comp_corte` como **passo** (ex.: 0.5m). Arredonda **sempre** para cima ao múltiplo (`Math.ceil(dim / passo) * passo` — ex.: 1.23 → 1.50), sem a regra do máximo. Usado quando o fornecedor fraciona em medidas fixas (ex.: múltiplo de 0,5m).
+
+**Resolução do M2 (Opção X)** — `f_valor_custo_m2`/`f_retorna_fc`:
+1. **`Produto.fator_de_corte_id`** (fator fixo no produto — prioridade 1, ex.: M2 passo 0,5)
+2. **`Tipo_Fator`** (material+linha+borda → fator) — fallback
+3. sem fator → dimensões originais
+
+ML/UND/KIT continuam usando o `fator_de_corte_id` da **Variação** (via `f_fator_corte_variacao`). No front do orçamento, o usuário entra com Largura × Comprimento e vê **Largura FC / Comprimento FC / Área Faturada** (readonly) — para passo, já saem múltiplos do passo.

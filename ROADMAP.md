@@ -146,3 +146,17 @@ Status: registrada (implementação futura)
 - [ ] HomeView vira dashboard: cards com Orçamentos, Pedidos, Boletos vencidos / a vencer / pagos (já calculados em `fDadosDashBoard`)
 - [ ] **Status em destaque** (funil: RASCUNHO / AGUARDANDO_RETORNO / APROVADO / PEDIDO / ...)
 - [ ] Gráficos simples (vendas por mês, recebido vs a receber)
+
+## 🧮 Frente 9 — Normalização de custo e fator de corte
+
+Status: **parcialmente feito** (2026-08) — herança de custo e `modo_corte` no fator implementados.
+
+### Feito ✅
+- **Herança de custo (A1)**: `produto_cadastrar` — variação sem `valor_custo` herda `Produto.valor`; UND/KIT/ML exigem custo base `> 0`. Só na dev tool; produção intacta.
+- **Fator de corte `modo_corte`** (`lista` | `passo`): `Fator_de_Corte.modo_corte`; `passo` reutiliza `comp_corte` (arredonda sempre ao múltiplo — ex.: 0,5m). `f_retorna_fc` e `f_valor_custo_m2` atualizados.
+- **Opção X — fator fixo no produto**: `Produto.fator_de_corte_id` (prioridade 1 no M2); fallback `Tipo_Fator` (material+linha+borda); sem fator → dimensões originais.
+- **Dev tools**: `/dev/produtos` com campo "Fator de Corte"; `/dev/fatores` (CRUD de `Fator_de_Corte` + associações `Tipo_Fator`, com bloqueio de exclusão em uso).
+
+### Pendente (futuro)
+- [ ] **A2 — tabela `Preco_Produto` centralizada** (histórico/validade de preço) — só vale quando houver necessidade real; hoje a herança no cadastro resolve.
+- [ ] Borda: manter como está (complemento por material via `Borda.valor`) — decidido não mover para o produto (duplicaria informação).
