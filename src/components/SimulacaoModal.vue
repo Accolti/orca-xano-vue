@@ -94,7 +94,7 @@ const opcoesPagamento = computed(() => {
 
           <div class="modal-body">
             <div class="sim-header">
-              <strong>Simulação de Margens</strong>
+              <strong>Simulação de Vendas (MVL)</strong>
               <div class="sim-header-right">
                 <span v-if="mostrarCustoLucro && simulacao[0]" class="sim-custo"
                   >C {{ formatarMoeda(simulacao[0].Valor_Custo_Total) }}</span

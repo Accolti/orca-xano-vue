@@ -217,7 +217,8 @@ function selecionarSimulacao(item: SimulacaoItem) {
   // Aplica a margem escolhida no quadro de totais (Ajustar Orçamento)
   novaMargemResumo.value = item.margem
   if (custoTotalBase.value > 0) simularPorMargem()
-  simulacaoModalOpen.value = false
+  // Não fecha a modal: o usuário pode continuar comparando as opções;
+  // fecha apenas ao clicar em ✕ ou fora da modal.
 }
 
 const inserirOk = ref(false)
