@@ -224,6 +224,7 @@ onMounted(async () => {
       <div class="header-top">
         <h2>Dev — Fatores de Corte</h2>
         <div class="header-actions">
+          <RouterLink to="/dev/produtos" class="btn btn-outline btn-sm">Produtos</RouterLink>
           <button class="btn btn-outline btn-sm" @click="carregar">Recarregar</button>
           <button class="btn btn-primary btn-sm" @click="abrirNovoFator">+ Novo Fator</button>
         </div>
@@ -517,7 +518,12 @@ onMounted(async () => {
 }
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.header-actions a.btn {
+  text-decoration: none;
 }
 .error-msg {
   color: var(--danger, #dc2626);
