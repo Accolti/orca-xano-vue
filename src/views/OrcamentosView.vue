@@ -260,8 +260,20 @@ function cancelarEdicaoItem() {
   orcamentoStore.limparFormItem()
   observacao.value = ''
 }
-
 async function handleFinalizar() {
+  // Alerta se não houver condições de pagamento (editadas ou salvas) antes de finalizar
+  const temCondicoes = !!(
+    condicoesPagamento.value.trim() || orcamentoStore.orcamentoHeader?.condicoes_pagamento?.trim()
+  )
+  if (!temCondicoes) {
+    if (
+      !confirm(
+        'Não há condições de pagamento definidas. Deseja prosseguir? Lembre-se: as condições precisam ser salvas antes de enviar.',
+      )
+    ) {
+      return
+    }
+  }
   // Persiste condições, observação e negociação antes de mostrar a tela finalizada
   await persistirCondicoesPagamento()
   finalizando.value = true
@@ -669,16 +681,18 @@ async function salvarCondicoes() {
 }
 
 // Aplica as condições para envio:
-// - campo vazio → usa o calculado (sem pergunta);
+// - campo vazio → alerta "prosseguir sem condições?" (Cancelar → retorna null, aborta);
 // - campo alterado em relação ao salvo → pergunta se salva antes de enviar.
-// Retorna o texto efetivo das condições.
-async function condicoesParaEnvio(): Promise<string> {
+// Retorna o texto efetivo das condições, ou null se o usuário cancelar.
+async function condicoesParaEnvio(): Promise<string | null> {
   const atual = condicoesPagamento.value.trim()
   const salvo = (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim()
-  if (!atual) {
-    condicoesPagamento.value = calcularCondicoesPadrao()
-    await persistirCondicoesPagamento()
-    return condicoesPagamento.value.trim()
+  if (!atual && !salvo) {
+    const ok = confirm(
+      'Deseja prosseguir sem as condições de pagamento? Lembre-se: as condições precisam ser salvas antes do envio.',
+    )
+    if (!ok) return null
+    return ''
   }
   if (atual !== salvo) {
     if (confirm('As condições foram alteradas. Salvar as alterações antes de enviar?')) {
@@ -690,6 +704,7 @@ async function condicoesParaEnvio(): Promise<string> {
 
 async function gerarPdf() {
   const cond = await condicoesParaEnvio()
+  if (cond === null) return
   gerarPdfOrcamento({
     header: orcamentoStore.orcamentoHeader,
     itens: orcamentoStore.itensInseridos,
@@ -702,6 +717,7 @@ async function gerarPdf() {
 
 async function gerarPdfPedidoVendaView() {
   const cond = await condicoesParaEnvio()
+  if (cond === null) return
   gerarPdfPedidoVenda({
     header: orcamentoStore.orcamentoHeader,
     itens: orcamentoStore.itensInseridos,
@@ -925,8 +941,9 @@ async function enviarWhatsApp() {
   if (!codOrca) return
   enviandoWhatsApp.value = true
   try {
-    // Aplica as condições (vazio → calculado; alterado → pergunta se salva)
+    // Aplica as condições (vazio → pergunta se prossegue sem; alterado → pergunta se salva)
     const cond = await condicoesParaEnvio()
+    if (cond === null) return
     // Garante telefones do cliente no header (_cliente._telefone_cliente_of_cliente)
     const header = orcamentoStore.orcamentoHeader
     if (!header?._cliente?._telefone_cliente_of_cliente?.length) {
@@ -1836,32 +1853,6 @@ async function enviarWhatsApp() {
                 </div>
               </div>
 
-              <div class="recalc-obs">
-                <label>Condições de Pagamento</label>
-                <div class="condicoes-botoes">
-                  <button class="btn btn-sm btn-outline" @click="gerarCondicoes">
-                    Gerar Condições
-                  </button>
-                  <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
-                    Salvar Condições
-                  </button>
-                </div>
-                <textarea
-                  v-model="condicoesPagamento"
-                  placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
-                  rows="3"
-                ></textarea>
-              </div>
-
-              <div class="recalc-obs">
-                <label>Observações do Orçamento</label>
-                <textarea
-                  v-model="observacaoOrcamento"
-                  placeholder="Informações importantes para o cliente..."
-                  rows="3"
-                ></textarea>
-              </div>
-
               <div class="recalc-preview">
                 <div class="preview-item">
                   <span class="preview-label">Venda B2B</span>
@@ -2194,17 +2185,39 @@ async function enviarWhatsApp() {
           </div>
         </div>
 
-        <div v-if="orcamentoStore.orcamentoHeader?.condicoes_pagamento" class="resumo-obs">
+        <div v-if="!isVinculado && !statusTerminal" class="resumo-obs" data-section="condicoes">
           <h3>Condições de Pagamento</h3>
-          <p style="white-space: pre-line">
-            {{ orcamentoStore.orcamentoHeader.condicoes_pagamento }}
-          </p>
+          <div class="condicoes-botoes">
+            <button class="btn btn-sm btn-outline" @click="gerarCondicoes">Gerar Condições</button>
+            <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
+              Salvar Condições
+            </button>
+          </div>
+          <textarea
+            v-model="condicoesPagamento"
+            placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
+            rows="3"
+          ></textarea>
+          <h3>Observações do Orçamento</h3>
+          <textarea
+            v-model="observacaoOrcamento"
+            placeholder="Informações importantes para o cliente..."
+            rows="3"
+          ></textarea>
         </div>
 
-        <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
-          <h3>Observações</h3>
-          <p>{{ orcamentoStore.orcamentoHeader.observacao }}</p>
-        </div>
+        <template v-else>
+          <div v-if="orcamentoStore.orcamentoHeader?.condicoes_pagamento" class="resumo-obs">
+            <h3>Condições de Pagamento</h3>
+            <p style="white-space: pre-line">
+              {{ orcamentoStore.orcamentoHeader.condicoes_pagamento }}
+            </p>
+          </div>
+          <div v-if="orcamentoStore.orcamentoHeader?.observacao" class="resumo-obs">
+            <h3>Observações</h3>
+            <p>{{ orcamentoStore.orcamentoHeader.observacao }}</p>
+          </div>
+        </template>
 
         <div class="status-top">
           <span class="status-top-label">Status do Orçamento</span>
@@ -3553,6 +3566,26 @@ async function enviarWhatsApp() {
   font-size: 0.9rem;
   color: var(--text-secondary);
   white-space: pre-wrap;
+}
+
+.resumo-obs textarea {
+  width: 100%;
+  font-size: 0.9rem;
+  font-family: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.resumo-obs .condicoes-botoes {
+  margin: 0 0 0.5rem;
+}
+
+.resumo-obs .condicoes-botoes + textarea {
+  margin-bottom: 1rem;
 }
 
 .condicoes-edit {
