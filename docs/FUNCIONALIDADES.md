@@ -157,25 +157,29 @@ O fator de corte é definido pelo fornecedor (Kapazi) e varia por produto/linha/
 
 ML/UND/KIT continuam usando o `fator_de_corte_id` da **Variação** (via `f_fator_corte_variacao`). No front do orçamento, o usuário entra com Largura × Comprimento e vê **Largura FC / Comprimento FC / Área Faturada** (readonly) — para passo, já saem múltiplos do passo.
 
-## Produto composto PLAYKAP (piso modular)
+## Produto composto (`Base_de_Calculo = COMPOSTO`)
 
-**`Base_de_Calculo = PLAYKAP`** — produto vendido por M² composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e **Cantoneiras**. Modelado como **1 item** no orçamento; a composição é gravada em **`item.detalhes_calculo`** (JSON), sem poluir a `Descricao` (continua "PLAYKAP").
+Conceito genérico de **produto composto de outros itens** (diferente de **KIT**, que é venda em caixa — ex.: Waterkap 6 peças). O produto `COMPOSTO` tem uma **regra de composição** (`Produto.tipo_composto`, ex.: `"playkap"`) e os **componentes** como `Variacao` do produto (via `detalhe_id`).
 
-### Configuração na base
-- `Produto.Base_de_Calculo = PLAYKAP` (novo valor no enum).
+**No front**: para `COMPOSTO`, a listbox "Variação" fica oculta (os componentes são internos ao cálculo) e o formulário depende do `tipo_composto`.
+
+### PLAYKAP (`tipo_composto = "playkap"`) — piso modular
+Vendido por M²; composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e **Cantoneiras**. Modelado como **1 item**; composição em `item.detalhes_calculo` (JSON), sem poluir a `Descricao` ("PLAYKAP").
+
+**Configuração na base**
+- `Produto.Base_de_Calculo = COMPOSTO`, `Produto.tipo_composto = "playkap"`.
 - `Tipo_Variacao`: **Placa** (7), **Rampa** (8), **Cantoneira** (9).
-- Variações do produto (mesmo `detalhe_id`): Placa (custo 11,50 / 0,30×0,30), Rampa (4,99 / 0,30), Cantoneira (5,49) — cada uma com `tipo_variacao_id` respectivo.
-- `Material` pai/filho "PLAYKAP" é **só organizacional** (não usado no cálculo).
+- Variações do produto (mesmo `detalhe_id`): Placa (custo 11,50 / 0,30×0,30 / `qtd_kit` = compra mínima), Rampa (4,99 / 0,30), Cantoneira (5,49) — cada uma com `tipo_variacao_id`.
+- Avulsos: **produtos separados** `Base_de_Calculo=UND` (Placa/Rampa/Cantoneira) para venda por unidade — fluxo UND normal.
 
-### Cálculo (`f_valor_custo_playkap`)
-Retorna o **mesmo `$mod1`** (mesmo contrato de saída do orquestrador — não compromete M2/ML/UND/KIT) + `detalhes_calculo`.
-- `placas = max(ceil(comp/0.30) × ceil(larg/0.30), 11)` (compra mínima 1 m²)
-- `rampas` por `lados_rampa` (0–4) → `macho=ceil(n/2)`, `femea=floor(n/2)` (automático)
-- `cantoneiras = min(4, qtd_cantos)`
-- `valores.custo_nota_tot` = Σ componente × custo (lido das variações por `tipo_variacao_id`) — markup/`Precificar` seguem o fluxo normal.
-- `quantidade` (item) = total de placas; `Descricao` = "PLAYKAP".
+**Cálculo (`f_valor_custo_playkap`)** — mesmo contrato `$mod1` + `detalhes_calculo`:
+- `placas = max(ceil(comp/0.30) × ceil(larg/0.30), compra_minima)` — compra mínima = `qtd_kit` da variação Placa (fallback 11).
+- **Rampa por lado** (`rampa_larg1/comp1/larg2/comp2`): aresta de comprimento = `placasComp` rampas; aresta de largura = `placasLarg` rampas. Divisão **macho/fêmea automática** (`ceil`/`floor`).
+- `cantoneiras = min(4, qtd_cantos)`.
+- `valores.custo_nota_tot` = Σ componente × custo; markup/`Precificar` no fluxo normal.
+- `detalhes_calculo.playkap`: placas, rampas (total/macho/fêmea), cantoneiras, **lados** (4 booleans), área, compra mínima, custos.
 
-### Integração
-- **`orcamento_calcular`** aceita `lados_rampa`/`qtd_cantos`.
-- **Front** (`OrcamentosView`): quando `ehPlaykap`, mostra "Lados com rampa (0-4)" e "Cantos (0-4)".
-- **`item.detalhes_calculo`** (JSON) gravado via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`, exposto em `orca_detalhes`/`Orcamento_Recalcular_Totais`. Também serve para detalhes do **ML** no futuro (rolos, metros fracionados, orientação) — sem mudar schema.
+**Integração**
+- **`orcamento_calcular`** aceita `rampa_larg1/comp1/larg2/comp2` + `qtd_cantos`.
+- **Front** (`OrcamentosView`): quando `COMPOSTO` + `tipo_composto='playkap'`, mostra Peça (Área ou Larg×Comp) + **4 checkboxes de rampa** + Cantoneiras (0-4).
+- **`item.detalhes_calculo`** gravado via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`, exposto em `orca_detalhes`/`Orcamento_Recalcular_Totais`. Também serve para detalhes do **ML** no futuro.

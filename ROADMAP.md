@@ -156,7 +156,7 @@ Status: **parcialmente feito** (2026-08) — herança de custo e `modo_corte` no
 - **Fator de corte `modo_corte`** (`lista` | `passo`): `Fator_de_Corte.modo_corte`; `passo` reutiliza `comp_corte` (arredonda sempre ao múltiplo — ex.: 0,5m). `f_retorna_fc` e `f_valor_custo_m2` atualizados.
 - **Opção X — fator fixo no produto**: `Produto.fator_de_corte_id` (prioridade 1 no M2); fallback `Tipo_Fator` (material+linha+borda); sem fator → dimensões originais.
 - **Dev tools**: `/dev/produtos` com campo "Fator de Corte"; `/dev/fatores` (CRUD de `Fator_de_Corte` + associações `Tipo_Fator`, com bloqueio de exclusão em uso).
-- **Produto composto PLAYKAP**: `Base_de_Calculo=PLAYKAP`, função `f_valor_custo_playkap` (placas 30cm + rampas macho/fêmea + cantoneiras, compra mínima 11), composição gravada em `item.detalhes_calculo` (JSON) sem poluir a `Descricao`. Inputs `lados_rampa`/`qtd_cantos`. Ver `docs/FUNCIONALIDADES.md`.
+- **Produto composto genérico**: `Base_de_Calculo=COMPOSTO` + `Produto.tipo_composto` (ex.: "playkap"). PLAYKAP = piso modular (placas 30cm + rampas macho/fêmea + cantoneiras, compra mínima), com **controle de rampa por lado** (`rampa_larg1/comp1/larg2/comp2`) e composição gravada em `item.detalhes_calculo` (JSON) sem poluir a `Descricao`. Avulsos (Placa/Rampa/Cantoneira) como produtos UND separados. Ver `docs/FUNCIONALIDADES.md`.
 
 ### Pendente (futuro)
 - [ ] **A2 — tabela `Preco_Produto` centralizada** (histórico/validade de preço) — só vale quando houver necessidade real; hoje a herança no cadastro resolve.

@@ -27,6 +27,19 @@ export function formatarMoeda(valor: number): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// Composição do produto composto PLAYKAP (a partir do detalhes_calculo gravado no item).
+// Ex.: "578 placas + 102 rampas (51 M / 51 F) + 4 cantoneiras"
+export function composicaoPlaykap(item: any): string {
+  const p = item?.detalhes_calculo?.playkap
+  if (!p) return ''
+  const partes: string[] = []
+  if (p.placas) partes.push(`${p.placas} placas`)
+  if (p.rampas_total)
+    partes.push(`${p.rampas_total} rampas (${p.rampas_macho} M / ${p.rampas_femea} F)`)
+  if (p.cantoneiras) partes.push(`${p.cantoneiras} cantoneiras`)
+  return partes.join(' + ')
+}
+
 export function formatarDataHora(ts: number | string | undefined): string {
   if (!ts) return ''
   const d = new Date(ts)
@@ -243,10 +256,12 @@ export function montarTextoWhatsApp({
 
   const linhasItens = (itens || []).map((item, i) => {
     const descricao = (item.Descricao || item.descricao || '').trim()
+    const comp = composicaoPlaykap(item)
+    const nome = comp ? `${descricao} — ${comp}` : descricao
     const medidas = formatarMedidas(item)
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
-    return `📌 *Item ${i + 1}: ${descricao}* ${medidas}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
+    return `📌 *Item ${i + 1}: ${nome}* ${medidas}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
   })
 
   const linhas: string[] = []
@@ -531,25 +546,34 @@ export async function gerarPdfOrcamento({
   ;(itens || []).forEach((item, i) => {
     const descricao = item.Descricao || item.descricao || ''
     const obsItem = item.descricao || ''
+    const comp = composicaoPlaykap(item)
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
     const zebra = i % 2 === 1 ? '#f7f9fb' : '#ffffff'
+    const linhasDesc: any[] = [{ text: descricao, ...td, fillColor: zebra }]
+    if (comp) {
+      linhasDesc.push({
+        text: comp,
+        fontSize: 8,
+        color: '#1f4e79',
+        fillColor: zebra,
+        margin: [4, 0, 4, 2] as any,
+      })
+    }
+    if (obsItem) {
+      linhasDesc.push({
+        text: obsItem,
+        fontSize: 8,
+        italics: true,
+        color: '#555555',
+        fillColor: zebra,
+        margin: [4, 0, 4, 5] as any,
+      })
+    }
     bodyItens.push([
       { text: String(i + 1), ...td, fillColor: zebra },
       {
-        stack: obsItem
-          ? [
-              { text: descricao, ...td, fillColor: zebra },
-              {
-                text: obsItem,
-                fontSize: 8,
-                italics: true,
-                color: '#555555',
-                fillColor: zebra,
-                margin: [4, 0, 4, 5] as any,
-              },
-            ]
-          : [{ text: descricao, ...td, fillColor: zebra }],
+        stack: linhasDesc,
         fillColor: zebra,
         margin: [4, 5, 4, 5] as any,
       },
@@ -936,7 +960,12 @@ export async function gerarPdfPedidoVenda({
     subtotalItens += subtotal
     body.push([
       { text: String(item.produto_id ?? ''), ...td },
-      { text: item.Descricao || item.descricao || '', ...td },
+      {
+        text: [item.Descricao || item.descricao || '', composicaoPlaykap(item)]
+          .filter(Boolean)
+          .join('  ·  '),
+        ...td,
+      },
       { text: String(qtd), ...td, alignment: 'center' },
       { text: formatarMoeda(precoUnit), ...td, alignment: 'right' },
       { text: formatarMoeda(subtotal), ...td, alignment: 'right' },

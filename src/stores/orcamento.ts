@@ -216,7 +216,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     return lista.sort((a, b) => a.ordem - b.ordem || a.id - b.id)
   })
 
-  const mostrarVariacao = computed(() => variacoes.value.length > 0)
+  // Produto composto (COMPOSTO): as variações são componentes do cálculo, não escolha.
+  const mostrarVariacao = computed(() => variacoes.value.length > 0 && !ehComposto.value)
 
   watch(mostrarVariacao, (val) => {
     if (!val) variacaoSelecionada.value = null
@@ -265,14 +266,23 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   // true quando o produto é vendido por metro linear (mostra campo Área)
   const ehML = computed(() => unidadeSelecionada.value === 'ML')
 
-  // true quando o produto é o composto PLAYKAP (piso modular)
-  const ehPlaykap = computed(
-    () => produtoSelecionado.value?.Base_de_Calculo?.toUpperCase() === 'PLAYKAP',
+  // true quando o produto é um composto (Base_de_Calculo = COMPOSTO)
+  const ehComposto = computed(
+    () => produtoSelecionado.value?.Base_de_Calculo?.toUpperCase() === 'COMPOSTO',
   )
 
-  // Inputs específicos do PLAYKAP (lados com rampa e cantos)
-  const ladosRampa = ref(0)
+  // Regra de composição (tipo_composto) — ex.: "playkap". Vazio = sem composição.
+  const tipoComposto = computed(
+    () => (produtoSelecionado.value as any)?.tipo_composto?.toUpperCase() ?? '',
+  )
+
+  // Inputs específicos do PLAYKAP (lados do perímetro com rampa + cantos)
+  const rampaLarg1 = ref(false)
+  const rampaComp1 = ref(false)
+  const rampaLarg2 = ref(false)
+  const rampaComp2 = ref(false)
   const qtdCantos = ref(0)
+  const modoEntradaComposto = ref<'area' | 'dimensoes'>('dimensoes')
 
   // resultado do Orcamento_Orquestrador (novo fluxo)
   const resultadoNovo = ref<any | null>(null)
@@ -293,8 +303,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
-    ladosRampa.value = 0
+    rampaLarg1.value = false
+    rampaComp1.value = false
+    rampaLarg2.value = false
+    rampaComp2.value = false
     qtdCantos.value = 0
+    modoEntradaComposto.value = 'dimensoes'
   }
 
   function limparMaterial() {
@@ -309,8 +323,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
-    ladosRampa.value = 0
+    rampaLarg1.value = false
+    rampaComp1.value = false
+    rampaLarg2.value = false
+    rampaComp2.value = false
     qtdCantos.value = 0
+    modoEntradaComposto.value = 'dimensoes'
   }
 
   function getNomeBorda(): string {
@@ -447,6 +465,22 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         error.value = 'Preencha a área ou as dimensões'
         return
       }
+    } else if (ehComposto.value) {
+      if (modoEntradaComposto.value === 'area') {
+        if (!areaML.value || areaML.value <= 0) {
+          error.value = 'Preencha a área'
+          return
+        }
+      } else {
+        if (!largura.value || largura.value <= 0) {
+          error.value = 'Preencha a largura'
+          return
+        }
+        if (!comprimento.value || comprimento.value <= 0) {
+          error.value = 'Preencha o comprimento'
+          return
+        }
+      }
     } else {
       if (!largura.value || largura.value <= 0) {
         error.value = 'Preencha a largura'
@@ -477,12 +511,16 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       uf_destino: user?.uf ?? 'SP',
       regime_id: user?.regime_id ?? 0,
       com_medida_exata: medidaExata.value,
-      lados_rampa: ladosRampa.value,
+      rampa_larg1: rampaLarg1.value,
+      rampa_comp1: rampaComp1.value,
+      rampa_larg2: rampaLarg2.value,
+      rampa_comp2: rampaComp2.value,
       qtd_cantos: qtdCantos.value,
     }
 
     // Área: largura=0 e quantidade=0. Dimensões: comprimento_ou_area=comp, largura=larg
-    if (modoEntrada === 'area' && areaML.value > 0) {
+    const usaArea = ehComposto.value ? modoEntradaComposto.value === 'area' : modoEntrada === 'area'
+    if (usaArea && areaML.value > 0) {
       payload.comprimento_ou_area = areaML.value
       payload.largura = 0
       payload.quantidade = 0
@@ -555,7 +593,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       vlr_lucro_unit: it.vlr_lucro_unit ?? 0,
       descricao,
       area_user: areaNominal.value,
-      area_calc: it.qtd ?? 0,
+      area_calc: (it as any).detalhes_calculo?.playkap?.area_m2 ?? it.qtd ?? 0,
       base_calculo: undVenda,
       vlr_cst_nota_unit: it.vlr_custo_nota_unit ?? 0,
       vlr_cst_entrada_unit: it.vlr_cst_entrada_unit ?? 0,
@@ -572,6 +610,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       com_medida_exata: it.com_medida_exata ?? false,
       porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
       fc: it.fc ?? [],
+      detalhes_calculo: (it as any).detalhes_calculo ?? null,
     }
   }
 
@@ -658,7 +697,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           vlr_lucro_unit: it.vlr_lucro_unit ?? 0,
           descricao,
           area_user: areaNominal.value,
-          area_calc: it.qtd ?? 0,
+          area_calc: (it as any).detalhes_calculo?.playkap?.area_m2 ?? it.qtd ?? 0,
           base_calculo: undVenda,
           vlr_cst_nota_unit: it.vlr_custo_nota_unit ?? 0,
           vlr_cst_entrada_unit: it.vlr_cst_entrada_unit ?? 0,
@@ -809,8 +848,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     quantidade.value = 1
     areaML.value = 0
     medidaExata.value = false
-    ladosRampa.value = 0
+    rampaLarg1.value = false
+    rampaComp1.value = false
+    rampaLarg2.value = false
+    rampaComp2.value = false
     qtdCantos.value = 0
+    modoEntradaComposto.value = 'dimensoes'
     resultado.value = null
     resultadoNovo.value = null
     error.value = null
@@ -828,6 +871,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   }
 
   async function carregarOrcamento(codOrca: string, newMargem?: number) {
+    // Limpa o formulário do item para não herdar seleção/dimensões de outro orçamento.
+    limparFormItem()
     carregandoOrcamento.value = true
     error.value = null
     try {
@@ -1066,9 +1111,14 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     produtoSelecionado,
     unidadeSelecionada,
     ehML,
-    ehPlaykap,
-    ladosRampa,
+    ehComposto,
+    tipoComposto,
+    rampaLarg1,
+    rampaComp1,
+    rampaLarg2,
+    rampaComp2,
     qtdCantos,
+    modoEntradaComposto,
     loading,
     error,
     numeroOrcamento,

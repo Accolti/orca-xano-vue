@@ -65,6 +65,7 @@ const form = ref({
   valor: 0,
   Unidade: 'M2' as string,
   Base_de_Calculo: 'M2' as string,
+  tipo_composto: '' as string,
   com_medida_exata: false,
   porcentagem_acrescimo: 0,
   ativo: true,
@@ -162,6 +163,7 @@ function abrirNovo() {
     valor: 0,
     Unidade: 'M2',
     Base_de_Calculo: 'M2',
+    tipo_composto: '',
     com_medida_exata: false,
     porcentagem_acrescimo: 0,
     ativo: true,
@@ -183,6 +185,7 @@ function abrirEdicao(p: ProdutoDev) {
     valor: p.valor ?? 0,
     Unidade: p.Unidade || 'M2',
     Base_de_Calculo: p.Base_de_Calculo || 'M2',
+    tipo_composto: (p as any).tipo_composto ?? '',
     com_medida_exata: p.com_medida_exata === true,
     porcentagem_acrescimo: p.porcentagem_acrescimo ?? 0,
     ativo: p.ativo !== false,
@@ -240,6 +243,7 @@ async function alternarAtivo(p: ProdutoDev) {
       valor: p.valor ?? 0,
       Unidade: p.Unidade || 'M2',
       Base_de_Calculo: p.Base_de_Calculo || 'M2',
+      tipo_composto: (p as any).tipo_composto ?? '',
       com_medida_exata: p.com_medida_exata === true,
       porcentagem_acrescimo: p.porcentagem_acrescimo ?? 0,
       ativo: !(p.ativo !== false),
@@ -501,8 +505,12 @@ onMounted(async () => {
                   <option value="ML">ML</option>
                   <option value="KIT">KIT</option>
                   <option value="UND">UND</option>
-                  <option value="PLAYKAP">PLAYKAP</option>
+                  <option value="COMPOSTO">COMPOSTO</option>
                 </select>
+              </div>
+              <div class="field">
+                <label>Tipo Composto (se COMPOSTO)</label>
+                <input v-model="form.tipo_composto" type="text" placeholder="ex.: playkap" />
               </div>
             </div>
 

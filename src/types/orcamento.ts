@@ -86,6 +86,7 @@ export interface ProdutoCatalogo {
   valor: number
   Unidade: string
   Base_de_Calculo: string
+  tipo_composto?: string
   detalhe_id: number
   classificacao: string
   descricao: string

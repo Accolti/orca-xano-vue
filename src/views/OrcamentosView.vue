@@ -84,6 +84,13 @@ const formValido = computed(() => {
     if (!orcamentoStore.quantidade || orcamentoStore.quantidade < 1) return false
   } else if (orcamentoStore.ehML) {
     if (areaMLEfetiva.value <= 0) return false
+  } else if (orcamentoStore.ehComposto) {
+    if (orcamentoStore.modoEntradaComposto === 'area') {
+      if (!orcamentoStore.areaML || orcamentoStore.areaML <= 0) return false
+    } else {
+      if (!orcamentoStore.largura || orcamentoStore.largura <= 0) return false
+      if (!orcamentoStore.comprimento || orcamentoStore.comprimento <= 0) return false
+    }
   } else {
     if (!orcamentoStore.largura || orcamentoStore.largura <= 0) return false
     if (!orcamentoStore.comprimento || orcamentoStore.comprimento <= 0) return false
@@ -583,6 +590,19 @@ function editarItem(item: any) {
     orcamentoStore.areaML = item.area_calc ?? 0
     modoEntradaML.value = item.area_calc ? 'area' : 'dimensoes'
   }
+  if (orcamentoStore.ehComposto && item.detalhes_calculo?.playkap) {
+    const p = item.detalhes_calculo.playkap
+    orcamentoStore.rampaLarg1 = !!p.lados?.rampa_larg1
+    orcamentoStore.rampaComp1 = !!p.lados?.rampa_comp1
+    orcamentoStore.rampaLarg2 = !!p.lados?.rampa_larg2
+    orcamentoStore.rampaComp2 = !!p.lados?.rampa_comp2
+    orcamentoStore.qtdCantos = p.cantoneiras ?? 0
+    // Restaura em modo dimensões com as medidas digitadas pelo usuário (comp × larg).
+    // O orquestrador recalcula a grade (múltiplos de 30cm) a partir delas.
+    orcamentoStore.modoEntradaComposto = 'dimensoes'
+    orcamentoStore.largura = item.larg ?? 0
+    orcamentoStore.comprimento = item.comp ?? 0
+  }
   observacao.value = item.descricao ?? ''
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -599,6 +619,27 @@ async function removerItem(item: any, idx: number) {
 
 function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Composição do produto composto PLAYKAP (a partir do detalhes_calculo gravado no item).
+// Ex.: "578 placas + 102 rampas (51 M / 51 F) + 4 cantoneiras"
+function composicaoPlaykap(item: any): string {
+  const p = item?.detalhes_calculo?.playkap
+  if (!p) return ''
+  const partes: string[] = []
+  if (p.placas) partes.push(`${p.placas} placas`)
+  if (p.rampas_total)
+    partes.push(`${p.rampas_total} rampas (${p.rampas_macho} M / ${p.rampas_femea} F)`)
+  if (p.cantoneiras) partes.push(`${p.cantoneiras} cantoneiras`)
+  return partes.join(' + ')
+}
+
+// Dimensão exibida na lista de itens — sempre 2 casas decimais (itens antigos podem ter
+// valores brutos, ex.: sqrt de área = 7.0710678118654755).
+function formatarDimensaoItem(item: any): string {
+  const larg = Number(item?.larg ?? 0)
+  const comp = Number(item?.comp ?? 0)
+  return `${larg.toFixed(2)} x ${comp.toFixed(2)} m`
 }
 
 function formatarDataHora(ts: number | string | null | undefined): string {
@@ -1159,8 +1200,9 @@ async function enviarWhatsApp() {
 
           <div
             v-if="
-              orcamentoStore.unidadeSelecionada === 'M2' ||
-              orcamentoStore.unidadeSelecionada === 'UND'
+              (orcamentoStore.unidadeSelecionada === 'M2' ||
+                orcamentoStore.unidadeSelecionada === 'UND') &&
+              !orcamentoStore.ehComposto
             "
             class="field"
           >
@@ -1253,7 +1295,7 @@ async function enviarWhatsApp() {
             <p class="field-hint">Produto vendido por unidade — informe a quantidade acima.</p>
           </template>
 
-          <template v-else>
+          <template v-else-if="!orcamentoStore.ehComposto">
             <div class="dimensoes-row">
               <div class="field flex-1">
                 <label>Largura (m)</label>
@@ -1288,35 +1330,110 @@ async function enviarWhatsApp() {
             </div>
           </template>
 
-          <!-- PLAYKAP: piso modular composto (placas + rampas + cantoneiras) -->
-          <template v-if="orcamentoStore.ehPlaykap">
-            <div class="dimensoes-row">
-              <div class="field flex-1">
-                <label>Lados com rampa (0-4)</label>
+          <!-- Produto composto (tipo_composto = playkap): piso modular -->
+          <template v-if="orcamentoStore.ehComposto && orcamentoStore.tipoComposto === 'PLAYKAP'">
+            <div class="field">
+              <label>Informar</label>
+              <div class="modo-entrada">
+                <button
+                  class="btn-seg"
+                  :class="{ active: orcamentoStore.modoEntradaComposto === 'area' }"
+                  @click="orcamentoStore.modoEntradaComposto = 'area'"
+                >
+                  Área (m²)
+                </button>
+                <button
+                  class="btn-seg"
+                  :class="{ active: orcamentoStore.modoEntradaComposto === 'dimensoes' }"
+                  @click="orcamentoStore.modoEntradaComposto = 'dimensoes'"
+                >
+                  Largura × Comprimento
+                </button>
+              </div>
+            </div>
+
+            <template v-if="orcamentoStore.modoEntradaComposto === 'area'">
+              <div class="field">
+                <label>Área (m²)</label>
                 <input
-                  v-model.number="orcamentoStore.ladosRampa"
+                  v-model.number="orcamentoStore.areaML"
                   type="number"
+                  step="0.01"
                   min="0"
-                  max="4"
-                  step="1"
-                  placeholder="0"
+                  placeholder="0,00"
                 />
               </div>
-              <div class="field flex-1">
-                <label>Cantos (0-4)</label>
+            </template>
+            <template v-else>
+              <div class="dimensoes-row">
+                <div class="field flex-1">
+                  <label>Largura (m)</label>
+                  <input
+                    v-model.number="orcamentoStore.largura"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                  />
+                </div>
+                <span class="dimensoes-x">X</span>
+                <div class="field flex-1">
+                  <label>Comprimento (m)</label>
+                  <input
+                    v-model.number="orcamentoStore.comprimento"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+              <div class="field">
+                <label>Área Nominal (m²)</label>
                 <input
-                  v-model.number="orcamentoStore.qtdCantos"
-                  type="number"
-                  min="0"
-                  max="4"
-                  step="1"
-                  placeholder="0"
+                  :value="orcamentoStore.areaNominal.toFixed(2)"
+                  readonly
+                  class="input-readonly"
                 />
               </div>
+            </template>
+
+            <div class="field">
+              <label>Rampa (lados do perímetro)</label>
+              <div class="composto-rampas">
+                <label class="checkbox-inline">
+                  <input v-model="orcamentoStore.rampaLarg1" type="checkbox" />
+                  <span>Largura 1</span>
+                </label>
+                <label class="checkbox-inline">
+                  <input v-model="orcamentoStore.rampaComp1" type="checkbox" />
+                  <span>Comprimento 1</span>
+                </label>
+                <label class="checkbox-inline">
+                  <input v-model="orcamentoStore.rampaLarg2" type="checkbox" />
+                  <span>Largura 2</span>
+                </label>
+                <label class="checkbox-inline">
+                  <input v-model="orcamentoStore.rampaComp2" type="checkbox" />
+                  <span>Comprimento 2</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Cantoneira(s) (0-4)</label>
+              <input
+                v-model.number="orcamentoStore.qtdCantos"
+                type="number"
+                min="0"
+                max="4"
+                step="1"
+                placeholder="0"
+              />
             </div>
             <p class="field-hint">
               Piso modular PLAYKAP — placas de 30×30cm com arredondamento para cima; rampas
-              (macho/fêmea) e cantoneiras somadas ao custo do conjunto.
+              (macho/fêmea, divisão automática) e cantoneiras somadas ao custo do conjunto.
             </p>
           </template>
 
@@ -1947,9 +2064,9 @@ async function enviarWhatsApp() {
                   <span class="itens-col-desc" data-label="Descrição">{{
                     item.Descricao || item.descricao
                   }}</span>
-                  <span class="itens-col-dim" data-label="Dimensões"
-                    >{{ item.larg }} x {{ item.comp }} m</span
-                  >
+                  <span class="itens-col-dim" data-label="Dimensões">{{
+                    formatarDimensaoItem(item)
+                  }}</span>
                   <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
                   <span class="itens-col-vlr" data-label="Valor Unit">{{
                     formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
@@ -2000,6 +2117,9 @@ async function enviarWhatsApp() {
                   </span>
                 </div>
                 <div v-if="item.descricao" class="itens-obs">{{ item.descricao }}</div>
+                <div v-if="composicaoPlaykap(item)" class="itens-obs itens-obs-composicao">
+                  {{ composicaoPlaykap(item) }}
+                </div>
               </div>
             </div>
           </div>
@@ -2191,9 +2311,9 @@ async function enviarWhatsApp() {
               <span class="itens-col-desc" data-label="Descrição">{{
                 item.Descricao || item.descricao
               }}</span>
-              <span class="itens-col-dim" data-label="Dimensões"
-                >{{ item.larg }} x {{ item.comp }} m</span
-              >
+              <span class="itens-col-dim" data-label="Dimensões">{{
+                formatarDimensaoItem(item)
+              }}</span>
               <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
               <span class="itens-col-vlr" data-label="Valor Unit">{{
                 formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
@@ -3389,6 +3509,12 @@ async function enviarWhatsApp() {
   font-size: 0.78rem;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+.itens-obs-composicao {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--primary, #1e40af);
 }
 
 .itens-col-num {
