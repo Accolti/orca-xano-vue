@@ -378,7 +378,7 @@ onMounted(async () => {
 
     <!-- Modal Fator -->
     <Teleport to="body">
-      <div v-if="formFatorOpen" class="modal-overlay" @click.self="formFatorOpen = false">
+      <div v-if="formFatorOpen" class="modal-overlay">
         <div class="dev-modal">
           <header class="dev-modal-header">
             <h3>
@@ -443,7 +443,7 @@ onMounted(async () => {
 
     <!-- Modal Associação -->
     <Teleport to="body">
-      <div v-if="formAssocOpen" class="modal-overlay" @click.self="formAssocOpen = false">
+      <div v-if="formAssocOpen" class="modal-overlay">
         <div class="dev-modal">
           <header class="dev-modal-header">
             <h3>

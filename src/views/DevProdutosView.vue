@@ -424,7 +424,7 @@ onMounted(async () => {
 
     <!-- Form de produto -->
     <Teleport to="body">
-      <div v-if="formOpen" class="modal-overlay" @click.self="formOpen = false">
+      <div v-if="formOpen" class="modal-overlay">
         <div class="dev-modal">
           <header class="dev-modal-header">
             <h3>{{ editandoId ? `Editar Produto #${editandoId}` : 'Novo Produto' }}</h3>
