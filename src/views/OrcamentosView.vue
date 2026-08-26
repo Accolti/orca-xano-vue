@@ -74,7 +74,14 @@ function verCliente() {
   }
 }
 
-const margemPadrao = computed(() => authStore.user?.margem ?? 100)
+const margemPadrao = computed(() => {
+  // Orçamento existente com itens → margem registrada na ORCA
+  if (orcamentoStore.itensInseridos.length > 0 && orcamentoStore.orcamentoHeader?.margem) {
+    return orcamentoStore.orcamentoHeader.margem
+  }
+  // Orçamento novo ou sem itens (todos removidos) → margem do usuário
+  return authStore.user?.margem ?? 100
+})
 const fretePadrao = computed(() => authStore.user?.frtB2B ?? 52)
 
 const formValido = computed(() => {
