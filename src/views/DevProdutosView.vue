@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
+import type { Linha, Tipo, Nivel } from '@/types/orcamento'
 import DevNav from '@/components/DevNav.vue'
 
 interface VariacaoDev {
@@ -312,6 +313,21 @@ const niveisDoMaterial = computed(() =>
   catalogo.allNiveis.filter((n) => n.material_id === form.value.material_id),
 )
 
+// Labels compostos: só o que diferencia a opção dentro do material selecionado.
+function nomeLinha(l: Linha): string {
+  const sufixo = l._material?.nome ? ` — ${l._material.nome}` : ''
+  return `${l.nome}${sufixo}`
+}
+function nomeTipo(t: Tipo): string {
+  const sufixo = t._material?.nome ? ` — ${t._material.nome}` : ''
+  return `${t.nome}${sufixo}`
+}
+function nomeNivel(n: Nivel): string {
+  const partes = [n._linha?.nome, n._tipo?.nome].filter(Boolean)
+  const sufixo = partes.length ? ` — ${partes.join(' | ')}` : ''
+  return `${n.nome}${sufixo}`
+}
+
 onMounted(async () => {
   await catalogo.fetchCatalogo()
   await Promise.all([carregarLista(), carregarMateriaisCompletos()])
@@ -485,7 +501,7 @@ onMounted(async () => {
                 <select v-model="form.linha_id">
                   <option :value="null">—</option>
                   <option v-for="l in linhasDoMaterial" :key="l.id" :value="l.id">
-                    {{ l.nome }}
+                    {{ nomeLinha(l) }}
                   </option>
                 </select>
               </div>
@@ -494,7 +510,7 @@ onMounted(async () => {
                 <select v-model="form.tipo_id">
                   <option :value="null">—</option>
                   <option v-for="t in tiposDoMaterial" :key="t.id" :value="t.id">
-                    {{ t.nome }}
+                    {{ nomeTipo(t) }}
                   </option>
                 </select>
               </div>
@@ -503,7 +519,7 @@ onMounted(async () => {
                 <select v-model="form.nivel_id">
                   <option :value="null">—</option>
                   <option v-for="n in niveisDoMaterial" :key="n.id" :value="n.id">
-                    {{ n.nome }}
+                    {{ nomeNivel(n) }}
                   </option>
                 </select>
               </div>

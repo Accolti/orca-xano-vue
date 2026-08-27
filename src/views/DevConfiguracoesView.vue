@@ -8,6 +8,7 @@ interface ConfiguracaoDev {
   id: number
   versao_materiais?: number | null
   versao_produtos?: number | null
+  versao_taxas_banco?: number | null
   created_at?: string
 }
 
@@ -34,7 +35,7 @@ async function carregar() {
 
 async function incrementar(
   cfg: ConfiguracaoDev,
-  campo: 'versao_materiais' | 'versao_produtos',
+  campo: 'versao_materiais' | 'versao_produtos' | 'versao_taxas_banco',
   delta: number,
 ) {
   if (!cfg.id) return
@@ -51,14 +52,18 @@ async function incrementar(
     const cacheKey =
       campo === 'versao_materiais'
         ? 'orca_catalogo_materiais_cache'
-        : 'orca_catalogo_produtos_cache'
+        : campo === 'versao_produtos'
+          ? 'orca_catalogo_produtos_cache'
+          : 'orca_taxas_banco_cache'
     localStorage.removeItem(cacheKey)
     await catalogo.carregarConfiguracoes()
     await carregar()
     sucessoMsg.value =
       campo === 'versao_materiais'
         ? `Versão de materiais atualizada (+${delta}).`
-        : `Versão de produtos atualizada (+${delta}).`
+        : campo === 'versao_produtos'
+          ? `Versão de produtos atualizada (+${delta}).`
+          : `Versão de taxas bancárias atualizada (+${delta}).`
   } catch (err: any) {
     erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar versão'
   } finally {
@@ -84,9 +89,13 @@ onMounted(async () => {
       </div>
       <p class="field-hint">
         As versões controlam o cache do catálogo no navegador. Ao alterar materiais/produtos
-        (tabelas Material, Produto, Variacao, etc.), acrescente a versão correspondente para forçar
-        o app a rebaixar os dados na próxima carga. Valor atual do app:
-        <strong>M{{ catalogo.versaoMateriais ?? '?' }}P{{ catalogo.versaoProdutos ?? '?' }}</strong
+        (tabelas Material, Produto, Variacao, etc.) ou as taxas de banco (Taxa_Banco), acrescente a
+        versão correspondente para forçar o app a rebaixar os dados na próxima carga. Valor atual do
+        app:
+        <strong
+          >M{{ catalogo.versaoMateriais ?? '?' }}P{{ catalogo.versaoProdutos ?? '?' }}T{{
+            catalogo.versaoTaxasBanco ?? '?'
+          }}</strong
         >.
       </p>
     </section>
@@ -104,6 +113,7 @@ onMounted(async () => {
               <th>ID</th>
               <th>Versão Materiais</th>
               <th>Versão Produtos</th>
+              <th>Versão Taxas Bancárias</th>
               <th>Criado em</th>
             </tr>
           </thead>
@@ -146,6 +156,27 @@ onMounted(async () => {
                       class="btn btn-outline btn-xs"
                       :disabled="salvando !== null"
                       @click="incrementar(cfg, 'versao_produtos', 5)"
+                    >
+                      +5
+                    </button>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="versao-cell">
+                  <span class="versao-valor">{{ cfg.versao_taxas_banco ?? 0 }}</span>
+                  <div class="versao-botoes">
+                    <button
+                      class="btn btn-outline btn-xs"
+                      :disabled="salvando !== null"
+                      @click="incrementar(cfg, 'versao_taxas_banco', 1)"
+                    >
+                      +1
+                    </button>
+                    <button
+                      class="btn btn-outline btn-xs"
+                      :disabled="salvando !== null"
+                      @click="incrementar(cfg, 'versao_taxas_banco', 5)"
                     >
                       +5
                     </button>

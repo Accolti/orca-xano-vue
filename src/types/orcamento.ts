@@ -29,6 +29,7 @@ export interface Linha {
   nome: string
   created_at: number
   material_id: number
+  _material?: { nome?: string } | null
 }
 
 export interface Tipo {
@@ -36,6 +37,7 @@ export interface Tipo {
   nome: string
   material_id: number
   created_at: number
+  _material?: { nome?: string } | null
 }
 
 export interface Nivel {
@@ -44,6 +46,9 @@ export interface Nivel {
   Descricao: string
   material_id: number
   created_at: number
+  _material?: { nome?: string } | null
+  _linha?: { nome?: string } | null
+  _tipo?: { nome?: string } | null
 }
 
 export interface Borda {
@@ -310,4 +315,15 @@ export interface OrcamentoInsertPayload {
   perc_margem_real: number
   fc: number[]
   detalhes_calculo?: Record<string, any>
+}
+
+// Taxas de banco por provedor (tabela Taxa_Banco) — usadas para calcular as
+// condições de pagamento (parcelamento) com gross-up.
+export interface TaxaBanco {
+  id: number
+  provedor_id: number
+  parcelas: number
+  cc_taxa: number
+  provedor?: string | null
+  ativo?: boolean
 }

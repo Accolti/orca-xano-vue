@@ -11,14 +11,15 @@ import {
   montarTextoWhatsApp,
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
-  calcularCondicoesPagamento,
 } from '@/services/pdf'
 import { xano } from '@/services/xano'
+import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
+import type { TaxaBanco } from '@/types/orcamento'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +42,13 @@ const mostrarCustos = ref(false)
 const mostrarCustosHeader = ref(false)
 const simulacaoModalOpen = ref(false)
 const simulacaoSelecionada = ref<SimulacaoItem | null>(null)
+
+// UI do seletor de condições de pagamento (Etapa 3)
+const abaPagamento = ref<'pix' | 'cartao'>('pix')
+const cartaoSelecionado = ref<number | null>(null)
+const modoCondicoesAvancado = ref(false)
+// Quem paga a taxa do cartão: true = cliente (gross-up, default) | false = a loja assume
+const repassarTaxasCartao = ref(true)
 
 const termoBuscaCliente = ref('')
 const clienteSelecionado = ref<Cliente | null>(null)
@@ -162,6 +170,7 @@ onMounted(async () => {
     modoEntradaML.value = 'area'
   }
   orcamentoStore.carregarMateriais()
+  catalogo.fetchTaxasBanco().catch(() => {})
   if (isEditMode.value && codOrcaParam) {
     try {
       await orcamentoStore.carregarOrcamento(codOrcaParam)
@@ -693,14 +702,103 @@ async function persistirCondicoesPagamento(): Promise<boolean> {
   }
 }
 
-// Condições padrão calculadas (Pix 2x + Boleto parcelado) para o total atual
+// Condições padrão calculadas (Pix 2x + Boleto parcelado + Cartão) para o total atual
 function calcularCondicoesPadrao(): string {
   const header = orcamentoStore.orcamentoHeader
-  return calcularCondicoesPagamento(
-    Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
-    Number(header?.cst_tot) || 0,
-    faturarCliente.value,
-  )
+  return calcularCondicoesUnificado({
+    valorVenda: Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
+    valorCusto: Number(header?.cst_tot) || 0,
+    faturar: faturarCliente.value,
+    tabelaTaxasCartao: catalogo.taxasBanco,
+    repassarTaxasCartao: repassarTaxasCartao.value,
+  }).texto
+}
+
+// Opções calculadas do seletor (dados estruturados, sem texto)
+const condicoesCalculadas = computed(() => {
+  const header = orcamentoStore.orcamentoHeader
+  return calcularCondicoesUnificado({
+    valorVenda: Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
+    valorCusto: Number(header?.cst_tot) || 0,
+    faturar: faturarCliente.value,
+    tabelaTaxasCartao: catalogo.taxasBanco,
+    repassarTaxasCartao: repassarTaxasCartao.value,
+  })
+})
+
+// Cartão selecionado (informação completa para o badge do vendedor)
+const cartaoSelecionadoInfo = computed(() =>
+  condicoesCalculadas.value.cartao.find((o) => o.parcelas === cartaoSelecionado.value),
+)
+
+// Estado das condições de pagamento em relação ao que está salvo na ORCA
+const condicoesPendentes = computed(
+  () =>
+    condicoesPagamento.value.trim() !==
+    (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim(),
+)
+const condicoesSalvas = computed(() =>
+  Boolean((orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim()),
+)
+
+// Lucro do cartão conforme o modo:
+// - Cliente paga (gross-up): você recebe a venda cheia → lucro = venda − custo
+// - Eu assumo: você recebe o líquido → lucro real = voceRecebeLiquido − custo
+const lucroCartao = computed(() => {
+  const header = orcamentoStore.orcamentoHeader
+  const venda = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  const custo = Number(header?.cst_tot) || 0
+  if (repassarTaxasCartao.value) return venda - custo
+  const op = cartaoSelecionadoInfo.value
+  return op ? op.voceRecebeLiquido - custo : venda - custo
+})
+
+const margemRealCartao = computed(() => {
+  const header = orcamentoStore.orcamentoHeader
+  const venda = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  if (venda <= 0) return 0
+  return (lucroCartao.value / venda) * 100
+})
+
+// Custo da taxa absorvido pela loja (só no modo "eu assumo")
+const custoDaTaxa = computed(() => {
+  if (repassarTaxasCartao.value) return 0
+  return cartaoSelecionadoInfo.value?.custoTaxa ?? 0
+})
+
+// Cor do badge: verde (cliente paga) | âmbar (assume com lucro) | vermelho (assume no prejuízo)
+const corBadgeCartao = computed(() => {
+  if (!repassarTaxasCartao.value) {
+    return lucroCartao.value > 0 ? 'badge-alerta' : 'badge-recusado'
+  }
+  return lucroCartao.value > 0 ? 'badge-ok' : 'badge-alerta'
+})
+
+// Troca a aba do seletor e preenche o texto quando o vendedor escolhe uma opção
+function selecionarPagamento(tipo: 'pix' | 'cartao', parcelas?: number | null) {
+  abaPagamento.value = tipo
+  cartaoSelecionado.value = parcelas ?? null
+  const c = condicoesCalculadas.value
+  if (tipo === 'cartao' && parcelas) {
+    const op = c.cartao.find((o) => o.parcelas === parcelas)
+    if (op) {
+      const linhas = [
+        `Cartão de Crédito (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
+      ]
+      if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
+      condicoesPagamento.value = linhas.join('\n')
+    }
+  } else {
+    condicoesPagamento.value = c.texto
+  }
+}
+
+// Define o modo de repasse explicitamente (toggle) e re-preenche o texto
+function setRepasseTaxa(valor: boolean) {
+  repassarTaxasCartao.value = valor
+  if (abaPagamento.value === 'cartao') {
+    selecionarPagamento('cartao', cartaoSelecionado.value)
+  }
 }
 
 // Gera as condições padrão no textarea (pergunta antes de sobrescrever conteúdo existente)
@@ -2208,33 +2306,11 @@ async function enviarWhatsApp() {
             }}</span>
           </div>
           <div class="resumo-total-item">
-            <span class="resumo-label">Custo Kapazi</span>
-            <span class="resumo-preco">{{ formatarMoeda(custoKapaziTotal) }}</span>
-          </div>
-          <div class="resumo-total-item">
             <span class="resumo-label">Mão de Obra</span>
             <span class="resumo-preco">{{
               formatarMoeda(orcamentoStore.orcamentoHeader?.mao_de_obra ?? 0)
             }}</span>
           </div>
-          <div class="resumo-total-item">
-            <span class="resumo-label">Margem Real</span>
-            <span class="resumo-preco">{{ formatarMargemReal() }}</span>
-          </div>
-          <template v-if="descontoKapazi > 0">
-            <div class="resumo-total-item">
-              <span class="resumo-label">Custo Kapazi efetivo</span>
-              <span class="resumo-preco">{{ formatarMoeda(custoKapaziEfetivo) }}</span>
-            </div>
-            <div class="resumo-total-item">
-              <span class="resumo-label">Lucro Real (c/ desconto)</span>
-              <span class="resumo-preco">{{ formatarMoeda(lucroRealKapazi) }}</span>
-            </div>
-            <div class="resumo-total-item">
-              <span class="resumo-label">Margem Real (c/ desconto)</span>
-              <span class="resumo-preco">{{ formatarMargemRealKapazi() }}</span>
-            </div>
-          </template>
           <div class="resumo-total-item">
             <span class="resumo-label">Frete B2C</span>
             <span class="resumo-preco">{{
@@ -2269,9 +2345,27 @@ async function enviarWhatsApp() {
             <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
           </div>
           <div class="resumo-total-item">
+            <span class="resumo-label">Custo Kapazi</span>
+            <span>{{ formatarMoeda(custoKapaziTotal) }}</span>
+          </div>
+          <div class="resumo-total-item">
             <span class="resumo-label">Lucro Total</span>
             <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.luc_tot ?? 0) }}</span>
           </div>
+          <template v-if="descontoKapazi > 0">
+            <div class="resumo-total-item">
+              <span class="resumo-label">Custo Kapazi efetivo</span>
+              <span>{{ formatarMoeda(custoKapaziEfetivo) }}</span>
+            </div>
+            <div class="resumo-total-item">
+              <span class="resumo-label">Lucro Real (c/ desconto)</span>
+              <span>{{ formatarMoeda(lucroRealKapazi) }}</span>
+            </div>
+            <div class="resumo-total-item">
+              <span class="resumo-label">Margem Real (c/ desconto)</span>
+              <span>{{ formatarMargemRealKapazi() }}</span>
+            </div>
+          </template>
           <div class="resumo-total-item">
             <span class="resumo-label">Frete B2B</span>
             <span>{{
@@ -2281,6 +2375,10 @@ async function enviarWhatsApp() {
                   0,
               )
             }}</span>
+          </div>
+          <div class="resumo-total-item">
+            <span class="resumo-label">Margem Real</span>
+            <span>{{ formatarMargemReal() }}</span>
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Margem (Alvo)</span>
@@ -2333,13 +2431,137 @@ async function enviarWhatsApp() {
         </div>
 
         <div v-if="!isVinculado && !statusTerminal" class="resumo-obs" data-section="condicoes">
-          <h3>Condições de Pagamento</h3>
-          <div class="condicoes-botoes">
-            <button class="btn btn-sm btn-outline" @click="gerarCondicoes">Gerar Condições</button>
-            <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
-              Salvar Condições
-            </button>
+          <div class="condicoes-head">
+            <div class="condicoes-title">
+              <h3>Condições de Pagamento</h3>
+              <span
+                class="cond-status-badge"
+                :class="
+                  condicoesPendentes
+                    ? 'cond-status-pendente'
+                    : condicoesSalvas
+                      ? 'cond-status-salvo'
+                      : 'cond-status-vazio'
+                "
+                :title="
+                  condicoesPendentes
+                    ? 'Clique em Salvar Condições antes de enviar'
+                    : condicoesSalvas
+                      ? 'Condições salvas na ORCA'
+                      : 'Nenhuma condição salva'
+                "
+              >
+                {{
+                  condicoesPendentes ? 'Não salvo' : condicoesSalvas ? 'Salvas' : 'Sem condições'
+                }}
+              </span>
+            </div>
+            <div class="condicoes-botoes">
+              <button
+                v-if="modoCondicoesAvancado"
+                class="btn btn-sm btn-outline"
+                @click="modoCondicoesAvancado = false"
+              >
+                Seletor
+              </button>
+              <button v-else class="btn btn-sm btn-outline" @click="modoCondicoesAvancado = true">
+                Modo avançado
+              </button>
+              <button class="btn btn-sm btn-outline" @click="gerarCondicoes">
+                Gerar Condições
+              </button>
+              <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
+                Salvar Condições
+              </button>
+            </div>
           </div>
+
+          <template v-if="!modoCondicoesAvancado">
+            <div class="cond-seletor">
+              <div class="cond-tabs">
+                <button
+                  class="cond-tab"
+                  :class="{ active: abaPagamento === 'pix' }"
+                  @click="selecionarPagamento('pix')"
+                >
+                  Pix / Boleto
+                </button>
+                <button
+                  class="cond-tab"
+                  :class="{ active: abaPagamento === 'cartao' }"
+                  @click="selecionarPagamento('cartao')"
+                >
+                  Cartão de Crédito
+                </button>
+              </div>
+
+              <div v-if="abaPagamento === 'pix'" class="cond-pix">
+                <p class="cond-linha">{{ condicoesCalculadas.pix }}</p>
+                <p class="cond-linha">{{ condicoesCalculadas.boleto }}</p>
+                <p v-if="faturarCliente" class="cond-linha cond-faturar">
+                  Faturamos com até 20 dias da entrega do produto
+                </p>
+              </div>
+
+              <div v-else class="cond-cartao">
+                <div class="cond-toggle">
+                  <button
+                    class="cond-toggle-btn"
+                    :class="{ active: repassarTaxasCartao }"
+                    @click="setRepasseTaxa(true)"
+                  >
+                    Cliente paga a taxa
+                  </button>
+                  <button
+                    class="cond-toggle-btn"
+                    :class="{ active: !repassarTaxasCartao }"
+                    @click="setRepasseTaxa(false)"
+                  >
+                    Eu assumo a taxa
+                  </button>
+                </div>
+
+                <div class="cond-cartao-row">
+                  <label>Parcelas</label>
+                  <select
+                    v-model="cartaoSelecionado"
+                    @change="selecionarPagamento('cartao', cartaoSelecionado)"
+                  >
+                    <option :value="null">Selecione...</option>
+                    <option
+                      v-for="o in condicoesCalculadas.cartao"
+                      :key="o.parcelas"
+                      :value="o.parcelas"
+                    >
+                      {{ o.parcelas }}x de R$ {{ o.parcela.toFixed(2).replace('.', ',') }} (R$
+                      {{ o.total.toFixed(2).replace('.', ',') }})
+                    </option>
+                  </select>
+                </div>
+
+                <div v-if="cartaoSelecionadoInfo" class="cond-badge" :class="corBadgeCartao">
+                  <strong>
+                    Valor p/ cliente: R$
+                    {{ cartaoSelecionadoInfo.total.toFixed(2).replace('.', ',') }} ({{
+                      cartaoSelecionadoInfo.parcelas
+                    }}x de R$ {{ cartaoSelecionadoInfo.parcela.toFixed(2).replace('.', ',') }})
+                  </strong>
+                  <span>
+                    {{ repassarTaxasCartao ? 'Seu lucro preservado' : 'Seu lucro real' }}: R$
+                    {{ lucroCartao.toFixed(2).replace('.', ',') }} ({{
+                      margemRealCartao.toFixed(2).replace('.', ',')
+                    }}%)
+                  </span>
+                  <span v-if="!repassarTaxasCartao && custoDaTaxa > 0" class="cond-taxa-custo">
+                    Custo da taxa pago pelo vendedor: R$
+                    {{ custoDaTaxa.toFixed(2).replace('.', ',') }}
+                  </span>
+                </div>
+                <p v-else class="cond-hint">Selecione um parcelamento acima.</p>
+              </div>
+            </div>
+          </template>
+
           <textarea
             v-model="condicoesPagamento"
             placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
@@ -2583,6 +2805,13 @@ async function enviarWhatsApp() {
             </label>
             <span class="switch-label">Faturar para cliente</span>
           </div>
+          <span
+            v-if="condicoesPendentes"
+            class="cond-pendente-indicator"
+            title="Clique em Salvar Condições antes de enviar"
+          >
+            ● condições não salvas
+          </span>
           <button
             class="btn btn-whatsapp btn-lg"
             :disabled="enviandoWhatsApp"
@@ -3757,6 +3986,179 @@ async function enviarWhatsApp() {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Seletor de condições de pagamento (Etapa 3) */
+.condicoes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.condicoes-head h3 {
+  margin: 0;
+}
+.condicoes-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.cond-status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.cond-status-pendente {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+.cond-status-salvo {
+  background: var(--success-bg, #ecfdf5);
+  border-color: var(--success, #16a34a);
+  color: var(--success-strong, #065f46);
+}
+.cond-status-vazio {
+  background: var(--border-light);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.cond-pendente-indicator {
+  font-size: 0.75rem;
+  color: #92400e;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cond-seletor {
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--card-bg);
+}
+.cond-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.cond-tab {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.cond-tab:hover {
+  border-color: var(--border-strong);
+}
+.cond-tab.active {
+  background: var(--success, #16a34a);
+  border-color: var(--success, #16a34a);
+  color: #fff;
+}
+.cond-linha {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.cond-faturar {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.cond-cartao-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.cond-cartao-row label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.cond-cartao-row select {
+  flex: 1;
+}
+.cond-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+}
+.cond-badge.badge-ok {
+  background: var(--success-bg, #ecfdf5);
+  border: 1px solid var(--success, #16a34a);
+  color: var(--success-strong, #065f46);
+}
+.cond-badge.badge-alerta {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+.cond-badge.badge-recusado {
+  background: var(--danger-soft, #fee2e2);
+  border: 1px solid var(--danger, #dc2626);
+  color: var(--danger, #b91c1c);
+}
+.cond-taxa-custo {
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+.cond-toggle {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+.cond-toggle-btn {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.cond-toggle-btn:hover {
+  border-color: var(--border-strong);
+}
+.cond-toggle-btn.active {
+  background: var(--success, #16a34a);
+  border-color: var(--success, #16a34a);
+  color: #fff;
+}
+.cond-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.cond-pix {
+  min-height: 2.5rem;
 }
 
 .switch-wrap {

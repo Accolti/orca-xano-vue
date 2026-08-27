@@ -1,10 +1,19 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
-import type { Material, Linha, Tipo, Nivel, Borda, ProdutoCatalogo } from '@/types/orcamento'
+import type {
+  Material,
+  Linha,
+  Tipo,
+  Nivel,
+  Borda,
+  ProdutoCatalogo,
+  TaxaBanco,
+} from '@/types/orcamento'
 
 const CACHE_MATERIAIS_KEY = 'orca_catalogo_materiais_cache'
 const CACHE_PRODUTOS_KEY = 'orca_catalogo_produtos_cache'
+const CACHE_TAXAS_KEY = 'orca_taxas_banco_cache'
 
 interface CatalogoMateriaisCache {
   versao: number
@@ -18,6 +27,11 @@ interface CatalogoMateriaisCache {
 interface CatalogoProdutosCache {
   versao: number
   produtos: ProdutoCatalogo[]
+}
+
+interface TaxasBancoCache {
+  versao: number
+  taxas: TaxaBanco[]
 }
 
 export interface SucFiltrado {
@@ -35,12 +49,15 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   const allNiveis = ref<Nivel[]>([])
   const allBordas = ref<Borda[]>([])
   const allProdutos = ref<ProdutoCatalogo[]>([])
+  const taxasBanco = ref<TaxaBanco[]>([])
 
   const loading = ref(false)
   const loaded = ref(false)
+  const taxasLoaded = ref(false)
 
   const versaoMateriais = ref<number | null>(null)
   const versaoProdutos = ref<number | null>(null)
+  const versaoTaxasBanco = ref<number | null>(null)
 
   const selectedMaterialId = ref<number | null>(null)
 
@@ -75,7 +92,8 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   const versaoLabel = computed(() => {
     const m = versaoMateriais.value ?? '?'
     const p = versaoProdutos.value ?? '?'
-    return `M${m}P${p}`
+    const t = versaoTaxasBanco.value ?? '?'
+    return `M${m}P${p}T${t}`
   })
 
   const materiais = computed(() =>
@@ -117,6 +135,10 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     return lerCache(CACHE_PRODUTOS_KEY) as CatalogoProdutosCache | null
   }
 
+  function lerCacheTaxas(): TaxasBancoCache | null {
+    return lerCache(CACHE_TAXAS_KEY) as TaxasBancoCache | null
+  }
+
   function salvarCacheMateriais(versao: number) {
     try {
       const cache: CatalogoMateriaisCache = {
@@ -145,8 +167,21 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     }
   }
 
+  function salvarCacheTaxas(versao: number) {
+    try {
+      const cache: TaxasBancoCache = {
+        versao,
+        taxas: taxasBanco.value,
+      }
+      localStorage.setItem(CACHE_TAXAS_KEY, JSON.stringify(cache))
+    } catch {
+      /* localStorage cheio ou desabilitado — ignorar */
+    }
+  }
+
   function resetarSessao() {
     loaded.value = false
+    taxasLoaded.value = false
     selectedMaterialId.value = null
   }
 
@@ -156,6 +191,29 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     const cfg = configBody?.['configuracoes-mae']?.[0] ?? {}
     versaoMateriais.value = (cfg.versao_materiais as number) ?? null
     versaoProdutos.value = (cfg.versao_produtos as number) ?? null
+    versaoTaxasBanco.value = (cfg.versao_taxas_banco as number) ?? null
+  }
+
+  // Descida das taxas de banco com cache por versão (mesmo padrão do catálogo).
+  async function fetchTaxasBanco() {
+    if (taxasLoaded.value) return
+
+    if (versaoTaxasBanco.value == null) {
+      await carregarConfiguracoes()
+    }
+    const versaoT = versaoTaxasBanco.value ?? 0
+
+    const cached = lerCacheTaxas()
+    if (cached && cached.versao === versaoT) {
+      taxasBanco.value = cached.taxas ?? []
+    } else {
+      const resp = await xano.get('/api:-qqRIakp/taxas_banco')
+      const body = (resp.getBody() as TaxaBanco[]) ?? []
+      taxasBanco.value = body.filter((t) => t.ativo !== false)
+      salvarCacheTaxas(versaoT)
+    }
+
+    taxasLoaded.value = true
   }
 
   async function fetchCatalogo() {
@@ -225,10 +283,13 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     allNiveis,
     allBordas,
     allProdutos,
+    taxasBanco,
     loading,
     loaded,
+    taxasLoaded,
     versaoMateriais,
     versaoProdutos,
+    versaoTaxasBanco,
     versaoLabel,
     selectedMaterialId,
     sucFiltrado,
@@ -239,6 +300,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     bordasFiltradas,
     carregarConfiguracoes,
     fetchCatalogo,
+    fetchTaxasBanco,
     filtrarSuc,
     resetarSessao,
   }

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import type { SimulacaoItem } from '@/types/orcamento'
 import { rotuloMargem } from '@/utils/simulacao'
+import { calcularCondicoesPagamento } from '@/utils/condicoesPagamento'
 
 const props = defineProps<{
   modelValue: boolean
@@ -37,42 +38,11 @@ function calcularOpcoesPagamento(
   valorCusto: number,
   bfaturar: boolean,
 ): string {
-  const entradaPrazo = 5
-  const intervaloParcelas = 30
-
-  const primeiraParcelaPix = valorVenda / 2
-  const segundaParcelaPix = valorVenda / 2
-  const pixString = `Pix (2x) R$ ${primeiraParcelaPix.toFixed(2)} 1ª. em ${entradaPrazo}dd do pedido e 2ª em ${entradaPrazo + intervaloParcelas}dd`
-
-  const metadeCusto = valorCusto / 2
-  const numeroParcelas = Math.floor(valorVenda / metadeCusto) || 1
-  const valorParcelas = valorVenda / numeroParcelas
-
-  let prazos = `1ª. em ${entradaPrazo}dd do pedido e demais em `
-  for (let i = 1; i < numeroParcelas; i++) {
-    const prazoAtual = entradaPrazo + i * intervaloParcelas
-    prazos += `${prazoAtual}dd`
-    if (i < numeroParcelas - 1) prazos += '/'
-  }
-
-  const boletoString = `boleto (${numeroParcelas}x) R$ ${valorParcelas.toFixed(2)} ${prazos}`
-
-  let faturadoString = ''
-  if (bfaturar) {
-    const numeroParcelasFaturamento = Math.floor(valorVenda / valorCusto) || 1
-    const valorParcelasFaturamento = valorVenda / numeroParcelasFaturamento
-
-    let prazosFaturamento = 'em '
-    for (let i = 0; i < numeroParcelasFaturamento; i++) {
-      const prazoFaturamento = 20 + i * 30
-      prazosFaturamento += `${prazoFaturamento}dd`
-      if (i < numeroParcelasFaturamento - 1) prazosFaturamento += ', '
-    }
-
-    faturadoString = `\nFaturado: (${numeroParcelasFaturamento}x) R$ ${valorParcelasFaturamento.toFixed(2)} ${prazosFaturamento}`
-  }
-
-  return `${pixString}\n${boletoString}${faturadoString}`
+  return calcularCondicoesPagamento({
+    valorVenda,
+    valorCusto,
+    faturar: bfaturar,
+  }).texto
 }
 
 const opcoesPagamento = computed(() => {

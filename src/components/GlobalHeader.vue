@@ -63,7 +63,7 @@ onBeforeUnmount(() => {
       <div class="versao-wrap">
         <button
           class="versao-badge"
-          :title="`Versões: Materiais ${catalogoStore.versaoMateriais ?? '?'} · Produtos ${catalogoStore.versaoProdutos ?? '?'}`"
+          :title="`Versões: Materiais ${catalogoStore.versaoMateriais ?? '?'} · Produtos ${catalogoStore.versaoProdutos ?? '?'} · Taxas ${catalogoStore.versaoTaxasBanco ?? '?'}`"
           aria-label="Versões do catálogo"
           @click.stop="toggleVersaoMenu"
         >
@@ -79,6 +79,10 @@ onBeforeUnmount(() => {
             <div class="versao-row">
               <span>Versão Produtos</span>
               <strong>{{ catalogoStore.versaoProdutos ?? '—' }}</strong>
+            </div>
+            <div class="versao-row">
+              <span>Versão Taxas Bancárias</span>
+              <strong>{{ catalogoStore.versaoTaxasBanco ?? '—' }}</strong>
             </div>
           </div>
         </Transition>

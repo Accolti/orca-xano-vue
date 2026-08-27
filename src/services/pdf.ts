@@ -3,6 +3,7 @@ import * as pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
+import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import logoOrca from '@/assets/logo.png?inline'
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
 
@@ -20,8 +21,6 @@ export const PRAZOS_ORCAMENTO = {
   frete: 'Gratuito para Sorocaba e região',
   garantia: '1 ano de fábrica contra defeitos de fabricação',
 }
-
-const TEXTO_FATURAR = 'Faturamos com até 20 dias da entrega do produto'
 
 export function formatarMoeda(valor: number): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -100,40 +99,24 @@ export function nomeArquivoOrcamento(header: any, cliente?: Cliente | null): str
   return `${base}_.pdf`
 }
 
-// Port do JS de condições de pagamento (Pix 2x fixas + Boleto parcelado).
+// Condições de pagamento (Pix 2x + Boleto parcelado + Cartão com gross-up).
+// Delega ao módulo unificado; mantém a assinatura antiga retornando o texto final.
 export function calcularCondicoesPagamento(
   valorVenda: number,
   valorCusto: number,
   faturar = false,
-) {
-  const venda = Number(valorVenda) || 0
-  const custo = Number(valorCusto) || 0
-  const entradaPrazo = 5
-  const intervaloParcelas = 30
-
-  const primeiraParcelaPix = venda / 2
-  const segundaParcelaPix = venda / 2
-  const pixString = `Pix (2x de ${formatarMoeda(primeiraParcelaPix)}): 1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias.`
-
-  const metadeCusto = custo / 2
-  const numeroParcelas = Math.max(1, Math.floor(venda / metadeCusto))
-  const valorParcelas = venda / numeroParcelas
-
-  let prazos = `${entradaPrazo} dias do pedido`
-  const prazosRestantes: string[] = []
-  for (let i = 1; i < numeroParcelas; i++) {
-    prazosRestantes.push(String(entradaPrazo + i * intervaloParcelas))
-  }
-  if (numeroParcelas > 1) {
-    prazos += `; demais em ${prazosRestantes.join(' e ')} dias`
-  }
-  const boletoString = `Boleto (${numeroParcelas}x de ${formatarMoeda(valorParcelas)}): 1ª parcela em ${prazos}.`
-
-  const linhas = [pixString, boletoString]
-  if (faturar) {
-    linhas.push(TEXTO_FATURAR)
-  }
-  return linhas.join('\n')
+  tabelaTaxasCartao?: any[],
+  repassarTaxasCartao = true,
+  descontoPixPercentual = 0,
+): string {
+  return calcularCondicoesUnificado({
+    valorVenda,
+    valorCusto,
+    faturar,
+    tabelaTaxasCartao: tabelaTaxasCartao as any,
+    repassarTaxasCartao,
+    descontoPixPercentual,
+  }).texto
 }
 
 // Condições salvas no orçamento ou calculadas (fallback).
