@@ -60,6 +60,16 @@ const router = createRouter({
       name: 'dev-fatores',
       component: () => import('../views/DevFatoresView.vue'),
     },
+    {
+      path: '/dev/materiais',
+      name: 'dev-materiais',
+      component: () => import('../views/DevMateriaisView.vue'),
+    },
+    {
+      path: '/dev/configuracoes',
+      name: 'dev-configuracoes',
+      component: () => import('../views/DevConfiguracoesView.vue'),
+    },
   ],
 })
 
@@ -76,7 +86,13 @@ router.beforeEach((to) => {
   }
 
   // Ferramentas dev: acessíveis apenas em desenvolvimento
-  if ((to.name === 'dev-produtos' || to.name === 'dev-fatores') && !import.meta.env.DEV) {
+  if (
+    (to.name === 'dev-produtos' ||
+      to.name === 'dev-fatores' ||
+      to.name === 'dev-materiais' ||
+      to.name === 'dev-configuracoes') &&
+    !import.meta.env.DEV
+  ) {
     return { name: 'home' }
   }
 })

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
+import DevNav from '@/components/DevNav.vue'
 
 interface VariacaoDev {
   id?: number | null
@@ -52,6 +53,12 @@ const termoBusca = ref('')
 const termoAplicado = ref('')
 const filtroAtivo = ref<'todos' | 'ativos' | 'inativos'>('todos')
 const salvando = ref(false)
+
+// Materiais completos (ativos + inativos) para o dropdown — o catálogo filtra ativos,
+// então produtos de materiais inativos não apareceriam no select.
+const materiaisCompletos = ref<{ id: number; nome: string; Ordenacao: number; ativo: boolean }[]>(
+  [],
+)
 
 const formOpen = ref(false)
 const editandoId = ref<number | null>(null)
@@ -127,6 +134,21 @@ async function carregarLista() {
     erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao listar produtos'
   } finally {
     loading.value = false
+  }
+}
+
+async function carregarMateriaisCompletos() {
+  if (materiaisCompletos.value.length) return
+  try {
+    const resp = await xano.get('/api:-qqRIakp/materiais_dev_lista')
+    materiaisCompletos.value = ((resp.getBody() as any[]) ?? []).map((m) => ({
+      id: m.id,
+      nome: m.nome || `#${m.id}`,
+      Ordenacao: m.Ordenacao ?? 0,
+      ativo: m.ativo !== false,
+    }))
+  } catch {
+    // fallback silencioso: catálogo ativo continua disponível
   }
 }
 
@@ -292,19 +314,18 @@ const niveisDoMaterial = computed(() =>
 
 onMounted(async () => {
   await catalogo.fetchCatalogo()
-  await carregarLista()
+  await Promise.all([carregarLista(), carregarMateriaisCompletos()])
 })
 </script>
 
 <template>
   <div class="dev-page">
+    <DevNav />
     <section class="card header-card">
       <div class="header-top">
         <h2>Dev — Cadastro de Produtos</h2>
         <div class="header-actions">
-          <RouterLink to="/dev/fatores" class="btn btn-outline btn-sm">
-            Fatores de Corte
-          </RouterLink>
+          <button class="btn btn-outline btn-sm" @click="carregarLista">Recarregar</button>
           <button class="btn btn-primary btn-sm" @click="abrirNovo">+ Novo Produto</button>
         </div>
       </div>
@@ -440,8 +461,12 @@ onMounted(async () => {
               <label>Material *</label>
               <select v-model="form.material_id">
                 <option :value="null">Selecione...</option>
-                <option v-for="m in catalogo.materiais" :key="m.id" :value="m.id">
-                  {{ m.nome }}
+                <option
+                  v-for="m in materiaisCompletos.length ? materiaisCompletos : catalogo.materiais"
+                  :key="m.id"
+                  :value="m.id"
+                >
+                  {{ m.nome }}{{ m.ativo === false ? ' (inativo)' : '' }}
                 </option>
               </select>
             </div>
@@ -474,7 +499,7 @@ onMounted(async () => {
                 </select>
               </div>
               <div class="field">
-                <label>Nível</label>
+                <label>Nível-T</label>
                 <select v-model="form.nivel_id">
                   <option :value="null">—</option>
                   <option v-for="n in niveisDoMaterial" :key="n.id" :value="n.id">

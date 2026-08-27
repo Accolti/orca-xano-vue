@@ -1,5 +1,7 @@
 # Orca Xano Vue — Agent Guide
 
+> **Regra do usuário (2026-08)**: **NÃO fazer `git commit` nem `git push`** — essas ações ficam sempre com o usuário. Implementar/corrigir e deixar as mudanças prontas no working tree, com resumo claro, para o usuário decidir quando commitar/pushar.
+
 ## Dev commands
 
 | Command | What |

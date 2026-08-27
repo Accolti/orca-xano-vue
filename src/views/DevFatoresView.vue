@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
+import DevNav from '@/components/DevNav.vue'
 
 interface FatorDev {
   id: number
@@ -59,7 +60,7 @@ const formAssoc = ref<AssociacaoDev>({
   borda_id: null,
 })
 
-const materiais = computed(() => catalogo.materiais)
+const materiais = ref<{ id: number; nome: string; ativo: boolean }[]>([])
 const linhasDoMaterial = computed(() =>
   catalogo.allLinhas.filter((l) => l.material_id === formAssoc.value.material_id),
 )
@@ -68,6 +69,24 @@ const bordasDoMaterial = computed(() =>
     (b) => b.material_id === formAssoc.value.material_id && b.ativo !== false,
   ),
 )
+
+async function carregarMateriais() {
+  if (materiais.value.length) return
+  try {
+    const resp = await xano.get('/api:-qqRIakp/materiais_dev_lista')
+    materiais.value = ((resp.getBody() as any[]) ?? []).map((m) => ({
+      id: m.id,
+      nome: m.nome || `#${m.id}`,
+      ativo: m.ativo !== false,
+    }))
+  } catch {
+    materiais.value = catalogo.materiais as unknown as {
+      id: number
+      nome: string
+      ativo: boolean
+    }[]
+  }
+}
 
 async function carregar() {
   loading.value = true
@@ -214,17 +233,17 @@ async function excluirAssoc(a: AssociacaoDev) {
 
 onMounted(async () => {
   await catalogo.fetchCatalogo()
-  await carregar()
+  await Promise.all([carregar(), carregarMateriais()])
 })
 </script>
 
 <template>
   <div class="dev-page">
+    <DevNav />
     <section class="card header-card">
       <div class="header-top">
         <h2>Dev — Fatores de Corte</h2>
         <div class="header-actions">
-          <RouterLink to="/dev/produtos" class="btn btn-outline btn-sm">Produtos</RouterLink>
           <button class="btn btn-outline btn-sm" @click="carregar">Recarregar</button>
           <button class="btn btn-primary btn-sm" @click="abrirNovoFator">+ Novo Fator</button>
         </div>
@@ -456,7 +475,9 @@ onMounted(async () => {
               <label>Material *</label>
               <select v-model="formAssoc.material_id">
                 <option :value="null">Selecione...</option>
-                <option v-for="m in materiais" :key="m.id" :value="m.id">{{ m.nome }}</option>
+                <option v-for="m in materiais" :key="m.id" :value="m.id">
+                  {{ m.nome }}{{ m.ativo === false ? ' (inativo)' : '' }}
+                </option>
               </select>
             </div>
             <div class="field">
