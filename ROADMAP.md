@@ -28,10 +28,10 @@ Status: **decisão tomada** — hoje = escolha de destino local; upload/link = f
 
 ## 💳 Frente 2 — Parametrização de Condições de Pagamento
 
-Status: registrada (implementação futura)
+Status: **parcialmente feito** (seletor de instituição ⭐, checkboxes Pix/Boleto/Cartão, desconto Pix com impacto em lucro/margem, mesclagem de métodos + "trazer todas as parcelas", repasse da taxa cartão — `src/utils/condicoesPagamento.ts`/`taxasBanco.ts`). Falta: tela admin central de métodos + parametrização no perfil.
 
 - [ ] Tela admin: lista central de métodos (Pix/Dinheiro, Boleto, Cartão, Faturamento Direto) com toggles ON/OFF
-- [ ] Regras por método: desconto incentivo Pix, parcela mínima boleto, máx. parcelas sem juros cartão + repasse taxa, prazos fixos por perfil + valor mínimo faturamento direto
+- [ ] Regras por método: **desconto incentivo Pix** (✅ já no front, falta parametrizar), parcela mínima boleto, máx. parcelas sem juros cartão + **repasse taxa** (✅ já no front), prazos fixos por perfil + valor mínimo faturamento direto
 - [ ] Trava do Custo de Fábrica: Max Parcelas = floor(V_venda ÷ P_fabrica), P_fabrica = C_fabrica ÷ N_fabrica
 - [ ] Trava no front (dropdown de parcelas limitado + aviso)
 - [ ] Simulador em tempo real no painel de config ("Liberado em até 4x no boleto")

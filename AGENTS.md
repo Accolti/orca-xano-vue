@@ -25,9 +25,9 @@
 ## Architecture
 
 - `src/main.ts` — bootstrap: global CSS, Pinia, router, mount
-- `src/router/index.ts` — routes: `/` (HomeView, eager), `/about` (AboutView, lazy)
+- `src/router/index.ts` — routes: `/` (HomeView, eager), `/clientes`, `/orcamentos` (lista), `/pedidos`, `/orcamentos/novo` e `/orcamentos/:codOrca` (OrcamentosView), `/login`, `/signup`, `/oauth/callback` e dev tools `/dev/produtos|/dev/fatores|/dev/materiais|/dev/configuracoes` (lazy, só em DEV)
 - `src/services/xano.ts` — singleton `XanoClient` do `@xano/js-sdk`, configurado via `VITE_XANO_BASE_URL`. Expõe um **wrapper** (`get/post/put/patch/delete/setAuthToken`) que detecta `XanoRequestError` com status **401** e dispara o handler global `onUnauthorized` (registrado em `main.ts`). O handler faz `logout()` + redireciona para `/login?expired=1` (ignora rotas guest). `unauthorizedFired` guarda múltiplos 401 em paralelo e é resetado quando um novo token é definido.
-- `src/stores/catalogo.ts` — `useCatalogoStore`: árvore completa Material/Linha/Tipo/Nivel/Borda, cache localStorage por versão via `/configuracoes`, loaded flag de sessão
+- `src/stores/catalogo.ts` — `useCatalogoStore`: árvore completa Material/Linha/Tipo/Nivel/Borda + **taxas de banco** (`taxasBanco`, cache por versão), cache localStorage por versão via `/configuracoes`, loaded flag de sessão
 - `src/stores/counter.ts` — scaffold example store (not used by any view)
 - `.env` contains `VITE_XANO_BASE_URL` (committed — override via `.env.local` for production)
 - `src/views/HomeView.vue` fetches from Xano endpoint `/api:-qqRIakp/cliente_user` on mount
@@ -36,33 +36,35 @@
 
 ## Catálogo de Produtos
 
-`src/stores/catalogo.ts` — store responsável por fornecer a árvore completa de materiais, linhas, tipos, níveis e bordas em uma única chamada de API, com cache persistente por versão.
+`src/stores/catalogo.ts` — store responsável por fornecer a árvore completa de materiais, linhas, tipos, níveis e bordas em uma única chamada de API, com cache persistente por versão. Também carrega as **taxas de banco** (`fetchTaxasBanco()`), usadas no cálculo das condições de pagamento.
 
 ### APIs consumidas
 
-- `GET /configuracoes` → `{ configuracoes-mae: [{ versao_materiais: N, versao_produtos: M }] }` — chamada leve (~200 bytes)
+- `GET /configuracoes` → `{ configuracoes-mae: [{ versao_materiais: N, versao_produtos: M, versao_taxas_banco: T }] }` — chamada leve (~200 bytes)
 - `GET /produtos_para_selecao` → `{ lista_para_selecao: { Material: { material }, Linha, Tipo, Nivel, Borda } }` — árvore de dropdowns
 - `GET /produtos_all` → array de produtos com `_variacao[]` (produtos mães, filhos e variações); input zerado traz tudo
+- `GET /taxas_banco` → array `[{ id, provedor_id, parcelas, cc_taxa, provedor, ativo }]` — taxas de cartão por instituição (cache `orca_taxas_banco_cache`, versionado por `versao_taxas_banco`)
 
 ### Ciclo de vida (`fetchCatalogo()`)
 
-As duas partes (árvore de materiais e produtos) têm caches **independentes** e são baixadas separadamente — só a API cuja versão mudou é chamada (numa primeira carga sem cache, as duas são chamadas).
+As três partes (árvore de materiais, produtos e taxas de banco) têm caches **independentes** e são baixadas separadamente — só a API cuja versão mudou é chamada (numa primeira carga sem cache, todas são chamadas).
 
 | Etapa | Descrição |
 |---|---|
 | `loaded` da sessão | Se `true`, retorna imediatamente (0 chamadas de API) |
-| `/configuracoes` | Busca `versao_materiais` **e** `versao_produtos` atuais no servidor (popula `versaoMateriais`/`versaoProdutos`/`versaoLabel`) |
+| `/configuracoes` | Busca `versao_materiais`, `versao_produtos` e `versao_taxas_banco` atuais no servidor (popula `versaoMateriais`/`versaoProdutos`/`versaoTaxasBanco`/`versaoLabel`) |
 | Cache materiais (`orca_catalogo_materiais_cache`) | Se `cache.versao === versao_materiais`, popula árvore do cache; senão baixa `/produtos_para_selecao` e salva |
 | Cache produtos (`orca_catalogo_produtos_cache`) | Se `cache.versao === versao_produtos`, popula produtos do cache; senão baixa `/produtos_all` e salva |
+| Cache taxas (`orca_taxas_banco_cache`) | `fetchTaxasBanco()` — se `cache.versao === versao_taxas_banco`, usa o cache; senão baixa `/taxas_banco` (filtra `ativo !== false`) e salva |
 | `loaded = true` | Marca sessão como carregada |
 
 ### Badge de versão no header
 
-`GlobalHeader` mostra `versaoLabel` (`M{versao_materiais}P{versao_produtos}`, ex. `M2P1`) como um badge clicável que abre um popover com os dois valores. Usa `catalogo.carregarConfiguracoes()` (só `/configuracoes`, sem baixar catálogo) no `onMounted`.
+`GlobalHeader` mostra `versaoLabel` (`M{versao_materiais}P{versao_produtos}T{versao_taxas_banco}`, ex. `M2P1T3`) como um badge clicável que abre um popover com os três valores (Materiais/Produtos/Taxas). Usa `catalogo.carregarConfiguracoes()` (só `/configuracoes`, sem baixar catálogo) no `onMounted`.
 
 ### Logout
 
-`authStore.logout()` chama `catalogo.resetarSessao()` — zera `loaded` + `selectedMaterialId`, forçando revalidação no próximo login.
+`authStore.logout()` chama `catalogo.resetarSessao()` — zera `loaded` + `selectedMaterialId` + `taxasLoaded`, forçando revalidação no próximo login.
 
 ### Login Google OAuth
 
@@ -164,7 +166,7 @@ Nova arquitetura de precificação no Xano (paralela às funções legadas — n
 - `Regime` ganhou campo `slug?` (`MEI`/`SIMPLES`/`LUCRO_REAL`/`LUCRO_PRESUMIDO`) — o `Precificar` resolve o regime pelo `regime_id` do usuário via lookup na tabela (sem mapeamento no frontend).
 - `Fator_de_Corte` ganhou campos `larg_base`, `comp_corte`, `tam_total` (largura base, fator de corte, tamanho total do rolo).
 - `Variacao` ganhou campos `fator_de_corte_id` (FK p/ Fator_de_Corte) e `ativo` (bool).
-- `item` ganhou campos `vlr_cst_nota` (MP×área/qtd + IPI + IMP + frete B2B — pago à Kapazi) e `vlr_cst_entrada` (vlr_cst_nota + DIFAL − crédito ICMS).
+- `item` ganhou campos `vlr_cst_nota` (MP×área/qtd + IPI + IMP + frete B2B — pago à Kapazi) e `vlr_cst_entrada` (vlr_cst_nota + DIFAL − crédito ICMS). `qtd` é **decimal** (metade fracionada de ML), `detalhes_calculo` (JSON, playkap/ml), `vlr_vnd_unit_bruto`, `com_medida_exata`/`porcentagem_acrescimo`, `fc`, `base_calculo`.
 
 ### Contrato de saída por item (unificado)
 
@@ -192,6 +194,26 @@ O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orq
 - **ML usa `f_fator_corte_variacao`**: para ML, o orquestrador chama a função `f_fator_corte_variacao(variacao_id)` que cruza `Variacao` com `Fator_de_Corte` (via `fator_de_corte_id`) e devolve `larg_base` (→ `largura_fixa`), `comp_corte` (→ `fator_corte`), `tam_rolo_total` (→ `tam_rolo`). Se a variação estiver inativa (`ativo=false`) ou sem FC, lança `Variação desativada.`
 - **Lógica ML exata = `f_Valor_Custo_ML`**: paginação inteligente (2 sentidos), conversão M2→ML, fator de corte, rolos/metros fracionados — incorporada no lambda do orquestrador.
 - **`inserirOrcamento()`** envia `vlr_cst_nota`/`vlr_cst_entrada` (do `resultadoNovo.itens[0]`) → `post_item` grava na tabela `item`.
+- **ML grava `detalhes_calculo.ml`**: `f_valor_custo_ml` retorna `detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }` (antes `null`) → o orquestrador expõe (`f_orcamento_orquestrador.xs:409`) e o front envia em `inserirOrcamento` → `post_item` persiste. `composicaoML()`/`composicaoItem()` no `pdf.ts` e cópia na view exibem **rolos/metros fracionados/orientação** na tabela de itens, WhatsApp e PDFs. Ex.: `5 m fracionado — Passar a faixa no sentido do comprimento (3 m)`; com rolos, o total entra na frente (`32,5 m — 3 rolo(s) — 2,5 m fracionado`). **Atenção (lição)**: ML também retorna `detalhes_calculo` no `$mod1` — manter os outros ramos do switch (M2/UND/KIT) com `null`.
+
+### Quantidade decimal (`qtd`)
+
+A coluna `item.qtd` (e o input `quantidade` dos endpoints/funções de cálculo) mudou de **`int` para `decimal`** — itens ML (metros lineares fracionados, ex. `12.5`) persistem sem truncar. Pontos alterados no backend: `table/item.xs`, inputs de `OrcamentoItem_Inserir`/`Atualizar`, `orcamento_calcular`, `f_Orcamento_Orquestrador`, `f_valor_custo_m2`/`_und`, `Orcamento_Orquestrador`. Front: `OrcamentoInsertPayload.qtd` é `number` (não mais `String(...)` no payload), input Quantidade com `step="0.01"`. `qtdCantos` (PLAYKAP) continua `step="1"`.
+
+### Duplicar orçamento
+
+- Backend: `POST /orcamento_duplicar` → `Orcamento/f_DuplicaOrcamento` copia a **Orca** (fretes, validade, margens, `markup_alvo/efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`) e os **itens** com todos os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc` — abrindo o duplicado **em modo edição** para ajustar itens/bordas/qtd/dimensões.
+- Front: `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ **CamelCase no path**, como `OrcamentoItem_Inserir` — Xano é case-sensitive na URL; `orcamento_duplicar` minúsculo dava 404). Botão "Duplicar" (ícone copy) na listagem de orçamentos (desktop + mobile) → navega para `/orcamentos/{novoCod}`.
+
+### Condições de Pagamento (seletor avançado)
+
+`src/utils/condicoesPagamento.ts` + `src/utils/taxasBanco.ts` (+ `OrcamentosView.vue`):
+
+- **Instituição**: cada opção de cartão mostra o `provedor`; se há >1 instituição na tabela, aparece um seletor de provedor (`provedorSelecionado`). A melhor opção por nº de parcelas (menor custo p/ cliente) ganha ⭐ (`opcoesMaisVantajosas`).
+- **Checkboxes Pix/Boleto/Cartão** (`metodosPagamento`) ditam o que entra no texto do "Gerar Condições" (todas marcadas por padrão).
+- **Desconto Pix (%)** (`descontoPixPercentual`): reduz a venda e retorna o impacto em **lucro/margem** (`pixImpacto`), exibido na aba Pix.
+- **Mesclagem**: checkbox `mesclarMetodos` combina os métodos marcados na saída; com cartão e uma parcela escolhida (`cartaoSelecionado` por chave `provedor_id|parcelas`), entra **só a parcela selecionada**, a menos do checkbox `trazerTodasParcelas`.
+- Persistência inalterada: `condicoes_pagamento` salvo via `orcamento_recalcular`; `SimulacaoModal` usa o mesmo módulo com defaults.
 
 ### Pendências
 
@@ -212,9 +234,11 @@ O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orq
 
 - **Sempre avaliar TODOS os ramos de um `switch`/dispatcher antes de alterar o contrato de saída.**
   Erro: adicionei `com_medida_exata`/`acrescimo_medida_exata` ao response de `f_valor_custo_m2` e `f_valor_custo_ml`, mas `f_Orcamento_Orquestrador` lê `$mod1.com_medida_exata`/`$mod1.acrescimo_medida_exata` para **todas** as bases de cálculo (`switch` M2/ML/UND/KIT → `$mod1`). `f_valor_custo_und` e `f_valor_custo_kit` não retornam esses campos → `ERROR_FATAL: Unable to locate var: mod1.com_medida_exata` ao precificar UND/KIT. **Regra**: quando o orquestrador (ou qualquer função com dispatch por `Base_de_Calculo`) consumir `$mod1.<campo>`, TODAS as funções de cálculo (M2, ML, UND, KIT) devem retornar esse campo — mesmo que `false`/`0`/`null`. Antes de dar push, conferir cada branch do switch.
-  **Recorreu (2ª vez)**: ao adicionar `detalhes_calculo` ao response do orquestrador (para o PLAYKAP/COMPOSTO), só o `f_valor_custo_playkap` retornava o campo → M2 quebrou com `Unable to locate var: mod1.detalhes_calculo`. Correção: M2/ML/UND/KIT retornam `detalhes_calculo: null`. **Sempre conferir TODOS os ramos do switch (agora 5: M2/ML/UND/KIT/COMPOSTO) ao tocar o contrato de saída `$mod1`.**
+  **Recorreu (2ª vez)**: ao adicionar `detalhes_calculo` ao response do orquestrador (para o PLAYKAP/COMPOSTO), só o `f_valor_custo_playkap` retornava o campo → M2 quebrou com `Unable to locate var: mod1.detalhes_calculo`. Correção: M2/ML/UND/KIT retornam `detalhes_calculo` (M2/UND/KIT: `null`; **ML passou a retornar `{ ml: {...} }`**). **Sempre conferir TODOS os ramos do switch (agora 5: M2/ML/UND/KIT/COMPOSTO) ao tocar o contrato de saída `$mod1`.**
 - **Enum `status` não pode ir no `output` de `db.query` paginado** (`orca_por_cliente_busca` — erro `xdo.orca.cod_orca`). O status vem do endpoint auxiliar `orcamento_status_lista` (db.query simples) e é mesclado por `id` no frontend.
 - **Referência de tabela base em `db.query` com join deve ser maiúscula** (`$db.Orca.cod_orca`, `sort = {Orca.created_at: "desc"}`); minúscula (`$db.orca.cod_orca`, `{orca.created_at: ...}`) quebra com `xdo.orca.*`.
+- **URLs da API são case-sensitive no Xano**: o path segue o nome da query exatamente (`Orcamento_Duplicar`, `OrcamentoItem_Inserir`, `CalculoValorVenda_IDs`). Chamar `orcamento_duplicar` minúsculo (quando a query é `Orcamento_Duplicar`) dá **404**. Sempre conferir o case do nome da query antes de chamar no front.
+- **Eval de `Descricao` com `concat` quebra se usarmos `first_notnull`/parênteses no argumento**: `concat:($db.X.nome|first_notnull:"")` não é aceito pelo XanoScript em `eval` → endpoint 500. Manter o `concat` simples e blindar a descrição no **frontend** (fallback `item.Descricao || item.descricao`).
 
 ## Conventions
 

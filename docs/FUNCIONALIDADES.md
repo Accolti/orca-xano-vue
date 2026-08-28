@@ -51,7 +51,7 @@ O **frete B2B não é editável** (Kapazi automático sobre o somatório). Remov
 - PDF/WhatsApp — totais: **Subtotal = Σ (bruto × qtd) da tabela**; **Total Geral = Subtotal − Desconto + Frete B2C + Mão de Obra**. Medidas sanitizadas sem `$` (`valorNumericoLimpo`). Endereço do rodapé no padrão "Rua, nº X - Bairro - Cidade/UF - CEP: XXXXX-XXX".
 - WhatsApp: botão na tela finalizada e na listagem; mensagem montada no frontend (`montarTextoWhatsApp`) com emojis (📋📌↳💳📝📎), negrito nativo `*...*`, condições de pagamento (campo salvo ou fallback), "Frete: R$ X"/"Frete: Grátis" (sem B2C), linhas de Desconto/Frete/Mão de Obra só quando > 0 (Frete sempre presente); telefone do cliente com `tipo_telefone_id == 1` (addon `Telefone_Cliente_of_Cliente` no `orca_detalhes`).
 - WhatsApp **copiar + colar** (`copiarEabrirWhatsApp` em `pdf.ts`): o `wa.me?text=` perde emojis de 4 bytes (📋📌💳📝📎 → ``) em alguns clientes (o ↳, 3 bytes, renderiza). Solução: **Web Share API SÓ em mobile** (`ehDispositivoMovel()` + `navigator.share`, texto nativo); **desktop**: copia a mensagem (`navigator.clipboard` com fallback `execCommand('copy')`) e abre `wa.me/<numero>` **sem** texto — o `navigator.share` no desktop abriria a caixa do SO sem WhatsApp; toast temporário avisa "cole na conversa (Ctrl+V)". Fallback: se não copiar, abre com o texto na URL. Retorno: `'shared' | 'copied' | 'failed'`.
-- WhatsApp itens: `descricao.trim()` (o `concat` do backend deixa espaços finais que quebram o negrito `*...*` do WhatsApp a partir do item 4); item em 2 linhas (📌 nome / • métricas) com **linha em branco entre itens**.
+- WhatsApp itens: `descricao.trim()` (o `concat` do backend deixa espaços finais que quebram o negrito `*...*` do WhatsApp a partir do item 4); item em até 3 linhas (📌 nome (medidas) / **observação do vendedor** (ex.: "Porta Principal", quando `item.descricao` preenchida e a `Descricao` concatenada existe) / • métricas) com **linha em branco entre itens**. A composição PLAYKAP/ML (`composicaoItem`) entra após o nome (`nome — composição`).
 
 ## Fluxo de status
 
@@ -157,6 +157,11 @@ O fator de corte é definido pelo fornecedor (Kapazi) e varia por produto/linha/
 
 ML/UND/KIT continuam usando o `fator_de_corte_id` da **Variação** (via `f_fator_corte_variacao`). No front do orçamento, o usuário entra com Largura × Comprimento e vê **Largura FC / Comprimento FC / Área Faturada** (readonly) — para passo, já saem múltiplos do passo.
 
+## Dev Tools (Configurações / versões)
+
+- **`DevConfiguracoesView.vue`** (`/dev/configuracoes`) — lista a tabela `Configuracoes` e permite **bump de versão** (`+1`/`+5`) para **Materiais**, **Produtos** e **Taxas de banco** (`versao_taxas_banco`, desta sessão). Ao incrementar, limpa o cache correspondente do localStorage (`orca_catalogo_materiais_cache`/`orca_catalogo_produtos_cache`/`orca_taxas_banco_cache`).
+- **`DevMateriaisView.vue`** (`/dev/materiais`) — lista/edita materiais (nome, ordem, ativo) com toggle de ativo.
+
 ## Produto composto (`Base_de_Calculo = COMPOSTO`)
 
 Conceito genérico de **produto composto de outros itens** (diferente de **KIT**, que é venda em caixa — ex.: Waterkap 6 peças). O produto `COMPOSTO` tem uma **regra de composição** (`Produto.tipo_composto`, ex.: `"playkap"`) e os **componentes** como `Variacao` do produto (via `detalhe_id`).
@@ -182,4 +187,33 @@ Vendido por M²; composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e 
 **Integração**
 - **`orcamento_calcular`** aceita `rampa_larg1/comp1/larg2/comp2` + `qtd_cantos`.
 - **Front** (`OrcamentosView`): quando `COMPOSTO` + `tipo_composto='playkap'`, mostra Peça (Área ou Larg×Comp) + **4 checkboxes de rampa** + Cantoneiras (0-4).
-- **`item.detalhes_calculo`** gravado via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`, exposto em `orca_detalhes`/`Orcamento_Recalcular_Totais`. Também serve para detalhes do **ML** no futuro.
+- **`item.detalhes_calculo`** gravado via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`, exposto em `orca_detalhes`/`Orcamento_Recalcular_Totais`. Também serve para detalhes do **ML** (ver seção abaixo).
+
+## Quantidade decimal (`qtd`)
+
+- A coluna `item.qtd` e o input `quantidade` das funções/endpoints de cálculo mudaram de **`int` para `decimal`** — itens ML (metros lineares fracionados, ex. `12.5 m`) e M2/UND persistem sem truncar.
+- Backend: `table/item.xs` (`decimal qtd?`), inputs `OrcamentoItem_Inserir`/`Atualizar`, `orcamento_calcular`, `f_Orcamento_Orquestrador`, `f_valor_custo_m2`/`_und`, `Orcamento_Orquestrador`.
+- Front: `OrcamentoInsertPayload.qtd` é `number` (payload sem `String(...)`), input Quantidade com `step="0.01"` (M2/UND); `qtdCantos` (PLAYKAP) continua `step="1"`.
+- Subtotais de exibição já usam `Number(item.qtd)` — nada a arredondar no front (totais vêm do backend com `toFixed`).
+
+## Duplicar orçamento
+
+- Backend **`POST /orcamento_duplicar`** → `Orcamento/f_DuplicaOrcamento`: duplica a Orca (fretes, validade, margens, `markup_alvo`/`markup_efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`) e os itens com **todos** os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc`.
+- Front: botão **"Duplicar"** (ícone copy) na listagem de orçamentos (desktop + mobile) → `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ CamelCase no path, Xano é case-sensitive) → navega para o novo orçamento **em modo edição** (para ajustar itens/bordas/qtd/dimensões).
+
+## Detalhes do cálculo ML (`detalhes_calculo.ml`)
+
+- `f_valor_custo_ml` agora retorna **`detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }`** (antes `null`) → persiste no item via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`.
+- Front (`pdf.ts` `composicaoML`/`composicaoItem` + cópia em `OrcamentosView`): exibe na tabela de itens, WhatsApp e PDFs.
+  - Sem rolos: `5 m fracionado — Passar a faixa no sentido do comprimento (3 m)` (total omitido).
+  - Com rolos: `32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>` (total na frente).
+
+## Condições de Pagamento (seletor avançado)
+
+`src/utils/condicoesPagamento.ts` + `src/utils/taxasBanco.ts` (+ `OrcamentosView.vue`), alimentadas por `catalogo.taxasBanco` (`GET /taxas_banco`, cache por `versao_taxas_banco`):
+
+- **Instituição**: as opções de cartão mostram o `provedor`; com >1 instituição na tabela surge o seletor `provedorSelecionado`. A opção mais vantajosa por nº de parcelas (menor custo p/ o cliente) ganha **⭐** (`opcoesMaisVantajosas`).
+- **Checkboxes Pix/Boleto/Cartão** (`metodosPagamento`, todas marcadas por padrão): só os métodos marcados entram no texto do "Gerar Condições".
+- **Desconto Pix (%)** (`descontoPixPercentual`): reduz a venda do Pix e mostra o impacto em **lucro e margem** (`pixImpacto`) na aba Pix.
+- **Mesclagem**: checkbox `mesclarMetodos` combina os métodos na saída; com cartão e parcela escolhida (`cartaoSelecionado`, chave `provedor_id|parcelas`) entra **só essa parcela**, salvo o checkbox `trazerTodasParcelas`.
+- Persistência inalterada: texto salvo em `condicoes_pagamento` via `orcamento_recalcular`; `SimulacaoModal` usa o mesmo módulo com defaults.

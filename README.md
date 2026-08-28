@@ -30,10 +30,14 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Recálculo em tempo real** — 4 mecanismos (Novo Vlr Venda B2B, Nova Margem, Novo Frete B2B, Novo Lcr Total)
 - **Simulação de margens** — gerada no front (faixa 50–100 passo 10, rótulos c5..c10), com olho 👁 para custo/lucro e condições de pagamento ao clicar na linha
 - **Edição de orçamento** — suporte a `/orcamentos/:codOrca` com modo read-only se vinculado
-- **Catálogo versionado** — cache localStorage com controle por versão (`versao_materiais` + `versao_produtos`) via `/configuracoes`; baixa produtos mães/filhos e variações (`/produtos_all`)
+- **Catálogo versionado** — cache localStorage com controle por versão (`versao_materiais` + `versao_produtos` + `versao_taxas_banco`) via `/configuracoes`; baixa produtos mães/filhos e variações (`/produtos_all`) e taxas de cartão (`/taxas_banco`)
 - **Variação** — listbox com `_variacao` do produto quando o produto tem `detalhe_id > 0`
-- **Versões no header** — badge `M2P1` com popover mostrando as versões (badge de versão no cabeçalho)
+- **Versões no header** — badge `M..P..T..` (ex.: `M2P1T3`) com popover mostrando as versões de materiais/produtos/taxas
 - **Nível inteligente** — a combo de Nível é derivada dos produtos reais ativos (`ativo` na tabela `Produto`) cruzando a seleção Material+Linha+Tipo; sem exceções hardcoded (Vinil+Liso some sozinho; Vinil Alto Tráfego Vulcanizado sem Nível 3)
+- **Duplicar orçamento** — botão na listagem (`POST /Orcamento_Duplicar`, case-sensitive) que abre o duplicado em modo edição
+- **Condições de pagamento** — seletor avançado (instituição + mais vantajosa ⭐, checkboxes Pix/Boleto/Cartão, desconto Pix com impacto em lucro/margem, mesclagem de métodos)
+- **Detalhes ML** — `detalhes_calculo.ml` gravado (rolos/metros/orientação) e exibido na tabela, WhatsApp e PDFs
+- **Quantidade decimal** — `item.qtd` aceita frações (ex.: metros lineares), input com `step="0.01"`
 
 ## Rotas
 
@@ -42,11 +46,13 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 | `/` | HomeView | Sim |
 | `/clientes` | ClientesView | Sim |
 | `/orcamentos` | OrcamentosListView (paginada) | Sim |
+| `/pedidos` | PedidosView | Sim |
 | `/orcamentos/novo` | OrcamentosView (criação) | Sim |
 | `/orcamentos/:codOrca` | OrcamentosView (edição) | Sim |
 | `/login` | LoginView | Não (redireciona se logado) |
 | `/signup` | SignupView | Não (redireciona se logado) |
-| `/about` | AboutView | Sim |
+| `/oauth/callback` | OAuthCallbackView | Não |
+| `/dev/*` | Dev tools (Produtos/Fatores/Materiais/Configurações) | Sim + DEV |
 
 ## Endpoints Xano
 
@@ -57,10 +63,13 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `POST` | `/auth/login` | Login |
 | `POST` | `/auth/signup` | Cadastro |
 | `GET` | `/auth/me` | Dados do usuário logado |
-| `GET` | `/configuracoes` | Versões atuais do catálogo (`versao_materiais` + `versao_produtos`, ~200 bytes) |
+| `GET` | `/configuracoes` | Versões atuais do catálogo (`versao_materiais` + `versao_produtos` + `versao_taxas_banco`, ~200 bytes) |
 | `GET` | `/produtos_para_selecao` | Catálogo para dropdowns (Material, Linha, Tipo, Nivel, Borda) |
 | `GET` | `/produtos_all` | Produtos mães, filhos e variações (`_variacao[]`) |
-| `GET` | `/CalculoValorVenda_IDs` | Cálculo de preços do item |
+| `GET` | `/taxas_banco` | Taxas de cartão por instituição (`provedor`, `parcelas`, `cc_taxa`) |
+| `POST` | `/orcamento_calcular` | Cálculo pelo orquestrador (novo fluxo) |
+| `POST` | `/Orcamento_Duplicar` | Duplicar orçamento (case-sensitive) |
+| `GET` | `/CalculoValorVenda_IDs` | Cálculo de preços do item (legado) |
 | `GET` | `/Calc_new_Valor_Venda` | Recálculo: novo valor venda → nova margem |
 | `GET` | `/Calc_new_Valor_Lucro` | Recálculo: novo lucro → nova margem |
 | `GET` | `/Novo_Numero_Orcamento` | Gerar número de orçamento |
