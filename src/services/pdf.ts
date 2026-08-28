@@ -39,6 +39,28 @@ export function composicaoPlaykap(item: any): string {
   return partes.join(' + ')
 }
 
+// Composição de venda por ML (detalhes_calculo.ml) — rolos/metros/orientação.
+// Ex.: "3 rolo(s) — 2,5 m fracionado — <orientação>"; com rolos, o total entra na frente:
+// "32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>". Sem rolos, só o fracionado.
+export function composicaoML(item: any): string {
+  const m = item?.detalhes_calculo?.ml
+  if (!m) return ''
+  const partes: string[] = []
+  const total = Number(m.totalMetrosLineares) || 0
+  const rolos = Number(m.rolosFechados) || 0
+  const frac = Number(m.metrosFracionados) || 0
+  if (rolos > 0 && total > 0) partes.push(`${total} m`)
+  if (rolos > 0) partes.push(`${rolos} rolo(s)`)
+  if (frac > 0) partes.push(`${frac} m fracionado`)
+  if (m.orientacaoIdeal) partes.push(m.orientacaoIdeal)
+  return partes.join(' — ')
+}
+
+// Composição combinada: PLAYKAP ou ML (a que existir no detalhes_calculo do item)
+export function composicaoItem(item: any): string {
+  return composicaoPlaykap(item) || composicaoML(item)
+}
+
 export function formatarDataHora(ts: number | string | undefined): string {
   if (!ts) return ''
   const d = new Date(ts)
@@ -238,13 +260,18 @@ export function montarTextoWhatsApp({
   const condicoes = obterCondicoes(header, faturar, condicoesPagamento)
 
   const linhasItens = (itens || []).map((item, i) => {
+    const temDescricaoCapital = Boolean((item.Descricao || '').trim())
     const descricao = (item.Descricao || item.descricao || '').trim()
-    const comp = composicaoPlaykap(item)
+    const comp = composicaoItem(item)
     const nome = comp ? `${descricao} — ${comp}` : descricao
     const medidas = formatarMedidas(item)
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
-    return `📌 *Item ${i + 1}: ${nome}* ${medidas}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
+    // Observação do vendedor (ex.: "porta da frete") entra como linha extra,
+    // igual ao PDF. Só quando a Descricao concatenada existe (senão é o fallback).
+    const obsItem = temDescricaoCapital ? (item.descricao || '').trim() : ''
+    const obsLinha = obsItem ? `\n${obsItem}` : ''
+    return `📌 *Item ${i + 1}: ${nome}* ${medidas}${obsLinha}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
   })
 
   const linhas: string[] = []
@@ -529,7 +556,7 @@ export async function gerarPdfOrcamento({
   ;(itens || []).forEach((item, i) => {
     const descricao = item.Descricao || item.descricao || ''
     const obsItem = item.descricao || ''
-    const comp = composicaoPlaykap(item)
+    const comp = composicaoItem(item)
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
     const zebra = i % 2 === 1 ? '#f7f9fb' : '#ffffff'
@@ -944,7 +971,7 @@ export async function gerarPdfPedidoVenda({
     body.push([
       { text: String(item.produto_id ?? ''), ...td },
       {
-        text: [item.Descricao || item.descricao || '', composicaoPlaykap(item)]
+        text: [item.Descricao || item.descricao || '', composicaoItem(item)]
           .filter(Boolean)
           .join('  ·  '),
         ...td,

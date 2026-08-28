@@ -259,6 +259,27 @@ export interface OrcamentoNovoResult {
   com_medida_exata?: boolean
   porcentagem_acrescimo?: number
   fc: number[]
+  detalhes_calculo?: DetalhesCalculoItem
+}
+
+// Detalhes de cálculo ML persistidos no item (detalhes_calculo.ml) — rolos, metros,
+// orientação ideal etc. Exibidos como o playkap nos itens e no WhatsApp/PDF.
+export interface MlDetalhesCalculo {
+  totalMetrosLineares: number
+  rolosFechados: number
+  metrosFracionados: number
+  orientacaoIdeal: string
+  valor_ml: number
+  custoBordaTotalIncluso: number
+  largura_fixa: number
+  tam_rolo: number
+  fator_corte: number
+  resumoTexto: string
+}
+
+export interface DetalhesCalculoItem {
+  ml?: MlDetalhesCalculo
+  playkap?: any
 }
 
 export interface OrcamentoInsertPayload {
@@ -286,7 +307,7 @@ export interface OrcamentoInsertPayload {
   fator_de_corte_id: number
   detalhe_id: number
   variacao_id: number
-  qtd: string
+  qtd: number
   vlr_cst_unit: number
   vlr_cst_unit_ipi: number | null
   vlr_cst_unit_imp: number | null

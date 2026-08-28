@@ -151,6 +151,17 @@ export function useOrcamentosListActions() {
     }
   }
 
+  // Duplica o orçamento e abre o novo em modo edição (para ajustar itens/bordas/qtd/dimensões)
+  async function duplicarOrcamento(row: OrcamentoRow) {
+    try {
+      const novoCod = await orcamentoStore.duplicarOrcamento(row.id)
+      mostrarToast(`Orçamento ${row.cod_orca} duplicado como ${novoCod}`)
+      router.push(`/orcamentos/${novoCod}`)
+    } catch (err: any) {
+      mostrarToast(err?.message || 'Erro ao duplicar orçamento')
+    }
+  }
+
   async function gerarPdf(row: OrcamentoRow) {
     gerandoPdfDe.value = row.id
     try {
@@ -265,6 +276,7 @@ export function useOrcamentosListActions() {
     editarOrcamento,
     novoOrcamento,
     excluirOrcamento,
+    duplicarOrcamento,
     gerarPdf,
     gerarPdfPedidoVenda,
     enviarWhatsApp,

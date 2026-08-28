@@ -14,6 +14,7 @@ import {
 } from '@/services/pdf'
 import { xano } from '@/services/xano'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
+import { provedoresDisponiveis } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
@@ -56,10 +57,21 @@ function autoResize(el: HTMLTextAreaElement | null) {
 
 // UI do seletor de condições de pagamento (Etapa 3)
 const abaPagamento = ref<'pix' | 'cartao'>('pix')
-const cartaoSelecionado = ref<number | null>(null)
+const cartaoSelecionado = ref<string | null>(null)
 const modoCondicoesAvancado = ref(false)
 // Quem paga a taxa do cartão: true = cliente (gross-up, default) | false = a loja assume
 const repassarTaxasCartao = ref(true)
+
+// Tarefa 4 — checkboxes de métodos + mesclagem + desconto Pix + instituição
+const metodosPagamento = ref<{ pix: boolean; boleto: boolean; cartao: boolean }>({
+  pix: true,
+  boleto: true,
+  cartao: true,
+})
+const mesclarMetodos = ref(false)
+const trazerTodasParcelas = ref(false)
+const descontoPixPercentual = ref<number>(0)
+const provedorSelecionado = ref<string | number | null>(null)
 
 const termoBuscaCliente = ref('')
 const clienteSelecionado = ref<Cliente | null>(null)
@@ -661,6 +673,28 @@ function composicaoPlaykap(item: any): string {
   return partes.join(' + ')
 }
 
+// Composição de venda por ML (detalhes_calculo.ml) — rolos/metros/orientação.
+// Ex.: "3 rolo(s) — 2,5 m fracionado — <orientação>"; com rolos, o total entra na frente:
+// "32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>". Sem rolos, só o fracionado.
+function composicaoML(item: any): string {
+  const m = item?.detalhes_calculo?.ml
+  if (!m) return ''
+  const partes: string[] = []
+  const total = Number(m.totalMetrosLineares) || 0
+  const rolos = Number(m.rolosFechados) || 0
+  const frac = Number(m.metrosFracionados) || 0
+  if (rolos > 0 && total > 0) partes.push(`${total} m`)
+  if (rolos > 0) partes.push(`${rolos} rolo(s)`)
+  if (frac > 0) partes.push(`${frac} m fracionado`)
+  if (m.orientacaoIdeal) partes.push(m.orientacaoIdeal)
+  return partes.join(' — ')
+}
+
+// Composição combinada: PLAYKAP ou ML (a que existir no detalhes_calculo do item)
+function composicaoItemView(item: any): string {
+  return composicaoPlaykap(item) || composicaoML(item)
+}
+
 // Dimensão exibida na lista de itens — sempre 2 casas decimais (itens antigos podem ter
 // valores brutos, ex.: sqrt de área = 7.0710678118654755).
 function formatarDimensaoItem(item: any): string {
@@ -713,7 +747,8 @@ async function persistirCondicoesPagamento(): Promise<boolean> {
   }
 }
 
-// Condições padrão calculadas (Pix 2x + Boleto parcelado + Cartão) para o total atual
+// Condições padrão calculadas (Pix 2x + Boleto parcelado + Cartão) para o total atual.
+// "Gerar Condições" sempre combina os métodos marcados nos checkboxes.
 function calcularCondicoesPadrao(): string {
   const header = orcamentoStore.orcamentoHeader
   return calcularCondicoesUnificado({
@@ -722,6 +757,12 @@ function calcularCondicoesPadrao(): string {
     faturar: faturarCliente.value,
     tabelaTaxasCartao: catalogo.taxasBanco,
     repassarTaxasCartao: repassarTaxasCartao.value,
+    descontoPixPercentual: descontoPixPercentual.value,
+    provedorSelecionado: provedorSelecionado.value,
+    metodos: metodosPagamento.value,
+    mesclar: true,
+    parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
+    trazerTodasParcelas: trazerTodasParcelas.value,
   }).texto
 }
 
@@ -734,12 +775,28 @@ const condicoesCalculadas = computed(() => {
     faturar: faturarCliente.value,
     tabelaTaxasCartao: catalogo.taxasBanco,
     repassarTaxasCartao: repassarTaxasCartao.value,
+    descontoPixPercentual: descontoPixPercentual.value,
+    provedorSelecionado: provedorSelecionado.value,
+    metodos: metodosPagamento.value,
+    mesclar: mesclarMetodos.value,
+    parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
+    trazerTodasParcelas: trazerTodasParcelas.value,
   })
 })
 
-// Cartão selecionado (informação completa para o badge do vendedor)
+// Instituições disponíveis na tabela de taxas (seletor aparece quando > 1)
+const provedores = computed(() => provedoresDisponiveis(catalogo.taxasBanco))
+
+// Impacto do desconto Pix na margem/lucro (exibido na aba Pix)
+const pixImpacto = computed(() => condicoesCalculadas.value.pixImpacto)
+
+// Cartão selecionado (informação completa para o badge do vendedor).
+// A seleção é por chave "provedorId|parcelas" (evita ambiguidade com vários provedores).
+function chaveCartao(o: { provedor_id?: number | null; parcelas: number }): string {
+  return `${o.provedor_id ?? '?'}|${o.parcelas}`
+}
 const cartaoSelecionadoInfo = computed(() =>
-  condicoesCalculadas.value.cartao.find((o) => o.parcelas === cartaoSelecionado.value),
+  condicoesCalculadas.value.cartao.find((o) => chaveCartao(o) === cartaoSelecionado.value),
 )
 
 // Estado das condições de pagamento em relação ao que está salvo na ORCA
@@ -785,22 +842,36 @@ const corBadgeCartao = computed(() => {
   return lucroCartao.value > 0 ? 'badge-ok' : 'badge-alerta'
 })
 
-// Troca a aba do seletor e preenche o texto quando o vendedor escolhe uma opção
-function selecionarPagamento(tipo: 'pix' | 'cartao', parcelas?: number | null) {
+// Troca a aba do seletor e preenche o texto quando o vendedor escolhe uma opção.
+// Sem mesclagem → prévia da aba atual (Pix+Boleto ou Cartão); com mesclagem → combinado.
+function selecionarPagamento(tipo: 'pix' | 'cartao', chave?: string | null) {
   abaPagamento.value = tipo
-  cartaoSelecionado.value = parcelas ?? null
+  cartaoSelecionado.value = chave ?? null
   const c = condicoesCalculadas.value
-  if (tipo === 'cartao' && parcelas) {
-    const op = c.cartao.find((o) => o.parcelas === parcelas)
+  if (mesclarMetodos.value) {
+    condicoesPagamento.value = c.texto
+    return
+  }
+  if (tipo === 'cartao') {
+    const op = cartaoSelecionado.value
+      ? c.cartao.find((o) => chaveCartao(o) === cartaoSelecionado.value)
+      : null
     if (op) {
+      const inst = op.provedor ? ` — ${op.provedor}` : ''
       const linhas = [
-        `Cartão de Crédito (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
+        `Cartão de Crédito${inst} (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
       ]
       if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
       condicoesPagamento.value = linhas.join('\n')
+    } else {
+      condicoesPagamento.value = c.texto
     }
   } else {
-    condicoesPagamento.value = c.texto
+    const linhas: string[] = []
+    if (metodosPagamento.value.pix) linhas.push(c.pix)
+    if (metodosPagamento.value.boleto) linhas.push(c.boleto)
+    if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
+    condicoesPagamento.value = linhas.join('\n')
   }
 }
 
@@ -1326,7 +1397,8 @@ async function enviarWhatsApp() {
             <input
               v-model.number="orcamentoStore.quantidade"
               type="number"
-              min="1"
+              min="0.01"
+              step="0.01"
               class="input-num"
             />
             <span class="field-suffix">unidades</span>
@@ -2233,8 +2305,11 @@ async function enviarWhatsApp() {
                   </span>
                 </div>
                 <div v-if="item.descricao" class="itens-obs">{{ item.descricao }}</div>
-                <div v-if="composicaoPlaykap(item)" class="itens-obs itens-obs-composicao">
-                  {{ composicaoPlaykap(item) }}
+                <div
+                  v-if="composicaoPlaykap(item) || composicaoML(item)"
+                  class="itens-obs itens-obs-composicao"
+                >
+                  {{ composicaoItemView(item) }}
                 </div>
               </div>
             </div>
@@ -2424,9 +2499,15 @@ async function enviarWhatsApp() {
               class="itens-row"
             >
               <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
-              <span class="itens-col-desc" data-label="Descrição">{{
-                item.Descricao || item.descricao
-              }}</span>
+              <span class="itens-col-desc" data-label="Descrição">
+                {{ item.Descricao || item.descricao }}
+                <span
+                  v-if="composicaoPlaykap(item) || composicaoML(item)"
+                  class="itens-obs itens-obs-composicao"
+                >
+                  {{ composicaoItemView(item) }}
+                </span>
+              </span>
               <span class="itens-col-dim" data-label="Dimensões">{{
                 formatarDimensaoItem(item)
               }}</span>
@@ -2489,6 +2570,33 @@ async function enviarWhatsApp() {
 
           <template v-if="!modoCondicoesAvancado">
             <div class="cond-seletor">
+              <div class="cond-methods">
+                <label class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="metodosPagamento.pix"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Pix
+                </label>
+                <label class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="metodosPagamento.boleto"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Boleto
+                </label>
+                <label class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="metodosPagamento.cartao"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Cartão
+                </label>
+              </div>
+
               <div class="cond-tabs">
                 <button
                   class="cond-tab"
@@ -2507,8 +2615,27 @@ async function enviarWhatsApp() {
               </div>
 
               <div v-if="abaPagamento === 'pix'" class="cond-pix">
-                <p class="cond-linha">{{ condicoesCalculadas.pix }}</p>
-                <p class="cond-linha">{{ condicoesCalculadas.boleto }}</p>
+                <div class="cond-pix-desconto">
+                  <label>Desconto Pix (%)</label>
+                  <input
+                    v-model.number="descontoPixPercentual"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    @change="selecionarPagamento('pix')"
+                  />
+                </div>
+                <p v-if="descontoPixPercentual > 0" class="cond-badge badge-ok cond-pix-impacto">
+                  Com desconto: seu lucro será R$
+                  {{ pixImpacto.lucro.toFixed(2).replace('.', ',') }} ({{
+                    pixImpacto.margem.toFixed(2).replace('.', ',')
+                  }}%)
+                </p>
+                <p v-if="metodosPagamento.pix" class="cond-linha">{{ condicoesCalculadas.pix }}</p>
+                <p v-if="metodosPagamento.boleto" class="cond-linha">
+                  {{ condicoesCalculadas.boleto }}
+                </p>
                 <p v-if="faturarCliente" class="cond-linha cond-faturar">
                   Faturamos com até 20 dias da entrega do produto
                 </p>
@@ -2532,6 +2659,16 @@ async function enviarWhatsApp() {
                   </button>
                 </div>
 
+                <div v-if="provedores.length > 1" class="cond-cartao-row">
+                  <label>Instituição</label>
+                  <select v-model="provedorSelecionado" @change="selecionarPagamento('cartao')">
+                    <option :value="null">Todas</option>
+                    <option v-for="p in provedores" :key="p.id" :value="p.id">
+                      {{ p.nome }}
+                    </option>
+                  </select>
+                </div>
+
                 <div class="cond-cartao-row">
                   <label>Parcelas</label>
                   <select
@@ -2541,11 +2678,13 @@ async function enviarWhatsApp() {
                     <option :value="null">Selecione...</option>
                     <option
                       v-for="o in condicoesCalculadas.cartao"
-                      :key="o.parcelas"
-                      :value="o.parcelas"
+                      :key="chaveCartao(o)"
+                      :value="chaveCartao(o)"
                     >
                       {{ o.parcelas }}x de R$ {{ o.parcela.toFixed(2).replace('.', ',') }} (R$
-                      {{ o.total.toFixed(2).replace('.', ',') }})
+                      {{ o.total.toFixed(2).replace('.', ',') }})<template v-if="o.provedor">
+                        — {{ o.provedor }}</template
+                      ><template v-if="o.maisVantajosa"> ⭐</template>
                     </option>
                   </select>
                 </div>
@@ -2556,6 +2695,9 @@ async function enviarWhatsApp() {
                     {{ cartaoSelecionadoInfo.total.toFixed(2).replace('.', ',') }} ({{
                       cartaoSelecionadoInfo.parcelas
                     }}x de R$ {{ cartaoSelecionadoInfo.parcela.toFixed(2).replace('.', ',') }})
+                    <template v-if="cartaoSelecionadoInfo.provedor">
+                      — {{ cartaoSelecionadoInfo.provedor }}</template
+                    >
                   </strong>
                   <span>
                     {{ repassarTaxasCartao ? 'Seu lucro preservado' : 'Seu lucro real' }}: R$
@@ -2569,6 +2711,25 @@ async function enviarWhatsApp() {
                   </span>
                 </div>
                 <p v-else class="cond-hint">Selecione um parcelamento acima.</p>
+              </div>
+
+              <div class="cond-mix">
+                <label class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="mesclarMetodos"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Mesclar métodos na saída
+                </label>
+                <label v-if="mesclarMetodos" class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="trazerTodasParcelas"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Trazer todas as parcelas
+                </label>
               </div>
             </div>
           </template>
@@ -4115,6 +4276,59 @@ async function enviarWhatsApp() {
   padding: 0.75rem;
   margin-bottom: 0.75rem;
   background: var(--card-bg);
+}
+.cond-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.cond-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.cond-check input {
+  accent-color: var(--success, #16a34a);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.cond-mix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border-light);
+}
+.cond-pix-desconto {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.cond-pix-desconto label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.cond-pix-desconto input {
+  width: 90px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+.cond-pix-impacto {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
 }
 .cond-tabs {
   display: flex;

@@ -1,5 +1,5 @@
 import type { TaxaBanco } from '@/types/orcamento'
-import { calcularTabelaParcelamento } from '@/utils/taxasBanco'
+import { calcularTabelaParcelamento, opcoesMaisVantajosas } from '@/utils/taxasBanco'
 
 export const TEXTO_FATURAR = 'Faturamos com até 20 dias da entrega do produto'
 
@@ -14,6 +14,16 @@ export interface OpcaoCartao {
   parcela: number
   voceRecebeLiquido: number
   custoTaxa: number
+  provedor?: string | null
+  provedor_id?: number
+  maisVantajosa?: boolean
+}
+
+export interface PixImpacto {
+  desconto: number
+  valorComDesconto: number
+  lucro: number
+  margem: number
 }
 
 export interface OpcoesPagamento {
@@ -21,6 +31,13 @@ export interface OpcoesPagamento {
   boleto: string
   cartao: OpcaoCartao[]
   texto: string
+  pixImpacto: PixImpacto
+}
+
+export interface MetodosSelecionados {
+  pix: boolean
+  boleto: boolean
+  cartao: boolean
 }
 
 export interface CalcularCondicoesInput {
@@ -30,10 +47,18 @@ export interface CalcularCondicoesInput {
   tabelaTaxasCartao?: TaxaBanco[]
   repassarTaxasCartao?: boolean
   descontoPixPercentual?: number
+  provedorSelecionado?: string | number | null
+  metodos?: MetodosSelecionados
+  // Mesclar métodos na saída; quando true + cartão com uma parcela escolhida,
+  // entra só a parcela selecionada (a menos de trazerTodasParcelas).
+  mesclar?: boolean
+  parcelaCartao?: number | null
+  trazerTodasParcelas?: boolean
 }
 
 // Regras atuais: Pix 2x fixas + Boleto parcelado pela métrica metadeCusto.
 // Cartão com Gross-Up (repassarTaxasCartao) ou assumindo a taxa (direto).
+// O desconto Pix reduz a venda e o lucro — o impacto (lucro/margem) é retornado.
 export function calcularCondicoesPagamento({
   valorVenda,
   valorCusto,
@@ -41,12 +66,22 @@ export function calcularCondicoesPagamento({
   tabelaTaxasCartao = [],
   repassarTaxasCartao = true,
   descontoPixPercentual = 0,
+  provedorSelecionado = null,
+  metodos,
+  mesclar = false,
+  parcelaCartao = null,
+  trazerTodasParcelas = false,
 }: CalcularCondicoesInput): OpcoesPagamento {
   const venda = Number(valorVenda) || 0
   const custo = Number(valorCusto) || 0
   const entradaPrazo = 5
   const intervaloParcelas = 30
 
+  const usaPix = metodos?.pix !== false
+  const usaBoleto = metodos?.boleto !== false
+  const usaCartao = metodos?.cartao !== false
+
+  // ---- PIX ----
   const descontoPix = descontoPixPercentual > 0 ? venda * (descontoPixPercentual / 100) : 0
   const valorVendaPix = venda - descontoPix
 
@@ -54,6 +89,15 @@ export function calcularCondicoesPagamento({
   const segundaParcelaPix = valorVendaPix / 2
   const pixString = `Pix (2x de ${formatarMoeda(primeiraParcelaPix)}): 1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias.`
 
+  // Impacto do desconto no Pix (lucro e margem sobre a venda SEM desconto, para comparação)
+  const pixImpacto: PixImpacto = {
+    desconto: parseFloat(descontoPix.toFixed(2)),
+    valorComDesconto: parseFloat(valorVendaPix.toFixed(2)),
+    lucro: parseFloat((valorVendaPix - custo).toFixed(2)),
+    margem: venda > 0 ? parseFloat((((valorVendaPix - custo) / venda) * 100).toFixed(2)) : 0,
+  }
+
+  // ---- BOLETO ----
   const metadeCusto = custo / 2
   const numeroParcelasBoleto = Math.max(1, Math.floor(venda / metadeCusto))
   const valorParcelasBoleto = venda / numeroParcelasBoleto
@@ -68,35 +112,79 @@ export function calcularCondicoesPagamento({
   }
   const boletoString = `Boleto (${numeroParcelasBoleto}x de ${formatarMoeda(valorParcelasBoleto)}): 1ª parcela em ${prazos}.`
 
+  // ---- CARTÃO (com instituição e marcação de mais vantajosa) ----
   const parcelasCalculadas = calcularTabelaParcelamento(
     tabelaTaxasCartao,
     venda,
     repassarTaxasCartao,
+    provedorSelecionado,
   )
-  const cartao: OpcaoCartao[] = parcelasCalculadas.map((p) => ({
-    parcelas: p.parcelas,
-    taxa: Number(p.taxaPercentual.replace('%', '')) || 0,
-    total: p.clientePagaTotal,
-    parcela: p.valorParcela,
-    voceRecebeLiquido: p.voceRecebeLiquido,
-    custoTaxa: p.custoTaxa,
-  }))
-  const cartaoString = cartao
-    .map((o) => `${o.parcelas}x de ${formatarMoeda(o.parcela)} (${formatarMoeda(o.total)})`)
-    .join('; ')
+  const melhores = opcoesMaisVantajosas(tabelaTaxasCartao, venda, repassarTaxasCartao)
+  const cartao: OpcaoCartao[] = parcelasCalculadas.map((p) => {
+    const chave = `${p.provedor_id ?? '?'}|${p.parcelas}`
+    return {
+      parcelas: p.parcelas,
+      taxa: Number(p.taxaPercentual.replace('%', '')) || 0,
+      total: p.clientePagaTotal,
+      parcela: p.valorParcela,
+      voceRecebeLiquido: p.voceRecebeLiquido,
+      custoTaxa: p.custoTaxa,
+      provedor: p.provedor,
+      provedor_id: p.provedor_id,
+      maisVantajosa: melhores.has(chave),
+    }
+  })
 
-  const linhas = [pixString, boletoString]
+  // Linhas finais conforme métodos selecionados + mesclagem
+  const linhas: string[] = []
+
+  // Cartão: mesclado → só a parcela escolhida (ou todas se trazerTodasParcelas);
+  // não mesclado e aba cartão → todas as parcelas.
+  let cartaoLinhas: string[] = []
   if (cartao.length) {
-    linhas.push(`Cartão de Crédito: ${cartaoString}.`)
+    const cartaoFiltrado =
+      trazerTodasParcelas || !parcelaCartao
+        ? cartao
+        : cartao.filter((o) => o.parcelas === parcelaCartao)
+    cartaoFiltrado.forEach((o) => {
+      const inst = o.provedor ? ` — ${o.provedor}` : ''
+      cartaoLinhas.push(
+        `Cartão de Crédito${inst} (${o.parcelas}x de ${formatarMoeda(o.parcela)}): total de ${formatarMoeda(o.total)}.`,
+      )
+    })
+    if (!cartaoLinhas.length && parcelaCartao) {
+      const op = cartao.find((o) => o.parcelas === parcelaCartao)
+      if (op) {
+        const inst = op.provedor ? ` — ${op.provedor}` : ''
+        cartaoLinhas.push(
+          `Cartão de Crédito${inst} (${op.parcelas}x de ${formatarMoeda(op.parcela)}): total de ${formatarMoeda(op.total)}.`,
+        )
+      }
+    }
   }
+
+  if (mesclar) {
+    if (usaPix) linhas.push(pixString)
+    if (usaBoleto) linhas.push(boletoString)
+    if (usaCartao) linhas.push(...cartaoLinhas)
+  } else {
+    // Modo seletor (não mesclado): apenas os métodos marcados, cartão com todas as parcelas
+    if (usaPix) linhas.push(pixString)
+    if (usaBoleto) linhas.push(boletoString)
+    if (usaCartao && cartaoLinhas.length) linhas.push(...cartaoLinhas)
+  }
+
   if (faturar) {
     linhas.push(TEXTO_FATURAR)
   }
+
+  const texto = linhas.length ? linhas.join('\n') : ''
 
   return {
     pix: pixString,
     boleto: boletoString,
     cartao,
-    texto: linhas.join('\n'),
+    texto,
+    pixImpacto,
   }
 }

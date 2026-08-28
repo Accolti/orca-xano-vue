@@ -407,7 +407,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         nmBorda: getNomeBorda(),
         margem: String(margemPersonalizada.value ?? authIns.user?.margem ?? 0),
         frete_b2b: String(fretePersonalizado.value ?? authIns.user?.frtB2B ?? 0),
-        quantidade: String(quantidade.value),
+        quantidade: quantidade.value,
         IPI: String(material.ipi || 0),
         IMP: String(material.imp || 0),
         bSimulaMargens: String(bSimulaMargens),
@@ -582,7 +582,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       fator_de_corte_id: it.fator_de_corte_id ?? 0,
       detalhe_id: 0,
       variacao_id: it.variacao_id ?? 0,
-      qtd: String(it.qtd ?? 1),
+      qtd: it.qtd ?? 1,
       vlr_cst_unit: it.vlr_cst_unit ?? 0,
       vlr_cst_unit_ipi: null,
       vlr_cst_unit_imp: null,
@@ -686,7 +686,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           fator_de_corte_id: it.fator_de_corte_id ?? 0,
           detalhe_id: 0,
           variacao_id: it.variacao_id ?? 0,
-          qtd: String(it.qtd ?? 1),
+          qtd: it.qtd ?? 1,
           vlr_cst_unit: it.vlr_cst_unit ?? 0,
           vlr_cst_unit_ipi: null,
           vlr_cst_unit_imp: null,
@@ -755,7 +755,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           fator_de_corte_id: fator.fator_de_corte_id,
           detalhe_id: produto.detalhe_id,
           variacao_id: variacaoSelecionada.value?.id ?? 0,
-          qtd: String(quantidade.value),
+          qtd: quantidade.value,
           vlr_cst_unit: r.func_1.Valor_Custo_Unit,
           vlr_cst_unit_ipi: r.func_1.Valor_Custo_IPI ?? null,
           vlr_cst_unit_imp: r.func_1.Valor_Custo_IMP ?? null,
@@ -904,6 +904,26 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     } catch (err: any) {
       console.error('Erro ao excluir orçamento:', err)
       throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao excluir orçamento')
+    }
+  }
+
+  // Duplica um orçamento (Orca + itens) no backend e devolve o cod_orca do novo.
+  async function duplicarOrcamento(orcaId: number): Promise<string> {
+    try {
+      const authIns = useAuthStore()
+      const response = await xano.post('/api:-qqRIakp/Orcamento_Duplicar', {
+        orca_id: orcaId,
+        user_id: authIns.user?.id,
+      })
+      const body = response.getBody() as any
+      const novoCod = body?.orca?.cod_orca ?? body?.cod_orca
+      if (!novoCod) {
+        throw new Error('Orçamento duplicado sem número retornado')
+      }
+      return String(novoCod)
+    } catch (err: any) {
+      console.error('Erro ao duplicar orçamento:', err)
+      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao duplicar orçamento')
     }
   }
 
@@ -1147,6 +1167,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     resetar,
     carregarOrcamento,
     deleteOrcamento,
+    duplicarOrcamento,
     recalcularTotais,
     removerItem,
     definirFreteB2C,
