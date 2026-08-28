@@ -43,6 +43,17 @@ const mostrarCustosHeader = ref(false)
 const simulacaoModalOpen = ref(false)
 const simulacaoSelecionada = ref<SimulacaoItem | null>(null)
 
+// Altura (linhas) das caixas de condições e observações — botões +/− no mobile
+const linhasCondicoes = ref(3)
+const linhasObservacoes = ref(3)
+
+// Auto-resize: a caixa cresce conforme o conteúdo (sem depender do puxador no mobile)
+function autoResize(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
+}
+
 // UI do seletor de condições de pagamento (Etapa 3)
 const abaPagamento = ref<'pix' | 'cartao'>('pix')
 const cartaoSelecionado = ref<number | null>(null)
@@ -2562,17 +2573,55 @@ async function enviarWhatsApp() {
             </div>
           </template>
 
-          <textarea
-            v-model="condicoesPagamento"
-            placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
-            rows="3"
-          ></textarea>
+          <div class="cond-textarea-wrap">
+            <textarea
+              v-model="condicoesPagamento"
+              placeholder="Pix (2x de R$ ...): ...&#10;Boleto (3x de R$ ...): ..."
+              :rows="linhasCondicoes"
+              @input="autoResize($event.target as HTMLTextAreaElement)"
+            ></textarea>
+            <div class="cond-textarea-controls">
+              <button
+                class="btn btn-outline btn-xs"
+                title="Diminuir caixa"
+                @click="linhasCondicoes = Math.max(2, linhasCondicoes - 1)"
+              >
+                −
+              </button>
+              <button
+                class="btn btn-outline btn-xs"
+                title="Aumentar caixa"
+                @click="linhasCondicoes = Math.min(15, linhasCondicoes + 1)"
+              >
+                +
+              </button>
+            </div>
+          </div>
           <h3>Observações do Orçamento</h3>
-          <textarea
-            v-model="observacaoOrcamento"
-            placeholder="Informações importantes para o cliente..."
-            rows="3"
-          ></textarea>
+          <div class="cond-textarea-wrap">
+            <textarea
+              v-model="observacaoOrcamento"
+              placeholder="Informações importantes para o cliente..."
+              :rows="linhasObservacoes"
+              @input="autoResize($event.target as HTMLTextAreaElement)"
+            ></textarea>
+            <div class="cond-textarea-controls">
+              <button
+                class="btn btn-outline btn-xs"
+                title="Diminuir caixa"
+                @click="linhasObservacoes = Math.max(2, linhasObservacoes - 1)"
+              >
+                −
+              </button>
+              <button
+                class="btn btn-outline btn-xs"
+                title="Aumentar caixa"
+                @click="linhasObservacoes = Math.min(15, linhasObservacoes + 1)"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
 
         <template v-else>
@@ -3960,6 +4009,30 @@ async function enviarWhatsApp() {
   background: var(--card-bg);
   color: var(--text-primary);
   resize: vertical;
+}
+
+/* Caixa com botões +/− para ajustar a altura (mobile friendly) */
+.cond-textarea-wrap {
+  position: relative;
+}
+.cond-textarea-wrap textarea {
+  margin-bottom: 0.4rem;
+}
+.cond-textarea-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.cond-textarea-controls .btn {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .resumo-obs .condicoes-botoes {
