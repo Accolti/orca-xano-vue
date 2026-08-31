@@ -15,6 +15,8 @@ export interface Material {
   nac: boolean
   Observacao: string
   organizacao_id: number
+  // Garantia do material em meses (usada no PDF/WhatsApp/Pedido de Venda)
+  garantia?: number | null
   suc: {
     Linha: number
     Tipo: number

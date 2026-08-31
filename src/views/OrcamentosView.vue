@@ -72,6 +72,8 @@ const mesclarMetodos = ref(false)
 const trazerTodasParcelas = ref(false)
 const descontoPixPercentual = ref<number>(0)
 const provedorSelecionado = ref<string | number | null>(null)
+// Estado salvo do seletor (condicoes_pagamento_params) — para reaplicar ao carregar
+const condicoesParamsSalvos = ref<string | null>(null)
 
 const termoBuscaCliente = ref('')
 const clienteSelecionado = ref<Cliente | null>(null)
@@ -191,6 +193,7 @@ onMounted(async () => {
     mostrarResumo.value = false
     finalizando.value = false
     modoEntradaML.value = 'area'
+    resetarCondicoesUi()
   }
   orcamentoStore.carregarMateriais()
   catalogo.fetchTaxasBanco().catch(() => {})
@@ -328,6 +331,7 @@ function novoOrcamento() {
   mostrarResumo.value = false
   finalizando.value = false
   modoEntradaML.value = 'area'
+  resetarCondicoesUi()
   router.push('/orcamentos/novo')
 }
 
@@ -461,6 +465,8 @@ function sincronizarSimulacao() {
   maoDeObraResumo.value = totais?.mao_de_obra ?? header?.mao_de_obra ?? 0
   observacaoOrcamento.value = header?.observacao ?? ''
   condicoesPagamento.value = (header?.condicoes_pagamento || '').trim()
+  condicoesParamsSalvos.value = header?.condicoes_pagamento_params || null
+  restaurarCondicoesParams(condicoesParamsSalvos.value)
   const vendaFinal = novoValorVendaResumo.value
   const cst = custoTotalBase.value
   margemRealResumo.value =
@@ -474,6 +480,96 @@ watch(
     if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
   },
 )
+
+// Reaplica o estado salvo do seletor quando as taxas de cartão terminam de carregar
+// (na abertura, o header chega antes do /taxas_banco — a validação do cartão depende delas).
+watch(
+  () => catalogo.taxasBanco,
+  () => {
+    if (condicoesParamsSalvos.value) restaurarCondicoesParams(condicoesParamsSalvos.value)
+  },
+)
+
+// Estado do seletor de condições → JSON persistido em Orca.condicoes_pagamento_params.
+// Permite restaurar checkboxes, desconto Pix %, instituição, parcelas e repasse ao reabrir.
+function serializarCondicoesParams(): string {
+  let provedorId: number | null = null
+  let provedor: string | null = null
+  let parcelas: number | null = null
+  if (cartaoSelecionado.value) {
+    const [pid, parc] = cartaoSelecionado.value.split('|')
+    provedorId = Number(pid) || null
+    parcelas = Number(parc) || null
+    const op = condicoesCalculadas.value.cartao.find(
+      (o) => chaveCartao(o) === cartaoSelecionado.value,
+    )
+    provedor = op?.provedor ?? null
+  }
+  if (provedorId == null && provedorSelecionado.value != null) {
+    provedorId = Number(provedorSelecionado.value) || null
+  }
+  return JSON.stringify({
+    metodos: { ...metodosPagamento.value },
+    mesclar: mesclarMetodos.value,
+    trazerTodasParcelas: trazerTodasParcelas.value,
+    descontoPixPercentual: descontoPixPercentual.value,
+    provedorId,
+    provedor,
+    parcelas,
+    repassarTaxas: repassarTaxasCartao.value,
+    aba: abaPagamento.value,
+  })
+}
+
+// Restaura os refs do seletor a partir do JSON salvo. Defensivo: instituição e parcela
+// só voltam se ainda existirem nas taxas atuais (senão a seleção é limpa).
+function restaurarCondicoesParams(paramsStr?: string | null) {
+  if (!paramsStr) return
+  let p: any
+  try {
+    p = JSON.parse(paramsStr)
+  } catch {
+    return
+  }
+  if (!p || typeof p !== 'object') return
+  if (p.metodos && typeof p.metodos === 'object') {
+    metodosPagamento.value = {
+      pix: p.metodos.pix !== false,
+      boleto: p.metodos.boleto !== false,
+      cartao: p.metodos.cartao !== false,
+    }
+  }
+  mesclarMetodos.value = Boolean(p.mesclar)
+  trazerTodasParcelas.value = Boolean(p.trazerTodasParcelas)
+  if (typeof p.descontoPixPercentual === 'number') {
+    descontoPixPercentual.value = p.descontoPixPercentual
+  }
+  repassarTaxasCartao.value = typeof p.repassarTaxas === 'boolean' ? p.repassarTaxas : true
+  if (p.aba === 'pix' || p.aba === 'cartao') abaPagamento.value = p.aba
+
+  const pId = p.provedorId != null ? Number(p.provedorId) : null
+  const provedorExiste =
+    pId != null && provedoresDisponiveis(catalogo.taxasBanco).some((x) => Number(x.id) === pId)
+  provedorSelecionado.value = provedorExiste ? pId : null
+
+  const chave = provedorExiste && p.parcelas != null ? `${pId}|${p.parcelas}` : null
+  const chaveExiste =
+    chave != null && condicoesCalculadas.value.cartao.some((o) => chaveCartao(o) === chave)
+  cartaoSelecionado.value = chaveExiste ? chave : null
+}
+
+// Reseta o seletor de condições para os defaults (orçamento novo)
+function resetarCondicoesUi() {
+  abaPagamento.value = 'pix'
+  cartaoSelecionado.value = null
+  repassarTaxasCartao.value = true
+  metodosPagamento.value = { pix: true, boleto: true, cartao: true }
+  mesclarMetodos.value = false
+  trazerTodasParcelas.value = false
+  descontoPixPercentual.value = 0
+  provedorSelecionado.value = null
+  condicoesParamsSalvos.value = null
+}
 
 // 1. Simulação em memória (sem chamada de API por tecla)
 // Ao digitar um campo, recalcula os demais em tempo real.
@@ -565,6 +661,7 @@ async function aplicarNegociacao() {
       maoDeObra: Number(maoDeObraResumo.value) || 0,
       observacao: observacaoOrcamento.value,
       condicoesPagamento: condicoesPagamento.value,
+      condicoesPagamentoParams: serializarCondicoesParams(),
     })
     sincronizarSimulacao()
   } catch (err: any) {
@@ -739,6 +836,7 @@ async function persistirCondicoesPagamento(): Promise<boolean> {
       maoDeObra: Number(maoDeObraResumo.value) || 0,
       observacao: observacaoOrcamento.value,
       condicoesPagamento: condicoesPagamento.value,
+      condicoesPagamentoParams: serializarCondicoesParams(),
     })
     return true
   } catch (err: any) {
@@ -857,9 +955,8 @@ function selecionarPagamento(tipo: 'pix' | 'cartao', chave?: string | null) {
       ? c.cartao.find((o) => chaveCartao(o) === cartaoSelecionado.value)
       : null
     if (op) {
-      const inst = op.provedor ? ` — ${op.provedor}` : ''
       const linhas = [
-        `Cartão de Crédito${inst} (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
+        `Cartão de Crédito (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
       ]
       if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
       condicoesPagamento.value = linhas.join('\n')

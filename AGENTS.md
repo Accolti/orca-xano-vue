@@ -202,7 +202,7 @@ A coluna `item.qtd` (e o input `quantidade` dos endpoints/funções de cálculo)
 
 ### Duplicar orçamento
 
-- Backend: `POST /orcamento_duplicar` → `Orcamento/f_DuplicaOrcamento` copia a **Orca** (fretes, validade, margens, `markup_alvo/efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`) e os **itens** com todos os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc` — abrindo o duplicado **em modo edição** para ajustar itens/bordas/qtd/dimensões.
+- Backend: `POST /orcamento_duplicar` → `Orcamento/f_DuplicaOrcamento` copia a **Orca** (fretes, validade, margens, `markup_alvo/efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`, `condicoes_pagamento_params`) e os **itens** com todos os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc` — abrindo o duplicado **em modo edição** para ajustar itens/bordas/qtd/dimensões.
 - Front: `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ **CamelCase no path**, como `OrcamentoItem_Inserir` — Xano é case-sensitive na URL; `orcamento_duplicar` minúsculo dava 404). Botão "Duplicar" (ícone copy) na listagem de orçamentos (desktop + mobile) → navega para `/orcamentos/{novoCod}`.
 
 ### Condições de Pagamento (seletor avançado)
@@ -211,9 +211,19 @@ A coluna `item.qtd` (e o input `quantidade` dos endpoints/funções de cálculo)
 
 - **Instituição**: cada opção de cartão mostra o `provedor`; se há >1 instituição na tabela, aparece um seletor de provedor (`provedorSelecionado`). A melhor opção por nº de parcelas (menor custo p/ cliente) ganha ⭐ (`opcoesMaisVantajosas`).
 - **Checkboxes Pix/Boleto/Cartão** (`metodosPagamento`) ditam o que entra no texto do "Gerar Condições" (todas marcadas por padrão).
-- **Desconto Pix (%)** (`descontoPixPercentual`): reduz a venda e retorna o impacto em **lucro/margem** (`pixImpacto`), exibido na aba Pix.
+- **Desconto Pix (%)** (`descontoPixPercentual`): reduz a venda e retorna o impacto em **lucro/margem** (`pixImpacto`), exibido na aba Pix. Quando > 0, o texto da condição inclui `— X% de desconto` (ex.: `Pix (2x de R$ 490,00) — 2% de desconto: ...`).
 - **Mesclagem**: checkbox `mesclarMetodos` combina os métodos marcados na saída; com cartão e uma parcela escolhida (`cartaoSelecionado` por chave `provedor_id|parcelas`), entra **só a parcela selecionada**, a menos do checkbox `trazerTodasParcelas`.
-- Persistência inalterada: `condicoes_pagamento` salvo via `orcamento_recalcular`; `SimulacaoModal` usa o mesmo módulo com defaults.
+- **Banco não aparece nos outputs**: o nome do `provedor` é exibido só no seletor (UI); o texto das condições (PDF/WhatsApp/Pedido de Venda) mostra apenas `Cartão de Crédito (Nx de R$ X): total de R$ Y.` — mas o provedor fica **gravado** no estado do seletor.
+- **Persistência do estado do seletor**: `condicoes_pagamento` (texto) + `condicoes_pagamento_params` (JSON) são gravados via `orcamento_recalcular`. O JSON guarda `{ metodos, mesclar, trazerTodasParcelas, descontoPixPercentual, provedorId, provedor, parcelas, repassarTaxas, aba }`. Ao reabrir, `restaurarCondicoesParams()` (`sincronizarSimulacao` + watch de `catalogo.taxasBanco`) reaplica os refs; instituição/parcela só voltam se ainda existirem nas taxas atuais. Campo novo na tabela `Orca`; `f_DuplicaOrcamento` copia. `SimulacaoModal` usa o mesmo módulo com defaults.
+
+### Garantia (por material)
+
+A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de Venda** vem da tabela **`Material.garantia`** (meses) — **não** é mais um texto fixo. O campo é baixado no catálogo via `f_material_todos` (output de `/produtos_para_selecao`) e precisa de **bump de `versao_materiais`** (dev tool `/dev/configuracoes`) para o cache antigo pegar o campo.
+
+- `src/utils/garantia.ts` — funções puras:
+  - `formatarDuracaoGarantia(meses)`: `< 12` → `3 meses contra defeito de fábrica`; `>= 12` inteiro → `1 ano de garantia contra defeito de fábrica`; resto (18) → `1 ano de garantia e 6 meses contra defeito de fábrica`; `0`/nulo → vazio (item pulado).
+  - `montarLinhasGarantia(itens, produtos, materiais)`: resolve `item.produto_id → allProdutos[].material_id → Material.garantia`, **dedupe por material** (1 linha por material) e **dedupe por duração** (materiais com a mesma garantia viram 1 linha com nomes agrupados: `Vinil, EVA e Fibra de Coco 1 ano de garantia contra defeito de fábrica`).
+- `pdf.ts`: `linhasGarantia(itens)` (usa `useCatalogoStore()`) alimenta o **bloco "Garantia"** no orçamento PDF (seção após Condições), o bloco **`🛡️ *Garantia*`** no WhatsApp e a linha **`Garantia:`** na tabela Condições e Entrega do Pedido de Venda. Bloco/linha **omitidos** quando não há linhas (catálogo vazio ou nenhum material com garantia).
 
 ### Pendências
 

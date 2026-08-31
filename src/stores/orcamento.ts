@@ -952,6 +952,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       maoDeObra?: number
       observacao?: string
       condicoesPagamento?: string
+      condicoesPagamentoParams?: string
     },
   ) {
     carregandoOrcamento.value = true
@@ -965,6 +966,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         maoDeObra: opts?.maoDeObra,
         observacao: opts?.observacao,
         condicoesPagamento: opts?.condicoesPagamento,
+        condicoesPagamentoParams: opts?.condicoesPagamentoParams,
       })
       const body = response.getBody() as any
       console.log('[recalcularTotais] resposta', {

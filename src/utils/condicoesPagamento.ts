@@ -87,7 +87,9 @@ export function calcularCondicoesPagamento({
 
   const primeiraParcelaPix = valorVendaPix / 2
   const segundaParcelaPix = valorVendaPix / 2
-  const pixString = `Pix (2x de ${formatarMoeda(primeiraParcelaPix)}): 1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias.`
+  const descontoPixTexto =
+    descontoPixPercentual > 0 ? ` — ${descontoPixPercentual}% de desconto` : ''
+  const pixString = `Pix (2x de ${formatarMoeda(primeiraParcelaPix)})${descontoPixTexto}: 1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias.`
 
   // Impacto do desconto no Pix (lucro e margem sobre a venda SEM desconto, para comparação)
   const pixImpacto: PixImpacto = {
@@ -147,17 +149,15 @@ export function calcularCondicoesPagamento({
         ? cartao
         : cartao.filter((o) => o.parcelas === parcelaCartao)
     cartaoFiltrado.forEach((o) => {
-      const inst = o.provedor ? ` — ${o.provedor}` : ''
       cartaoLinhas.push(
-        `Cartão de Crédito${inst} (${o.parcelas}x de ${formatarMoeda(o.parcela)}): total de ${formatarMoeda(o.total)}.`,
+        `Cartão de Crédito (${o.parcelas}x de ${formatarMoeda(o.parcela)}): total de ${formatarMoeda(o.total)}.`,
       )
     })
     if (!cartaoLinhas.length && parcelaCartao) {
       const op = cartao.find((o) => o.parcelas === parcelaCartao)
       if (op) {
-        const inst = op.provedor ? ` — ${op.provedor}` : ''
         cartaoLinhas.push(
-          `Cartão de Crédito${inst} (${op.parcelas}x de ${formatarMoeda(op.parcela)}): total de ${formatarMoeda(op.total)}.`,
+          `Cartão de Crédito (${op.parcelas}x de ${formatarMoeda(op.parcela)}): total de ${formatarMoeda(op.total)}.`,
         )
       }
     }

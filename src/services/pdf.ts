@@ -4,6 +4,8 @@ import type { TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
+import { montarLinhasGarantia } from '@/utils/garantia'
+import { useCatalogoStore } from '@/stores/catalogo'
 import logoOrca from '@/assets/logo.png?inline'
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
 
@@ -19,7 +21,13 @@ interface PdfOrcamentoInput {
 export const PRAZOS_ORCAMENTO = {
   entrega: '10 a 15 dias úteis',
   frete: 'Gratuito para Sorocaba e região',
-  garantia: '1 ano de fábrica contra defeitos de fabricação',
+}
+
+// Garantia vinda da tabela Material (meses), agrupada por material e deduplicada.
+// Vazia quando o catálogo não está carregado ou nenhum item tem material com garantia.
+function linhasGarantia(itens: any[]): string[] {
+  const catalogo = useCatalogoStore()
+  return montarLinhasGarantia(itens, catalogo.allProdutos, catalogo.allMaterials)
 }
 
 export function formatarMoeda(valor: number): string {
@@ -205,14 +213,14 @@ function valorNumericoLimpo(valor: any): number {
   return isNaN(n) ? 0 : n
 }
 
-// Medidas do item: "(250,00 x 120,00 cm)" ou "Tamanho Padrão" quando zeradas (sem $)
+// Medidas do item: "(2,50 x 1,20 m)" ou "Tamanho Padrão" quando zeradas (sem $)
 function formatarMedidas(item: any): string {
-  const largCm = valorNumericoLimpo(item.larg) * 100
-  const compCm = valorNumericoLimpo(item.comp) * 100
-  if (largCm <= 0 && compCm <= 0) return 'Tamanho Padrão'
+  const larg = valorNumericoLimpo(item.larg)
+  const comp = valorNumericoLimpo(item.comp)
+  if (larg <= 0 && comp <= 0) return 'Tamanho Padrão'
   const fmt = (v: number) =>
     v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `(${fmt(largCm)} x ${fmt(compCm)} cm)`
+  return `(${fmt(larg)} x ${fmt(comp)} m)`
 }
 
 // Observações organizadas em tópicos numerados
@@ -293,6 +301,12 @@ export function montarTextoWhatsApp({
   linhas.push('')
   linhas.push('📝 *Condições de Pagamento*')
   linhas.push(...condicoes.split('\n').filter(Boolean).map(formatarCondicaoWhatsApp))
+  const garantias = linhasGarantia(itens)
+  if (garantias.length) {
+    linhas.push('')
+    linhas.push('🛡️ *Garantia*')
+    linhas.push(...garantias)
+  }
   if (observacao) {
     linhas.push('')
     linhas.push('📎 *Observações*')
@@ -659,7 +673,6 @@ export async function gerarPdfOrcamento({
       { text: 'Prazos e Entregas', style: 'section' },
       { text: `• Prazo de Entrega: ${PRAZOS_ORCAMENTO.entrega}`, style: 'item' },
       { text: `• ${linhaFrete(freteB2C)}`, style: 'item' },
-      { text: `• Garantia: ${PRAZOS_ORCAMENTO.garantia}`, style: 'item' },
     ],
   }
 
@@ -668,6 +681,18 @@ export async function gerarPdfOrcamento({
     columnGap: 24,
     margin: [0, 0, 0, 8] as any,
   } as any
+
+  // Garantia por material (agrupada/deduplicada) — bloco só quando há linhas
+  const garantias = linhasGarantia(itens)
+  const blocoGarantia = garantias.length
+    ? {
+        stack: [
+          { text: 'Garantia', style: 'section' },
+          ...garantias.map((l) => ({ text: `• ${l}`, style: 'item' })),
+        ],
+        margin: [0, 0, 0, 8] as any,
+      }
+    : null
 
   const observacoes = organizarObservacoes(observacao)
 
@@ -679,6 +704,7 @@ export async function gerarPdfOrcamento({
       tabelaItens,
       resumoFinanceiro,
       condicoesComerciais,
+      ...(blocoGarantia ? [blocoGarantia] : []),
       ...(observacoes.length
         ? [
             { text: 'Observações e Notas Técnicas', style: 'section' },
@@ -905,6 +931,7 @@ export async function gerarPdfPedidoVenda({
   } as any
 
   // Condições e Entrega
+  const garantiasPdV = linhasGarantia(itens)
   const condicoesEntrega = {
     table: {
       widths: [120, '*'],
@@ -913,6 +940,14 @@ export async function gerarPdfPedidoVenda({
           { text: 'Condição de pagamento:', bold: true, fontSize: 9 },
           { text: condicoes, fontSize: 9 },
         ],
+        ...(garantiasPdV.length
+          ? [
+              [
+                { text: 'Garantia:', bold: true, fontSize: 9 },
+                { text: garantiasPdV.join('\n'), fontSize: 9 },
+              ] as any,
+            ]
+          : []),
         [
           { text: 'Transportadora:', bold: true, fontSize: 9 },
           { text: '', fontSize: 9 },
@@ -956,6 +991,7 @@ export async function gerarPdfPedidoVenda({
     [
       { text: 'Código', ...th },
       { text: 'Descrição', ...th },
+      { text: 'Medidas', ...th },
       { text: 'Qtde.', ...th, alignment: 'center' },
       { text: 'Preço unit', ...th, alignment: 'right' },
       { text: 'Subtotal', ...th, alignment: 'right' },
@@ -976,6 +1012,7 @@ export async function gerarPdfPedidoVenda({
           .join('  ·  '),
         ...td,
       },
+      { text: formatarMedidas(item), ...td },
       { text: String(qtd), ...td, alignment: 'center' },
       { text: formatarMoeda(precoUnit), ...td, alignment: 'right' },
       { text: formatarMoeda(subtotal), ...td, alignment: 'right' },
@@ -986,6 +1023,7 @@ export async function gerarPdfPedidoVenda({
     body.push([
       { text: '', ...td },
       { text: 'DESCONTO', ...td },
+      { text: '', ...td },
       { text: '1', ...td, alignment: 'center' },
       { text: `-${formatarMoeda(desconto)}`, ...td, alignment: 'right' },
       { text: `-${formatarMoeda(desconto)}`, ...td, alignment: 'right' },
@@ -995,6 +1033,7 @@ export async function gerarPdfPedidoVenda({
     body.push([
       { text: '', ...td },
       { text: 'FRETE', ...td },
+      { text: '', ...td },
       { text: '1', ...td, alignment: 'center' },
       { text: formatarMoeda(freteB2C), ...td, alignment: 'right' },
       { text: formatarMoeda(freteB2C), ...td, alignment: 'right' },
@@ -1002,6 +1041,7 @@ export async function gerarPdfPedidoVenda({
   }
   body.push([
     { text: 'TOTAL', ...td, bold: true, fontSize: 11, fillColor: '#eef2ff' },
+    { text: '', ...td, fillColor: '#eef2ff' },
     { text: '', ...td, fillColor: '#eef2ff' },
     { text: '', ...td, fillColor: '#eef2ff' },
     { text: '', ...td, fillColor: '#eef2ff' },
@@ -1018,7 +1058,7 @@ export async function gerarPdfPedidoVenda({
   const tabelaItens = {
     table: {
       headerRows: 1,
-      widths: [55, '*', 45, 70, 70],
+      widths: [40, '*', 72, 35, 62, 62],
       body,
     },
     layout: {
