@@ -10,6 +10,8 @@ import {
   regimeMap,
   beneficioMap,
   tipoTelMap,
+  tiposTelefone,
+  normalizarTipoTelefone,
   reverseLookup,
 } from '@/data/mappings'
 
@@ -27,6 +29,7 @@ const emit = defineEmits<{
 const form = reactive<ClienteForm>({ ...defaultForm })
 const editandoId = ref<number | null>(null)
 const enderecoClienteId = ref<number | null>(null)
+const telefonesRemovidos = ref<number[]>([])
 const carregandoCliente = ref(false)
 const buscandoCNPJ = ref(false)
 const buscandoCEP = ref(false)
@@ -44,6 +47,7 @@ watch(
     Object.assign(form, defaultForm)
     editandoId.value = props.clienteId ?? null
     enderecoClienteId.value = null
+    telefonesRemovidos.value = []
     erroSalvar.value = null
 
     if (props.clienteId) {
@@ -52,11 +56,11 @@ watch(
         const resp = await xano.get(`/api:-qqRIakp/cliente/${props.clienteId}`)
         const data = resp.getBody()
 
-        form.tipo_pessoa = data.cnpj ? 'CNPJ' : 'CPF'
+        form.tipo_pessoa = data.tipo_pessoa || (data.cnpj?.trim() ? 'CNPJ' : 'CPF')
         form.razao_social = data.razao_social ?? ''
         form.nome_fantasia = data.nome_fantasia ?? ''
         form.contato = data.contato ?? ''
-        form.cnpj_cpf = data.cnpj || data.cpf || ''
+        form.cnpj_cpf = (data.cnpj || data.cpf || '').trim()
         form.inscricao_estadual = data.inscricao_estadual ?? ''
         form.email = data['e-mail'] ?? ''
         form.observacoes = data.observacao ?? ''
@@ -81,7 +85,7 @@ watch(
         form.telefones = tels.map((t: any) => ({
           id: t.id,
           numero: t.telefone ?? '',
-          tipo: reverseLookup(tipoTelMap, t.tipo_telefone_id) ?? '',
+          tipo: t.descricao ?? reverseLookup(tipoTelMap, t.tipo_telefone_id) ?? '',
         }))
       } catch (err) {
         console.error('Erro ao carregar cliente:', err)
@@ -89,6 +93,8 @@ watch(
       } finally {
         carregandoCliente.value = false
       }
+    } else {
+      form.telefones = [{ tipo: '', numero: '' }]
     }
   },
 )
@@ -97,11 +103,32 @@ function close() {
   emit('update:modelValue', false)
 }
 
+// Mínimo obrigatório no cadastro: Razão Social (ou Nome, para CPF) + Contato
+// + ao menos um telefone. CNPJ é opcional (pode não ter número).
+function validarForm(): string | null {
+  if (isCNPJ.value) {
+    if (!form.razao_social.trim()) return 'Informe a Razão Social.'
+  } else if (!form.razao_social.trim() && !form.nome_fantasia.trim()) {
+    return 'Informe o Nome (Razão Social ou Nome Fantasia).'
+  }
+  if (!form.contato.trim()) return 'Informe o Contato.'
+  if (!form.telefones.some((t) => t.numero.trim())) return 'Informe ao menos um telefone.'
+  return null
+}
+
 function adicionarTelefone() {
   form.telefones.push({ tipo: '', numero: '' })
 }
 
+// Ao trocar o tipo de pessoa, limpa o documento — evita gravar o CPF antigo no
+// campo de CNPJ (e vice-versa) quando o vendedor apenas troca o tipo.
+function trocarTipoPessoa() {
+  form.cnpj_cpf = ''
+}
+
 function removerTelefone(idx: number) {
+  const tel = form.telefones[idx]
+  if (tel?.id) telefonesRemovidos.value.push(tel.id)
   form.telefones.splice(idx, 1)
 }
 
@@ -128,10 +155,31 @@ function lookupId(map: Record<string, number>, key: string, label: string): numb
 }
 
 async function submit() {
+  const erroValidacao = validarForm()
+  if (erroValidacao) {
+    erroSalvar.value = erroValidacao
+    return
+  }
+
   salvando.value = true
   erroSalvar.value = null
 
+  // Telefones mantidos + telefones excluídos (só na edição o backend recebe a
+  // sinalização de exclusão via { telefone_id, telefone: null, tipo: null }).
+  const objphone: Array<{ telefone: string | null; tipo: number | null; telefone_id?: number }> =
+    form.telefones.map((t: TelefoneEntry) => ({
+      telefone: t.numero,
+      tipo: lookupId(tipoTelMap, t.tipo, 'Tipo Telefone') ?? 0,
+      ...(editandoId.value ? { telefone_id: t.id ?? 0 } : {}),
+    }))
+  if (editandoId.value) {
+    telefonesRemovidos.value.forEach((id) => {
+      objphone.push({ telefone_id: id, telefone: null, tipo: null })
+    })
+  }
+
   const payload: Record<string, any> = {
+    tipo_pessoa: form.tipo_pessoa,
     razao_social: form.razao_social,
     nome_fantasia: form.nome_fantasia,
     contato: form.contato,
@@ -147,11 +195,7 @@ async function submit() {
     estado: form.uf,
     contribui_icms: false,
     isento: false,
-    objphone: form.telefones.map((t: TelefoneEntry) => ({
-      telefone: t.numero,
-      tipo: lookupId(tipoTelMap, t.tipo, 'Tipo Telefone') ?? 0,
-      ...(t.id ? { telefone_id: t.id } : {}),
-    })),
+    objphone,
   }
 
   if (form.tipo_pessoa === 'CNPJ') {
@@ -221,7 +265,7 @@ async function buscarCNPJ() {
 
     if (data?.telefones?.length > 0) {
       form.telefones = data.telefones.map((p: any) => ({
-        tipo: p.tipo || '',
+        tipo: normalizarTipoTelefone(p.tipo),
         numero: (p.ddd || '') + p.numero,
       }))
     }
@@ -285,13 +329,13 @@ async function buscarCEP() {
                 <div class="field-row">
                   <div class="field half">
                     <label for="tipo_pessoa">Tipo Pessoa</label>
-                    <select id="tipo_pessoa" v-model="form.tipo_pessoa">
+                    <select id="tipo_pessoa" v-model="form.tipo_pessoa" @change="trocarTipoPessoa">
                       <option value="CNPJ">CNPJ</option>
                       <option value="CPF">CPF</option>
                     </select>
                   </div>
                   <div class="field half">
-                    <label for="contato">Contato</label>
+                    <label for="contato">Contato <span class="req">*</span></label>
                     <input id="contato" v-model="form.contato" placeholder="Contato" />
                   </div>
                 </div>
@@ -347,7 +391,7 @@ async function buscarCEP() {
 
                 <template v-if="isCNPJ">
                   <div class="field">
-                    <label for="razao_social">Razão Social</label>
+                    <label for="razao_social">Razão Social <span class="req">*</span></label>
                     <input
                       id="razao_social"
                       v-model="form.razao_social"
@@ -357,11 +401,14 @@ async function buscarCEP() {
                 </template>
 
                 <div class="field">
-                  <label for="nome_fantasia">Nome Fantasia</label>
+                  <label for="nome_fantasia"
+                    >{{ isCNPJ ? 'Nome Fantasia' : 'Nome' }}
+                    <span v-if="!isCNPJ" class="req">*</span></label
+                  >
                   <input
                     id="nome_fantasia"
                     v-model="form.nome_fantasia"
-                    placeholder="Nome Fantasia..."
+                    :placeholder="isCNPJ ? 'Nome Fantasia...' : 'Nome...'"
                   />
                 </div>
 
@@ -484,16 +531,15 @@ async function buscarCEP() {
 
               <!-- D. Contatos Telefônicos -->
               <section class="form-section">
-                <h3>Contatos Telefônicos</h3>
+                <h3>Contatos Telefônicos <span class="req">*</span></h3>
 
                 <div v-for="(tel, idx) in form.telefones" :key="idx" class="phone-row">
                   <div class="phone-fields">
                     <select v-model="tel.tipo">
                       <option value="" disabled>Tipo</option>
-                      <option value="Celular">Celular</option>
-                      <option value="Comercial">Comercial</option>
-                      <option value="Residencial">Residencial</option>
-                      <option value="WhatsApp">WhatsApp</option>
+                      <option v-for="tipo in tiposTelefone" :key="tipo" :value="tipo">
+                        {{ tipo }}
+                      </option>
                     </select>
                     <input v-model="tel.numero" placeholder="Telefone" />
                   </div>
@@ -800,6 +846,12 @@ async function buscarCEP() {
   color: #e74c3c;
   font-size: 0.875rem;
   text-align: center;
+}
+
+.req {
+  color: #dc2626;
+  font-weight: 700;
+  margin-left: 2px;
 }
 
 .modal-footer {

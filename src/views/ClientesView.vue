@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useClienteStore } from '@/stores/cliente'
 import type { Cliente } from '@/types/cliente'
 import ClienteModal from '@/components/ClienteModal.vue'
@@ -15,8 +15,12 @@ let debounceTimer: ReturnType<typeof setTimeout>
 watch(termoBusca, (val) => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    clienteStore.buscarClientes(val || undefined)
+    clienteStore.buscarClientes(val || undefined, 1)
   }, 350)
+})
+
+onMounted(() => {
+  clienteStore.buscarClientes()
 })
 
 function abrirNovo() {
@@ -33,9 +37,7 @@ function aoSalvar() {
   editandoId.value = null
   termoBusca.value = ''
   clienteStore.buscarClientes()
-}
-
-async function excluirCliente(cliente: Cliente) {
+}async function excluirCliente(cliente: Cliente) {
   const nome = cliente.nome_fantasia || cliente.razao_social
   if (!confirm(`Deseja realmente excluir "${nome}"?`)) return
 
@@ -97,7 +99,7 @@ function limparBusca() {
         {{
           termoBusca
             ? 'Nenhum cliente encontrado para esta busca.'
-            : 'Digite um termo na busca acima para encontrar clientes.'
+            : 'Nenhum cliente cadastrado.'
         }}
       </p>
     </div>
@@ -108,7 +110,7 @@ function limparBusca() {
           <thead>
             <tr>
               <th>ID</th>
-              <th>Nome Fantasia / Razão Social</th>
+              <th class="th-nome">Nome Fantasia / Razão Social</th>
               <th>CPF/CNPJ</th>
               <th>Contato</th>
               <th>E-mail</th>
@@ -120,11 +122,13 @@ function limparBusca() {
               <td>
                 <strong>#{{ cliente.id }}</strong>
               </td>
-              <td>
-                <div class="nome-fantasia">
+              <td class="td-nome">
+                <div class="nome-fantasia" :title="cliente.nome_fantasia || ''">
                   {{ cliente.nome_fantasia || 'Sem Nome Fantasia' }}
                 </div>
-                <small class="razao-social">{{ cliente.razao_social }}</small>
+                <small class="razao-social" :title="cliente.razao_social || ''">
+                  {{ cliente.razao_social }}
+                </small>
               </td>
               <td>{{ cliente.cnpj || '-' }}</td>
               <td>{{ cliente.contato || '-' }}</td>
@@ -168,9 +172,11 @@ function limparBusca() {
       <div class="card-list">
         <div v-for="cliente in clienteStore.clientes" :key="cliente.id" class="cliente-card">
           <div class="card-header">
-            <strong class="card-nome">{{
-              cliente.nome_fantasia || cliente.razao_social || '—'
-            }}</strong>
+            <strong
+              class="card-nome"
+              :title="cliente.nome_fantasia || cliente.razao_social || ''"
+              >{{ cliente.nome_fantasia || cliente.razao_social || '—' }}</strong
+            >
             <span class="card-id">#{{ cliente.id }}</span>
           </div>
           <div class="card-info">
@@ -223,6 +229,27 @@ function limparBusca() {
     </div>
 
     <p v-if="erroExcluir" class="erro-excluir" @click="erroExcluir = null">{{ erroExcluir }}</p>
+
+    <div v-if="clienteStore.totalPaginas > 1" class="paginacao">
+      <button
+        class="btn-pag"
+        :disabled="clienteStore.pagina <= 1"
+        @click="clienteStore.trocarPagina(clienteStore.pagina - 1)"
+      >
+        ← Anterior
+      </button>
+      <span class="pag-info">
+        Página {{ clienteStore.pagina }} de {{ clienteStore.totalPaginas }} ·
+        {{ clienteStore.total }} cliente{{ clienteStore.total === 1 ? '' : 's' }}
+      </span>
+      <button
+        class="btn-pag"
+        :disabled="clienteStore.pagina >= clienteStore.totalPaginas"
+        @click="clienteStore.trocarPagina(clienteStore.pagina + 1)"
+      >
+        Próxima →
+      </button>
+    </div>
 
     <ClienteModal v-model="modalOpen" :cliente-id="editandoId" @saved="aoSalvar" />
   </main>
@@ -396,6 +423,20 @@ function limparBusca() {
   text-align: center;
 }
 
+.th-nome,
+.td-nome {
+  max-width: 260px;
+}
+
+.td-nome .nome-fantasia,
+.td-nome .razao-social {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 .td-acoes {
   text-align: center;
   white-space: nowrap;
@@ -469,6 +510,11 @@ function limparBusca() {
 .card-nome {
   font-size: 1rem;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .card-id {
@@ -539,6 +585,42 @@ function limparBusca() {
   color: var(--danger);
   font-size: 0.875rem;
   cursor: pointer;
+}
+
+.paginacao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-pag {
+  padding: 0.45rem 1rem;
+  background: var(--table-hover);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-pag:hover:not(:disabled) {
+  background: var(--border-subtle);
+  color: var(--primary-light);
+}
+
+.btn-pag:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pag-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 639px) {

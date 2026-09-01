@@ -38,8 +38,24 @@ export const beneficioMap: Record<string, number> = {
 }
 
 export const tipoTelMap: Record<string, number> = {
-  Celular: 1,
-  Comercial: 1,
-  Residencial: 1,
-  WhatsApp: 1,
+  'Whatsapp Com': 1,
+  'Cel Com': 2,
+  'Fixo Com': 3,
+  'Cel Res': 4,
+  'Fixo Res': 5,
+  'Whatsapp Res': 6,
+}
+
+// Opções do dropdown na ordem exibida (valores = descrições reais da tabela Tipo_Telefone)
+export const tiposTelefone: string[] = Object.keys(tipoTelMap)
+
+// Normaliza o tipo vindo do autofill de CNPJ (strings livres da API externa)
+// para uma das descrições reais.
+export function normalizarTipoTelefone(tipo?: string | null): string {
+  if (!tipo) return ''
+  const t = tipo.trim().toLowerCase()
+  if (t.includes('whatsapp')) return 'Whatsapp Com'
+  if (t.includes('res')) return 'Cel Res'
+  if (t.includes('cel')) return 'Cel Com'
+  return 'Fixo Com'
 }

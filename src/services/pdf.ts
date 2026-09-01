@@ -240,10 +240,10 @@ export function obterWhatsapp(user?: User | null): string {
   return whats?.telefone || ''
 }
 
-// Telefone do cliente com tipo_telefone_id == 1 (Celular/Comercial/WhatsApp)
+// Telefone do cliente com tipo_telefone_id 1 (Whatsapp Com) ou 6 (Whatsapp Res)
 export function obterWhatsappCliente(cliente?: Cliente | null): string {
   const telefones = cliente?._telefone_cliente_of_cliente ?? []
-  const tel = telefones.find((t) => Number(t.tipo_telefone_id) === 1)
+  const tel = telefones.find((t) => Number(t.tipo_telefone_id) === 1 || Number(t.tipo_telefone_id) === 6)
   return tel?.telefone || ''
 }
 

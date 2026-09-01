@@ -29,6 +29,7 @@ export interface ClienteForm {
 
 export interface Cliente {
   id: number
+  tipo_pessoa?: string
   razao_social: string
   nome_fantasia: string
   contato: string
