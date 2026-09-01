@@ -75,6 +75,13 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 - **`OAuthCallbackView.vue`** (rota `/oauth/callback`): lê `code` da query, processa (redirect_uri é sempre reconstruído a partir do origin para evitar mismatch), redireciona para `/`; erro → mensagem amigável ("Acesso restrito a usuários previamente autorizados.").
 - **Router**: `/oauth/callback` incluída em `guestRoutes` (não exige login).
 - **Env vars Xano**: `google_client_id` e `google_client_secret` (a função `google_oauth_getauthurl` lê esses nomes).
+- **`prompt=select_account`**: a URL gerada por `google_oauth_getauthurl` inclui `prompt=select_account` → o Google **sempre mostra o seletor de contas** ao clicar em "Entrar com o Google" (permite trocar entre contas Google já cadastradas sem limpar a sessão do Google).
+- **Usuário novo via Google**: o `continue` **não cria** o usuário — `db.get User { email }` + `precondition ($user != null)` → rejeita com "Usuário não cadastrado" (acesso restrito). Para usar, **pré-criar** o `User` com o e-mail do Google (via `/signup` ou dashboard); o 1º login Google auto-vincula `google_oauth`.
+
+### Troca de usuário (dev)
+
+- **`DevUserSwitcher.vue`** (novo) + botão **👥** no `GlobalHeader` (só `isDev`): popover que guarda contas de teste em `localStorage` (`orca_dev_usuarios`: `[{ nome, email, senha }]`) com formulário add/remove, botões **"Entrar"** (`authStore.login` + redirect `/`) e **"Sair"** (logout → `/login`). Some do build de produção.
+- Troca entre contas Google: fluxo Google com `prompt=select_account` (seletor). Troca por senha: switcher ou logout→login.
 
 ### Consumo no `orcamentoStore`
 
@@ -227,10 +234,16 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
 
 ### Pendências
 
-- `user.uf` adicionado à tabela User e à interface TS; `user.regime_id` precisa ser **preenchido no perfil** de cada vendedor (e `user.uf`) para a precificação funcionar. Atualmente o frontend usa fallbacks (`SP`/`regime_id=0`).
 - Stub vazia `orcamento_orquestrador` (lowercase, id antigo) ainda existe no workspace — remover manualmente no dashboard.
 - O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
 - Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
+
+### Perfil (UF + Regime Tributário) e precificação
+
+A precificação (DIFAL, crédito ICMS, ST) usa `User.uf` + `User.regime_id` (editados em `PerfilModal.vue` → `POST /user/{id}`; `/auth/me` retorna os campos). Sem eles, o backend `Precificar` cai no ramo **Lucro Real/Presumido** (abate crédito ICMS) — **errado** para MEI/Simples. Garantias implementadas:
+
+- **Banner informativo (sem bloqueio)**: `OrcamentosView.vue` — computed `perfilPrecificacaoIncompleto` (`!user.uf || !user.regime_id`) mostra banner no topo com botão "Abrir Meus Dados" (`uiStore.perfilOpen`). **Não bloqueia o cálculo nem abre o modal automaticamente** — o app funciona normal com qualquer usuário; se faltar UF/Regime, o backend usa fallback (`SP`/`regime_id=0`).
+- **Consistência por orçamento**: `calcularOrquestrador` (`orcamento.ts`) envia `uf_destino: header?.uf_destino ?? user?.uf ?? 'SP'` e `regime_id: header?.regime_id ?? user?.regime_id ?? 0` — recalcular/adicionar item num orçamento existente usa o regime/UF **gravados na criação** (`Orca.regime_id`/`Orca.uf_destino`, persistidos via `post_orca`), honrando o aviso do modal "mudança só vale para novos orçamentos". `OrcamentoItem_Inserir` é pass-through dos valores fiscais calculados no front (não recalcula regime).
 
 ## What's NOT set up
 
@@ -249,6 +262,8 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
 - **Referência de tabela base em `db.query` com join deve ser maiúscula** (`$db.Orca.cod_orca`, `sort = {Orca.created_at: "desc"}`); minúscula (`$db.orca.cod_orca`, `{orca.created_at: ...}`) quebra com `xdo.orca.*`.
 - **URLs da API são case-sensitive no Xano**: o path segue o nome da query exatamente (`Orcamento_Duplicar`, `OrcamentoItem_Inserir`, `CalculoValorVenda_IDs`). Chamar `orcamento_duplicar` minúsculo (quando a query é `Orcamento_Duplicar`) dá **404**. Sempre conferir o case do nome da query antes de chamar no front.
 - **Eval de `Descricao` com `concat` quebra se usarmos `first_notnull`/parênteses no argumento**: `concat:($db.X.nome|first_notnull:"")` não é aceito pelo XanoScript em `eval` → endpoint 500. Manter o `concat` simples e blindar a descrição no **frontend** (fallback `item.Descricao || item.descricao`).
+- **`|default:<var.property>` no `value` de um `var`/`var.update` quebra com `Unable to locate func entry: default`**: em `Precificar`, `var $aliq_st { value = $input.aliq_st_interna |default:$estado_destino.aliquota_modal }` era parseado como chamada de função `default(...)` → erro só em regime ≠ MEI com produto com ST (`tem_st`). Correção: `value = $input.aliq_st_interna` + `conditional { if (!$aliq_st) { var.update $aliq_st { value = $estado_destino.aliquota_modal } } }`. Obs.: `|first_notnull`/`|first_notempty` com propriedade em `db.edit`/`db.add` **funcionam** — o problema é específico do `|default:` no `value` de variável.
+- **`xano function run` NÃO é teste válido para chamadas entre funções**: o CLI falha com "Function does not exist: function:<id>" mesmo quando a função chamada existe e o app funciona. Verificar sempre no **app** (ou no teste do próprio Xano no dashboard).
 
 ## Conventions
 

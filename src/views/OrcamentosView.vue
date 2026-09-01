@@ -18,12 +18,14 @@ import { provedoresDisponiveis } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
+import { useUiStore } from '@/stores/ui'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 import type { TaxaBanco } from '@/types/orcamento'
 
 const route = useRoute()
 const router = useRouter()
+const uiStore = useUiStore()
 const codOrcaParam = route.params.codOrca as string | undefined
 const isEditMode = computed(() => !!codOrcaParam)
 const isVinculado = computed(() => {
@@ -116,6 +118,12 @@ const margemPadrao = computed(() => {
   return authStore.user?.margem ?? 100
 })
 const fretePadrao = computed(() => authStore.user?.frtB2B ?? 52)
+
+// Perfil sem UF ou Regime Tributário → precificação com fallback pode sair errada
+// (DIFAL/crédito ICMS). Bloqueia o cálculo e mostra banner pedindo cadastro completo.
+const perfilPrecificacaoIncompleto = computed(
+  () => !authStore.user?.uf || !authStore.user?.regime_id,
+)
 
 const formValido = computed(() => {
   if (!clienteSelecionado.value) return false
@@ -944,7 +952,9 @@ const corBadgeCartao = computed(() => {
 // Sem mesclagem → prévia da aba atual (Pix+Boleto ou Cartão); com mesclagem → combinado.
 function selecionarPagamento(tipo: 'pix' | 'cartao', chave?: string | null) {
   abaPagamento.value = tipo
-  cartaoSelecionado.value = chave ?? null
+  if (chave !== undefined) {
+    cartaoSelecionado.value = chave
+  }
   const c = condicoesCalculadas.value
   if (mesclarMetodos.value) {
     condicoesPagamento.value = c.texto
@@ -978,6 +988,20 @@ function setRepasseTaxa(valor: boolean) {
   if (abaPagamento.value === 'cartao') {
     selecionarPagamento('cartao', cartaoSelecionado.value)
   }
+}
+
+// Troca de instituição: limpa a parcela selecionada se o provedor salvo não bater
+// com o novo (evita chave órfã "provedor|parcelas" apontando para outra instituição).
+function selecionarProvedor() {
+  const sel = cartaoSelecionado.value
+  if (sel) {
+    const [pid] = sel.split('|')
+    const novo = provedorSelecionado.value
+    if (novo != null && String(novo) !== String(pid)) {
+      cartaoSelecionado.value = null
+    }
+  }
+  selecionarPagamento('cartao')
 }
 
 // Gera as condições padrão no textarea (pergunta antes de sobrescrever conteúdo existente)
@@ -1293,6 +1317,15 @@ async function enviarWhatsApp() {
 
 <template>
   <div class="orcamento-page">
+    <div v-if="perfilPrecificacaoIncompleto" class="perfil-banner" role="alert">
+      <span class="perfil-banner-text">
+        Cadastro incompleto — configure <strong>UF</strong> e <strong>Regime Tributário</strong> em
+        Meus Dados para precificar corretamente.
+      </span>
+      <button class="btn btn-sm btn-accent" @click="uiStore.perfilOpen = true">
+        Abrir Meus Dados
+      </button>
+    </div>
     <template v-if="!mostrarResumo">
       <!-- A. Cabeçalho e Identificação do Cliente -->
       <section class="card welcome-card">
@@ -2758,7 +2791,7 @@ async function enviarWhatsApp() {
 
                 <div v-if="provedores.length > 1" class="cond-cartao-row">
                   <label>Instituição</label>
-                  <select v-model="provedorSelecionado" @change="selecionarPagamento('cartao')">
+                  <select v-model="provedorSelecionado" @change="selecionarProvedor()">
                     <option :value="null">Todas</option>
                     <option v-for="p in provedores" :key="p.id" :value="p.id">
                       {{ p.nome }}
@@ -3175,6 +3208,24 @@ async function enviarWhatsApp() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.perfil-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: #92400e;
+  font-size: 0.9rem;
+}
+
+.perfil-banner-text {
+  line-height: 1.4;
 }
 
 .mt-075 {

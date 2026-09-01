@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
 import { useUiStore } from '@/stores/ui'
 import PerfilModal from '@/components/PerfilModal.vue'
+import DevUserSwitcher from '@/components/DevUserSwitcher.vue'
 
 defineEmits<{ toggleSidebar: [] }>()
 
@@ -12,6 +13,8 @@ const catalogoStore = useCatalogoStore()
 const uiStore = useUiStore()
 
 const versaoMenuOpen = ref(false)
+const userMenuOpen = ref(false)
+const isDev = import.meta.env.DEV
 
 function toggleVersaoMenu() {
   versaoMenuOpen.value = !versaoMenuOpen.value
@@ -21,10 +24,17 @@ function fecharVersaoMenu() {
   versaoMenuOpen.value = false
 }
 
+function toggleUserMenu() {
+  userMenuOpen.value = !userMenuOpen.value
+}
+
 function onDocClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   if (!target.closest('.versao-wrap')) {
     fecharVersaoMenu()
+  }
+  if (!target.closest('.dus-wrap')) {
+    userMenuOpen.value = false
   }
 }
 
@@ -137,6 +147,33 @@ onBeforeUnmount(() => {
           <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
       </button>
+      <div v-if="isDev" class="dus-wrap">
+        <button
+          class="header-icon"
+          title="Trocar usuário (dev)"
+          aria-label="Trocar usuário"
+          @click.stop="toggleUserMenu"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </button>
+        <Transition name="pop">
+          <div v-if="userMenuOpen" class="dus-popover" @click.stop>
+            <DevUserSwitcher />
+          </div>
+        </Transition>
+      </div>
       <button
         class="header-icon"
         title="Perfil"
@@ -272,6 +309,24 @@ onBeforeUnmount(() => {
 .versao-row strong {
   color: var(--text-primary, #1f2937);
   font-variant-numeric: tabular-nums;
+}
+
+.dus-wrap {
+  position: relative;
+}
+
+.dus-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 95;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #1f2937);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 0.75rem;
+  min-width: 280px;
+  border: 1px solid var(--border-light, #e5e7eb);
 }
 
 .pop-enter-active,

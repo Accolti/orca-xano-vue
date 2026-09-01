@@ -508,8 +508,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       variacao_id: variacaoSelecionada.value?.id ?? 0,
       markup,
       orca_id: orcamentoHeader.value?.id ?? 0,
-      uf_destino: user?.uf ?? 'SP',
-      regime_id: user?.regime_id ?? 0,
+      // Regime/UF do próprio orçamento quando existir (consistência: mudança de perfil
+      // só vale para novos orçamentos); senão usa o perfil atual do vendedor.
+      uf_destino: orcamentoHeader.value?.uf_destino ?? user?.uf ?? 'SP',
+      regime_id: orcamentoHeader.value?.regime_id ?? user?.regime_id ?? 0,
       com_medida_exata: medidaExata.value,
       rampa_larg1: rampaLarg1.value,
       rampa_comp1: rampaComp1.value,

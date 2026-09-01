@@ -89,6 +89,7 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
 - O bonequinho no `GlobalHeader` abre `PerfilModal.vue` — edita nome/sobrenome, empresa (razao/fantasia/cnpj/ie/cpf/isPJ), UF (obrigatória), regime, frete B2B, margem e dias de validade.
 - **Email é read-only** (se `google_oauth`, mostra "Conectado via Google"). Regime é select dinâmico via `GET /regime` (fallback `regimeMap`); **trocar regime pede confirmação** ("orçamentos anteriores mantêm o cálculo fiscal; só vale para novos"). Salva via `POST /user/{user_id}` → `fetchMe()`.
 - Backend: `user_id_POST` ganhou **`uf`** (precondition obrigatória) e trocou `first_notempty`→`first_notnull` nos numéricos (`frtB2B`, `margem`) para **0 persistir**.
+- **Garantias de precificação**: sem `User.uf`/`User.regime_id` o `Precificar` cai no ramo Lucro Real/Presumido (abate crédito ICMS — errado para MEI/Simples). `OrcamentosView.vue` mostra **banner** "Cadastro incompleto" com botão "Abrir Meus Dados" — **informativo, sem bloquear o cálculo nem abrir o modal sozinho** (o app funciona normal; sem UF/Regime usa fallback `SP`/`regime_id=0`). `calcularOrquestrador` usa `Orca.regime_id`/`Orca.uf_destino` persistidos na criação para orçamentos existentes (mudança de perfil só vale para novos).
 - **2ª fase**: telefone/endereço do usuário, logo, troca de email com verificação.
 
 ## Medida exata (acréscimo de fábrica)
@@ -169,6 +170,7 @@ ML/UND/KIT continuam usando o `fator_de_corte_id` da **Variação** (via `f_fato
 
 - **`DevConfiguracoesView.vue`** (`/dev/configuracoes`) — lista a tabela `Configuracoes` e permite **bump de versão** (`+1`/`+5`) para **Materiais**, **Produtos** e **Taxas de banco** (`versao_taxas_banco`, desta sessão). Ao incrementar, limpa o cache correspondente do localStorage (`orca_catalogo_materiais_cache`/`orca_catalogo_produtos_cache`/`orca_taxas_banco_cache`).
 - **`DevMateriaisView.vue`** (`/dev/materiais`) — lista/edita materiais (nome, ordem, ativo) com toggle de ativo.
+- **Troca de usuário (dev)** — botão **👥** no `GlobalHeader` (só em DEV) abre o `DevUserSwitcher.vue`: guarda contas de teste em `localStorage` (`orca_dev_usuarios`) com add/remove e **"Entrar"** (1 clique, `authStore.login`) + **"Sair"**. Some do build de produção. Troca entre contas Google usa o fluxo Google com **`prompt=select_account`** (seletor sempre aberto); usuário novo via Google exige **pré-cadastro** do `User` (o `continue` rejeita e-mail sem registro — acesso restrito).
 
 ## Produto composto (`Base_de_Calculo = COMPOSTO`)
 
