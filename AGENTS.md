@@ -117,6 +117,8 @@ A tabela `Produto.ativo` (default `true`) controla se o produto existe na precif
 
 **Borda** segue o mesmo padrão: a tabela `Borda.ativo` é respeitada em `f_produtos_selecao` (catálogo), `Ret_Suc_Filtrado` e `Ret_TabMaeEFilhas_2`, e `bordasFiltradas` filtra `ativo !== false` defensivamente.
 
+**Classificação é opcional no produto**: o join de `Classificacao` no `fTodos_Produtos` (produtos_all) é **`left`** — um produto sem `classificacao_id` válido (nulo/0/id apagado) **não** some mais da lista (lição: produto sumido com `ativo=true` e material ativo = join inner derrubando a linha; `produtos_dev_lista` não tem esse join, então serve de diagnóstico).
+
 ### Recálculo dinâmico (resumo tela verde)
 
 O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, frete B2C, desconto) dispara `Orcamento_Recalcular_Totais` que refaz o **frete B2B sobre o somatório dos custos**, rateia proporcionalmente, aplica markup (efetivo), desconto e frete B2C, e atualiza itens + cabeçalho ORCA. O mínimo do frete B2B vem de **`User.frtB2B`** (`f_calcula_frete` lê `$User1.frtB2B`); o parâmetro morto `seu_frete_minimo: 52` foi removido do `Orcamento_Recalcular_Totais`.

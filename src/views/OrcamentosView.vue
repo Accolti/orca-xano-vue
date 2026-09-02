@@ -501,6 +501,10 @@ function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
+function round6(n: number) {
+  return Math.round(n * 1_000_000) / 1_000_000
+}
+
 // Sincroniza a simulação com os valores oficiais (base do header/totais)
 function sincronizarSimulacao() {
   const header = orcamentoStore.orcamentoHeader
@@ -644,7 +648,7 @@ function simularPorVenda() {
   novoLucroResumo.value = round2(vendaFinal - cst)
   margemRealResumo.value = vendaFinal > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0
   const vendaBruta = vendaFinal + dsc
-  novaMargemResumo.value = round2((vendaBruta / cst - 1) * 100)
+  novaMargemResumo.value = round6((vendaBruta / cst - 1) * 100)
 }
 
 function simularPorLucro() {
@@ -655,7 +659,7 @@ function simularPorLucro() {
   const vendaFinal = cst + lucro
   novoValorVendaResumo.value = round2(vendaFinal)
   margemRealResumo.value = vendaFinal > 0 ? round2((lucro / vendaFinal) * 100) : 0
-  novaMargemResumo.value = round2(((vendaFinal + dsc) / cst - 1) * 100)
+  novaMargemResumo.value = round6(((vendaFinal + dsc) / cst - 1) * 100)
 }
 
 function simularPorMargemReal() {
@@ -667,7 +671,7 @@ function simularPorMargemReal() {
   novoValorVendaResumo.value = round2(vendaFinal)
   novoLucroResumo.value = round2(vendaFinal - cst)
   const dsc = descontoResumo.value || 0
-  novaMargemResumo.value = round2(((vendaFinal + dsc) / cst - 1) * 100)
+  novaMargemResumo.value = round6(((vendaFinal + dsc) / cst - 1) * 100)
 }
 
 function simularPorDesconto() {
