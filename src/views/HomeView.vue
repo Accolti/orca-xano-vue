@@ -9,6 +9,28 @@ import { XanoRequestError } from '@xano/js-sdk'
 const authStore = useAuthStore()
 const router = useRouter()
 
+type PeriodoOpcao = 'todos' | 'mensal' | 'trimestral' | 'semestral' | 'anual'
+const periodo = ref<PeriodoOpcao>('todos')
+const mesInicio = ref(mesAtualISO())
+
+const periodos: { id: PeriodoOpcao; label: string }[] = [
+  { id: 'todos', label: 'Todos os períodos' },
+  { id: 'mensal', label: 'Mensal' },
+  { id: 'trimestral', label: 'Trimestral' },
+  { id: 'semestral', label: 'Semestral' },
+  { id: 'anual', label: 'Anual' },
+]
+
+function mesAtualISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function mudarPeriodo(p: PeriodoOpcao) {
+  periodo.value = p
+  carregar()
+}
+
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -34,7 +56,8 @@ async function carregar() {
   loading.value = true
   error.value = null
   try {
-    const resp = await xano.get('/api:-qqRIakp/dashboard')
+    const params = new URLSearchParams({ periodo: periodo.value, mes_inicio: mesInicio.value })
+    const resp = await xano.get(`/api:-qqRIakp/dashboard?${params.toString()}`)
     const d = resp.getBody() ?? {}
     orcamentos.value = Number(d.orcamentos) || 0
     pedidos.value = Number(d.pedidos) || 0
@@ -70,6 +93,24 @@ onMounted(carregar)
         <p class="subtitle">Visão geral da sua conta.</p>
       </div>
     </header>
+
+    <div class="periodo-bar">
+      <label class="periodo-label">
+        Período a partir de
+        <input v-model="mesInicio" type="month" class="periodo-input" @change="carregar" />
+      </label>
+      <div class="periodo-chips">
+        <button
+          v-for="p in periodos"
+          :key="p.id"
+          class="aba"
+          :class="{ active: periodo === p.id }"
+          @click="mudarPeriodo(p.id)"
+        >
+          {{ p.label }}
+        </button>
+      </div>
+    </div>
 
     <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>
 
@@ -154,6 +195,60 @@ onMounted(carregar)
   color: var(--text-secondary);
   font-size: 1rem;
   margin: 0;
+}
+
+.periodo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.periodo-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.periodo-input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.periodo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.aba {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.aba:hover {
+  background: var(--table-hover);
+}
+
+.aba.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 
 .status {

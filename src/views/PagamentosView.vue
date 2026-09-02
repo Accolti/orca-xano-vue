@@ -11,10 +11,35 @@ type Aba = 'todos' | 'em_aberto' | 'a_vencer' | 'vencido' | 'pago'
 const aba = ref<Aba>('todos')
 const baixandoId = ref<number | null>(null)
 
+type Periodo = 'todos' | 'mensal' | 'trimestral' | 'semestral' | 'anual'
+const periodo = ref<Periodo>('todos')
+const mesInicio = ref(mesAtualISO())
+
 function hoje(): Date {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+function mesAtualISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+const MESES_PERIODO: Record<Exclude<Periodo, 'todos'>, number> = {
+  mensal: 1,
+  trimestral: 3,
+  semestral: 6,
+  anual: 12,
+}
+
+// Fim (exclusivo) da janela de vencimento a partir do 1º dia do mês escolhido.
+// Sem limite inferior: parcelas já vencidas aparecem em qualquer período.
+function limitePeriodo(): Date | null {
+  if (periodo.value === 'todos') return null
+  const [ano, mes] = mesInicio.value.split('-').map(Number)
+  if (!ano || !mes) return null
+  return new Date(ano, mes - 1 + MESES_PERIODO[periodo.value], 1)
 }
 
 function dataNormalizada(v?: string): Date | null {
@@ -42,10 +67,29 @@ const abas: { id: Aba; label: string }[] = [
   { id: 'pago', label: 'Pagos' },
 ]
 
+const periodos: { id: Periodo; label: string }[] = [
+  { id: 'todos', label: 'Todos os períodos' },
+  { id: 'mensal', label: 'Mensal' },
+  { id: 'trimestral', label: 'Trimestral' },
+  { id: 'semestral', label: 'Semestral' },
+  { id: 'anual', label: 'Anual' },
+]
+
 const visiveis = computed(() => {
-  if (aba.value === 'todos') return pagamentoStore.parcelas
-  if (aba.value === 'em_aberto') return pagamentoStore.parcelas.filter((p) => !p.pagamento)
-  return pagamentoStore.parcelas.filter((p) => statusParcela(p) === aba.value)
+  let lista = pagamentoStore.parcelas
+  if (aba.value === 'em_aberto') {
+    lista = lista.filter((p) => !p.pagamento)
+  } else if (aba.value !== 'todos') {
+    lista = lista.filter((p) => statusParcela(p) === aba.value)
+  }
+  const limite = limitePeriodo()
+  if (limite) {
+    lista = lista.filter((p) => {
+      const v = dataNormalizada(p.vencimento)
+      return v !== null && v < limite
+    })
+  }
+  return lista
 })
 
 const totalGeral = computed(() =>
@@ -135,6 +179,24 @@ onMounted(() => {
   <main class="container">
     <div class="topo">
       <h2>Controle Financeiro</h2>
+    </div>
+
+    <div class="periodo-bar">
+      <label class="periodo-label">
+        Período a partir de
+        <input v-model="mesInicio" type="month" class="periodo-input" />
+      </label>
+      <div class="periodo-chips">
+        <button
+          v-for="p in periodos"
+          :key="p.id"
+          class="aba"
+          :class="{ active: periodo === p.id }"
+          @click="periodo = p.id"
+        >
+          {{ p.label }}
+        </button>
+      </div>
     </div>
 
     <div class="abas">
@@ -242,6 +304,38 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 1rem;
+}
+
+.periodo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.periodo-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.periodo-input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.periodo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .aba {
