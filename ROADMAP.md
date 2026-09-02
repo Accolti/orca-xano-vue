@@ -57,6 +57,17 @@ Status: registrada (implementação futura)
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
 - [ ] **Tela de comissões pagas aos vendedores-filhos**: lista por vendedor, período, valor da comissão, status (calculada/paga) — depende de `vendedor_pai_id` + `percentual_comissao`. Rota própria `/comissoes`
 
+### Comissões — Fase A (plano aprovado em 2026-09 — implementar depois)
+
+Modelo decidido: **empresa com vendedores** (role `admin` = dono/gestor, `vendedor` = subordinado), comissão do vendedor sobre o **lucro real do pedido**, gatilho **ao receber** (implementar como "pedido 100% pago" — todas as parcelas recebidas).
+
+- **Dados**: `User.role` (`admin` default das contas atuais | `vendedor`), `User.vendedor_pai_id` (FK User), `User.percentual_comissao`. Tabela `Comissao` (append-only): `user_id`, `orca_id`, `percentual`, `lucro_real_base`, `valor`, `status` (`calculada`|`paga`), `data_pagamento`; lançamento único por `orca_id`.
+- **Backend**:
+  - `pagamento_baixa`: ao deixar o pedido 100% pago, calcula `lucro_real` (mesma fórmula do `/relatorio`: `luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)`, % do `Desconto_Kapazi_Log`/`ControlePedido`) e insere `Comissao` do dono (`Orca.user_id`) quando tem `vendedor_pai_id`; idempotente; estorno não remove.
+  - `GET /equipe` (admin) · `POST /equipe_vincular {email, percentual}` · `POST /equipe_criar {name, email, password, percentual}` · `GET /comissoes` (período; admin vê vendedores filhos, vendedor vê os dele) · `POST /comissao_pagar {comissao_id}`.
+- **Front**: `auth` User + helpers `isAdmin`/`isVendedor`; rotas `/equipe` e `/comissoes`; views `EquipeView` (vincular/criar/editar %) e `ComissoesView` (chips de período, tabelas, "Marcar paga"); menu condicional por role.
+- **Fases futuras**: B — permissões visuais (vendedor sem custo/markup/margem, limite de desconto); C — planos/assinaturas e (se preciso) `vendedor_master` (2 níveis).
+
 ## 📊 Frente 4 — Relatórios e controle financeiro
 
 Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do projeto
