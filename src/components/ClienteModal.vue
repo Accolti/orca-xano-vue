@@ -2,7 +2,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
-import type { ClienteForm, TelefoneEntry } from '@/types/cliente'
+import type { ClienteForm, TelefoneEntry, Cliente } from '@/types/cliente'
 import { defaultForm } from '@/types/cliente'
 import {
   ramoMap,
@@ -23,7 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  saved: []
+  saved: [cliente?: Partial<Cliente>]
 }>()
 
 const form = reactive<ClienteForm>({ ...defaultForm })
@@ -225,15 +225,38 @@ async function submit() {
   try {
     if (editandoId.value) {
       await xano.patch('/api:-qqRIakp/Cliente_Endereco_Telefone', payload)
+      emit('saved', montarClienteSalvo(editandoId.value))
     } else {
-      await xano.post('/api:-qqRIakp/Cliente_Endereco_Telefone', payload)
+      const resp = await xano.post('/api:-qqRIakp/Cliente_Endereco_Telefone', payload)
+      const body = resp.getBody() ?? {}
+      const criado = body?.Cliente_2 ?? body?.cliente ?? null
+      const novoId = Number(criado?.id) || 0
+      emit('saved', montarClienteSalvo(novoId))
     }
-    emit('saved')
     close()
   } catch (err) {
     erroSalvar.value = getErroMsg(err)
   } finally {
     salvando.value = false
+  }
+}
+
+function montarClienteSalvo(id: number): Partial<Cliente> {
+  const ehCnpj = form.tipo_pessoa === 'CNPJ'
+  return {
+    id,
+    tipo_pessoa: form.tipo_pessoa,
+    razao_social: form.razao_social,
+    nome_fantasia: form.nome_fantasia,
+    contato: form.contato,
+    cpf: ehCnpj ? '' : form.cnpj_cpf,
+    nome_cpf: ehCnpj ? '' : form.razao_social || form.nome_fantasia,
+    cnpj: ehCnpj ? form.cnpj_cpf : '',
+    inscricao_estadual: form.inscricao_estadual,
+    'e-mail': form.email,
+    observacao: form.observacoes,
+    contribui_icms: false,
+    isento: false,
   }
 }
 

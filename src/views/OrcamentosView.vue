@@ -82,6 +82,7 @@ const termoBuscaCliente = ref('')
 const clienteSelecionado = ref<Cliente | null>(null)
 const clienteModalOpen = ref(false)
 const clienteModalId = ref<number | null>(null)
+const clienteModalSomenteLeitura = ref(true)
 
 watch(termoBuscaCliente, (val) => {
   if (val && val.length >= 3) {
@@ -105,9 +106,48 @@ function selecionarCliente(c: Cliente) {
 
 function verCliente() {
   if (clienteSelecionado.value) {
+    clienteModalSomenteLeitura.value = true
     clienteModalId.value = clienteSelecionado.value.id
     clienteModalOpen.value = true
   }
+}
+
+// Abre o modal em modo de criação; ao salvar, o novo cliente já entra
+// selecionado (vinculado) no orçamento aberto.
+function novoCliente() {
+  clienteModalSomenteLeitura.value = false
+  clienteModalId.value = null
+  clienteModalOpen.value = true
+}
+
+function aoSalvarCliente(c?: Partial<Cliente>) {
+  if (!c?.id) return
+  const novo: Cliente = {
+    id: c.id,
+    tipo_pessoa: c.tipo_pessoa ?? '',
+    razao_social: c.razao_social ?? '',
+    nome_fantasia: c.nome_fantasia ?? '',
+    contato: c.contato ?? '',
+    cpf: c.cpf ?? '',
+    nome_cpf: c.nome_cpf ?? '',
+    cnpj: c.cnpj ?? '',
+    inscricao_estadual: c.inscricao_estadual ?? '',
+    'e-mail': c['e-mail'] ?? '',
+    contribui_icms: c.contribui_icms ?? false,
+    isento: c.isento ?? false,
+    observacao: c.observacao ?? '',
+    user_id: c.user_id ?? 0,
+    beneficio_fiscal_id: c.beneficio_fiscal_id ?? 0,
+    mercado_id: c.mercado_id ?? 0,
+    ramo_id: c.ramo_id ?? 0,
+    regime_id: c.regime_id ?? 0,
+    created_at: c.created_at ?? 0,
+    _enderecos: [],
+    _telefone_cliente_of_cliente: [],
+  }
+  clienteSelecionado.value = novo
+  termoBuscaCliente.value = ''
+  clienteStore.clientes = []
 }
 
 const margemPadrao = computed(() => {
@@ -1395,7 +1435,10 @@ async function enviarWhatsApp() {
       <!-- Cliente -->
       <template v-if="!isVinculado">
         <section class="card">
-          <h3 class="section-title">Cliente</h3>
+          <div class="section-title-row">
+            <h3 class="section-title">Cliente</h3>
+            <button class="btn btn-sm btn-outline" @click="novoCliente">＋ Novo cliente</button>
+          </div>
 
           <div v-if="!clienteSelecionado" class="cliente-busca">
             <div class="field">
@@ -2502,7 +2545,12 @@ async function enviarWhatsApp() {
         @select="selecionarSimulacao"
       />
 
-      <ClienteModal v-model="clienteModalOpen" :cliente-id="clienteModalId" :readonly="true" />
+      <ClienteModal
+        v-model="clienteModalOpen"
+        :cliente-id="clienteModalId"
+        :readonly="clienteModalSomenteLeitura"
+        @saved="aoSalvarCliente"
+      />
     </template>
 
     <template v-else>
@@ -3385,6 +3433,17 @@ async function enviarWhatsApp() {
   border-left: 4px solid;
   border-image: linear-gradient(180deg, var(--primary, #1e40af), var(--accent, #f97316)) 1;
   border-bottom: 1px solid var(--border-light, var(--border-light));
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.section-title-row .section-title {
+  margin-bottom: 0;
 }
 
 .field {
