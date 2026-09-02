@@ -25,7 +25,7 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
   { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
   { icon: '\u{1F4CB}', label: 'Controle de Pedidos', disabled: true },
-  { icon: '\u{1F4B3}', label: 'Boletos', disabled: true },
+  { icon: '\u{1F4B3}', label: 'Boletos', path: '/pagamentos' },
   { icon: '\u{1F4CA}', label: 'Relatórios', disabled: true },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true },
 ]

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   useOrcamentosListActions,
   statusLabel,
@@ -8,6 +9,8 @@ import {
   formatarData,
   type OrcamentoRow,
 } from '@/utils/orcamentosList'
+
+const route = useRoute()
 
 const termoBusca = ref('')
 const filtroStatus = ref('')
@@ -76,6 +79,10 @@ watch(filtroStatus, () => {
 })
 
 onMounted(() => {
+  const statusParam = typeof route.query.status === 'string' ? route.query.status : ''
+  if (statusParam && STATUS_ORCAMENTO_FILTRO.includes(statusParam)) {
+    filtroStatus.value = statusParam
+  }
   buscar()
 })
 

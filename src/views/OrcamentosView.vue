@@ -17,6 +17,7 @@ import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/util
 import { provedoresDisponiveis } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
+import PagamentoModal from '@/components/PagamentoModal.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
 import { useUiStore } from '@/stores/ui'
 import type { SimulacaoItem } from '@/types/orcamento'
@@ -892,6 +893,45 @@ const condicoesCalculadas = computed(() => {
 
 // Instituições disponíveis na tabela de taxas (seletor aparece quando > 1)
 const provedores = computed(() => provedoresDisponiveis(catalogo.taxasBanco))
+
+// ---- Controle financeiro (gerar parcelas a partir das condições negociadas) ----
+const pagamentoModalOpen = ref(false)
+// Quando o modal for aberto pelo "Faturar", guarda o status a aplicar após salvar.
+const statusPosFinanceiro = ref<string | null>(null)
+const pagamentoModalModoFaturamento = computed(() => statusPosFinanceiro.value === 'FATURADO')
+
+// "Faturar" abre o Financeiro para cadastrar/confirmar os boletos; só após salvar
+// as parcelas o status avança para FATURADO.
+function faturarComParcelas() {
+  statusPosFinanceiro.value = 'FATURADO'
+  pagamentoModalOpen.value = true
+}
+
+function abrirFinanceiro() {
+  statusPosFinanceiro.value = null
+  pagamentoModalOpen.value = true
+}
+
+function aoSalvarFinanceiro() {
+  const destino = statusPosFinanceiro.value
+  statusPosFinanceiro.value = null
+  if (destino) mudarStatus(destino)
+}
+const pagamentoModalVenda = computed(() => {
+  const header = orcamentoStore.orcamentoHeader
+  return Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+})
+const pagamentoModalCusto = computed(() => Number(orcamentoStore.orcamentoHeader?.cst_tot) || 0)
+const pagamentoModalCartao = computed(() =>
+  condicoesCalculadas.value.cartao.map((o) => ({
+    parcelas: o.parcelas,
+    valorParcela: o.parcela,
+    total: o.total,
+  })),
+)
+const pagamentoModalParcelasCartao = computed(() =>
+  cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
+)
 
 // Impacto do desconto Pix na margem/lucro (exibido na aba Pix)
 const pixImpacto = computed(() => condicoesCalculadas.value.pixImpacto)
@@ -2695,6 +2735,14 @@ async function enviarWhatsApp() {
               <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
                 Salvar Condições
               </button>
+              <button
+                v-if="orcamentoStore.orcamentoHeader?.id"
+                class="btn btn-sm btn-outline"
+                title="Gerar/ajustar boletos, Pix e cartão deste orçamento"
+                @click="pagamentoModalOpen = true"
+              >
+                💳 Financeiro
+              </button>
             </div>
           </div>
 
@@ -2991,7 +3039,7 @@ async function enviarWhatsApp() {
               v-if="statusAtual === 'AGUARDANDO_FATURAMENTO' && isVinculado"
               class="btn btn-accent btn-sm"
               :disabled="atualizandoStatus"
-              @click="pedirConfirmacao('FATURADO')"
+              @click="faturarComParcelas()"
             >
               Faturar
             </button>
@@ -3004,7 +3052,16 @@ async function enviarWhatsApp() {
               Entregar
             </button>
             <button
+              v-if="isVinculado && !statusTerminal"
+              class="btn btn-sm btn-outline"
+              title="Ajustar boletos, Pix e cartão deste pedido"
+              @click="abrirFinanceiro()"
+            >
+              💳 Financeiro
+            </button>
+            <button
               v-if="
+                !isVinculado &&
                 statusAtual !== 'FATURADO' &&
                 statusAtual !== 'ENTREGUE' &&
                 statusAtual !== 'APROVADO'
@@ -3197,6 +3254,21 @@ async function enviarWhatsApp() {
         </div>
       </Transition>
     </Teleport>
+
+    <PagamentoModal
+      v-if="orcamentoStore.orcamentoHeader?.id"
+      v-model="pagamentoModalOpen"
+      :orca-id="orcamentoStore.orcamentoHeader.id"
+      :cod-orca="orcamentoStore.orcamentoHeader.cod_orca"
+      :venda="pagamentoModalVenda"
+      :custo="pagamentoModalCusto"
+      :metodos="metodosPagamento"
+      :desconto-pix-percentual="descontoPixPercentual"
+      :parcelas-cartao="pagamentoModalParcelasCartao"
+      :cartao-parcelas="pagamentoModalCartao"
+      :modo-faturamento="pagamentoModalModoFaturamento"
+      @saved="aoSalvarFinanceiro"
+    />
   </div>
 </template>
 
