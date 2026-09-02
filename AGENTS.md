@@ -236,7 +236,7 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
 
 ### Pendências
 
-- Stub vazia `orcamento_orquestrador` (lowercase, id antigo) ainda existe no workspace — remover manualmente no dashboard.
+- A função antiga **`Orcamento_Orquestrador`** (sem prefixo `f_`, ID 333301 — a "lowercase/duplicada") **foi excluída em 2026-09**; não reutilizar esse nome. O motor vigente é **`f_Orcamento_Orquestrador`** (único chamado por `orcamento_calcular` e `recalcula_dados_em_orcamento_e_item`).
 - O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
 - Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
 
@@ -262,7 +262,17 @@ Parcelas financeiras na tabela **`Boleto`** com `orca_id` (vínculo no Orçament
 `dashboard_GET` **reescrito** (sem a função legada `fDadosDashBoard`, que dava números divergentes): inputs `mes_inicio` (YYYY-MM) e `periodo` (`todos|mensal|trimestral|semestral|anual`). Busca Orcas (`status`/`eh_pedido`/`created_at`) e Boletos (`vencimento`/`pagamento`) do usuário e **conta em `api.lambda` (JS)** (evita sintaxe frágil de filtro de data do Xano):
 - Orçamentos = não-pedidos com `created_at` na janela `[01/mês, fim)`; Pedidos = `eh_pedido` na janela; funil por status (mesma base).
 - Boletos (mesma fonte/regra do `/pagamentos`): **Vencidos** = não pagos `vencimento < hoje` (sempre) · **A vencer** = não pagos `hoje ≤ venc < fim` · **Pagos** = pagos `venc < fim`.
-`HomeView.vue` virou dashboard (cards clicáveis + chips do funil que navegam para `/orcamentos?status=`) e tem a barra "Período a partir de" (mês + chips) chamando `/dashboard?periodo&mes_inicio`.
+`HomeView.vue` virou dashboard (cards clicáveis + chips do funil que navegam para `/orcamentos?status=`) e tem a barra "Período a partir de" (mês + chips) chamando `/dashboard?periodo&mes_inicio`. Além do resumo, o `dashboard_GET` devolve **`serie[]`** mensal (`mes`, `vendas`, `recebido`, `areceber`) — `vendas` = Σ `Orca.vnd_tot` de `eh_pedido` por mês de criação; `recebido` = Σ `Boleto.valor` pago pelo mês do pagamento; `areceber` = Σ não pagas pelo mês do vencimento (vencida entra no mês em que venceu). Domínio: N meses a partir de `mes_inicio` (`todos` = do 1º registro ao mês atual/último vencimento). `DashboardGrafico.vue` (barras CSS, sem lib) renderiza "Vendas por mês" (até o mês atual) e "Recebido vs A receber" (janela completa).
+
+## Relatórios (`/relatorios`) e log do desconto Kapazi — Frente 7/4
+
+`RelatoriosView.vue` (rota `/relatorios`, menu "Relatórios" ativo) usa a mesma barra "Período a partir de" (mês + chips) e chama **`GET /relatorio?mes_inicio&periodo`** (auth User) — nova agregação em `api.lambda` (substitui o legado `f_relatorio_recebidos`, que join-ava `Pedido`). Janela igual ao dashboard (`todos` = sem limite). Retorna:
+
+- **`financeiro`**: pedidos convertidos (`eh_pedido`) por `created_at` com `custo_kapazi` (Σ `item.vlr_cst_nota_unit`×qtd), `perc_desconto` (log mais recente senão `ControlePedido.desconto_kapazi_perc`), `desconto_kapazi`, `frete_efetivo` (`ControlePedido.freteB2BReal` senão `Orca.frtB2B`), `venda`, `lucro_real = luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)`, `margem_real = lucro_real/vnd_tot × 100` + totais.
+- **`recebidos`**: parcelas de `Boleto` pagas na janela (mês do `pagamento`), com `cod_orca`/forma; + totais.
+- **`funil`**: transições de `Orca_Status_Log` na janela (join Orca p/ filtrar por user), `aprovacoes`, `media_dias_aprovacao` (Orca.created_at → 1ª APROVAÇÃO) e `conversao` (aprovados ÷ orçamentos criados na janela).
+
+**`Desconto_Kapazi_Log`** (tabela append-only): gravada pelo `controle_pedido_salvar` quando `desconto_kapazi_perc` muda (inclui a 1ª definição) — guarda `desconto_anterior/novo`, `valor_desconto_rs` (= Σ itens × novo/100) e `frete_efetivo_rs`. O relatório prefere o log mais recente da orça; senão usa o valor vivo do `ControlePedido`. O resumo da tela finalizada continua mostrando o valor atual (não usa log).
 
 ## Cliente no orçamento — cadastro rápido com vínculo automático
 

@@ -20,7 +20,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 ## Funcionalidades
 
 - **Autenticação** — login/signup com token persistido no `localStorage`
-- **Sidebar** — menu lateral escuro com toggle, 8 itens de navegação
+- **Sidebar** — menu lateral escuro com toggle, 7 itens de navegação
 - **GlobalHeader** — cabeçalho com dados do usuário + hamburger
 - **CRUD de Clientes** — modal de criação/edição com formulário completo, dropdowns Ramo/Mercado/Regime/Benefício Fiscal
 - **Busca por CNPJ** — consulta via endpoint Xano `/capturarDados_CNPJ_IE`
@@ -42,6 +42,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Faturar** — em `AGUARDANDO_FATURAMENTO`, salva as parcelas via `PagamentoModal` e avança para `FATURADO`; status pós-conversão: FATURADO/ENTREGUE/CANCELADO
 - **Dashboard com período** — Home vira painel (cards + funil de status) filtrável por mês de início e Mensal/Trimestral/Semestral/Anual (`/dashboard?periodo&mes_inicio`)
 - **Novo cliente dentro do orçamento** — botão "＋ Novo cliente" na seção Cliente cria o cliente e já o vincula ao orçamento aberto
+- **Relatórios** — página `/relatorios` com Financeiro de Pedidos (custo/desconto Kapazi, frete efetivo, lucro/margem real), Recebidos por período e Funil de status (`Orca_Status_Log`), com a mesma barra de período
 
 ## Rotas
 
@@ -52,6 +53,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 | `/orcamentos` | OrcamentosListView (paginada) | Sim |
 | `/pedidos` | PedidosView | Sim |
 | `/pagamentos` | PagamentosView (controle financeiro) | Sim |
+| `/relatorios` | RelatoriosView | Sim |
 | `/orcamentos/novo` | OrcamentosView (criação) | Sim |
 | `/orcamentos/:codOrca` | OrcamentosView (edição) | Sim |
 | `/login` | LoginView | Não (redireciona se logado) |
@@ -93,6 +95,7 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `POST` | `/pagamento_baixa` | Baixar/estornar uma parcela |
 | `POST` | `/pagamento_excluir` | Excluir parcela |
 | `GET` | `/dashboard` | Resumo do dashboard (`mes_inicio` + `periodo`) |
+| `GET` | `/relatorio` | Relatório consolidado: Financeiro, Recebidos e Funil |
 
 ## APIs externas
 

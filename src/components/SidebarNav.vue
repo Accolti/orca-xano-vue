@@ -24,9 +24,8 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F464}', label: 'Clientes', path: '/clientes' },
   { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
   { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
-  { icon: '\u{1F4CB}', label: 'Controle de Pedidos', disabled: true },
   { icon: '\u{1F4B3}', label: 'Boletos', path: '/pagamentos' },
-  { icon: '\u{1F4CA}', label: 'Relatórios', disabled: true },
+  { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios' },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true },
 ]
 
@@ -94,17 +93,6 @@ function handleLogout() {
           <div class="drawer-divider" />
 
           <nav class="drawer-nav">
-            <button
-              v-for="item in menuItems.filter((i) => i.modal)"
-              :key="item.label"
-              type="button"
-              class="nav-item"
-              :class="{ disabled: item.disabled }"
-              @click="abrirItem(item)"
-            >
-              <span class="nav-icon">{{ item.icon }}</span>
-              <span class="nav-label">{{ item.label }}</span>
-            </button>
             <RouterLink
               v-for="item in menuItems.filter((i) => !i.modal)"
               :key="item.label"
@@ -118,6 +106,17 @@ function handleLogout() {
               <span class="nav-icon">{{ item.icon }}</span>
               <span class="nav-label">{{ item.label }}</span>
             </RouterLink>
+            <button
+              v-for="item in menuItems.filter((i) => i.modal)"
+              :key="item.label"
+              type="button"
+              class="nav-item"
+              :class="{ disabled: item.disabled }"
+              @click="abrirItem(item)"
+            >
+              <span class="nav-icon">{{ item.icon }}</span>
+              <span class="nav-label">{{ item.label }}</span>
+            </button>
           </nav>
 
           <div class="drawer-footer">

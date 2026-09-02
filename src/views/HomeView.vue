@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import logoOrca from '@/assets/orca_system_1000x1000.png?inline'
 import { useAuthStore } from '@/stores/auth'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
+import DashboardGrafico from '@/components/DashboardGrafico.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+
+interface SerieMes {
+  mes: string
+  vendas: number
+  recebido: number
+  areceber: number
+}
 
 type PeriodoOpcao = 'todos' | 'mensal' | 'trimestral' | 'semestral' | 'anual'
 const periodo = ref<PeriodoOpcao>('todos')
@@ -40,6 +48,7 @@ const boletosVencidos = ref(0)
 const boletosAVencer = ref(0)
 const boletosPagos = ref(0)
 const funil = ref<Record<string, number>>({})
+const serie = ref<SerieMes[]>([])
 
 const ordemFunil = ['RASCUNHO', 'ENVIADO', 'AGUARDANDO_RETORNO', 'APROVADO', 'RECUSADO', 'CANCELADO']
 
@@ -65,6 +74,7 @@ async function carregar() {
     boletosAVencer.value = Number(d.boletosAVencer) || 0
     boletosPagos.value = Number(d.boletosPagos) || 0
     funil.value = d.funil ?? {}
+    serie.value = Array.isArray(d.serie) ? (d.serie as SerieMes[]) : []
   } catch (err) {
     const body = (err as XanoRequestError)?.getResponse?.()?.getBody?.()
     error.value = body?.message || (err as Error).message || 'Erro ao carregar o dashboard.'
@@ -72,6 +82,35 @@ async function carregar() {
     loading.value = false
   }
 }
+
+const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+function rotuloMes(mes: string): string {
+  const [ano, mm] = mes.split('-')
+  const idx = Number(mm) - 1
+  return `${MESES_CURTOS[idx] ?? mm}/${String(ano).slice(2)}`
+}
+
+function fmtReais(n: number): string {
+  return (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Vendas por mês: só meses até o atual (futuro não faz sentido).
+const vendasSerie = computed(() => {
+  const atual = mesAtualISO()
+  return serie.value.filter((s) => s.mes <= atual)
+})
+
+const rotulosVendas = computed(() => vendasSerie.value.map((s) => rotuloMes(s.mes)))
+const valoresVendas = computed(() => vendasSerie.value.map((s) => s.vendas))
+const totalVendas = computed(() => vendasSerie.value.reduce((acc, s) => acc + (Number(s.vendas) || 0), 0))
+
+// Recebido vs A receber: janela completa (inclui projeção futura de a receber).
+const rotulosCaixa = computed(() => serie.value.map((s) => rotuloMes(s.mes)))
+const valoresRecebido = computed(() => serie.value.map((s) => s.recebido))
+const valoresAReceber = computed(() => serie.value.map((s) => s.areceber))
+const totalRecebido = computed(() => serie.value.reduce((acc, s) => acc + (Number(s.recebido) || 0), 0))
+const totalAReceber = computed(() => serie.value.reduce((acc, s) => acc + (Number(s.areceber) || 0), 0))
 
 function irPara(caminho: string) {
   router.push(caminho)
@@ -159,6 +198,39 @@ onMounted(carregar)
             <span class="funil-num">{{ funil[status] ?? 0 }}</span>
             <span class="funil-label">{{ statusLabel[status] }}</span>
           </button>
+        </div>
+      </section>
+
+      <section class="graficos">
+        <h2>Gráficos</h2>
+        <div class="graf-cards">
+          <div class="graf-card">
+            <div class="graf-head">
+              <span class="graf-titulo">Vendas por mês</span>
+              <span class="graf-total">{{ fmtReais(totalVendas) }}</span>
+            </div>
+            <DashboardGrafico
+              :rotulos="rotulosVendas"
+              :series="[{ nome: 'Vendas', cor: 'var(--primary-light)', valores: valoresVendas }]"
+            />
+          </div>
+
+          <div class="graf-card">
+            <div class="graf-head">
+              <span class="graf-titulo">Recebido vs A receber</span>
+              <span class="graf-total">
+                {{ fmtReais(totalRecebido) }} <span class="graf-total-div">/</span>
+                {{ fmtReais(totalAReceber) }}
+              </span>
+            </div>
+            <DashboardGrafico
+              :rotulos="rotulosCaixa"
+              :series="[
+                { nome: 'Recebido', cor: '#16a34a', valores: valoresRecebido },
+                { nome: 'A receber', cor: '#d97706', valores: valoresAReceber },
+              ]"
+            />
+          </div>
         </div>
       </section>
     </template>
@@ -391,6 +463,55 @@ onMounted(carregar)
 .funil-label {
   font-size: 0.82rem;
   color: var(--text-secondary);
+}
+
+.graficos {
+  margin-top: 1.75rem;
+}
+
+.graficos h2 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.graf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.graf-card {
+  padding: 1rem 1.1rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+}
+
+.graf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.graf-titulo {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.graf-total {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.graf-total-div {
+  opacity: 0.45;
+  font-weight: 400;
 }
 
 @media (max-width: 639px) {

@@ -61,16 +61,16 @@ Status: registrada (implementação futura)
 
 Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do projeto
 
-- [ ] **Relatório de funil/apontamentos** usando o `Orca_Status_Log` (histórico de transições RASCUNHO → … → ENTREGUE, tempos por etapa, taxas de conversão)
-- [ ] **Relatório financeiro com lucro/margem real** (Opção A decidida — não assar no banco, calcular no relatório). A fonte do histórico é o `Desconto_Kapazi_Log` (abaixo). Cálculo:
+- [x] **Relatório de funil/apontamentos** usando o `Orca_Status_Log` (histórico de transições RASCUNHO → … → ENTREGUE, tempos por etapa, taxas de conversão) — seção **Funil** de `/relatorios` (2026-09)
+- [x] **Relatório financeiro com lucro/margem real** (Opção A decidida — não assar no banco, calcular no relatório) — seção **Financeiro** de `/relatorios` (2026-09). A fonte do histórico é o `Desconto_Kapazi_Log` (abaixo). Cálculo:
   - `custo_kapazi_total` = Σ (`item.vlr_cst_nota_unit` × `qtd`) — custo da mercadoria, **sem frete**
   - `desconto_kapazi` = `custo_kapazi_total` × `desconto_kapazi_perc` / 100
   - **Frete efetivo**: usar `ControlePedido.freteB2BReal` quando preenchido; senão `Orca.frtB2B` (o frete **fechado no orçamento** — nunca recalcular do zero nem buscar na tabela User atual)
   - `lucro_real = luc_tot + desconto_kapazi + (Orca.frtB2B − frete_efetivo_real)`
   - `margem_real = lucro_real / vnd_tot × 100`
   - Base de desconto usa `vlr_cst_nota_unit` (mercadoria pura); o frete é somado à parte (proporcional na criação, efetivo no fechamento)
-- [x] **Frete B2B (regra do mínimo)**: removido o parâmetro morto `seu_frete_minimo: 52` do `Orcamento_Recalcular_Totais` — o mínimo agora vem só de **`User.frtB2B`** (`f_calcula_frete` lê `$User1.frtB2B`). **Falta**: comparativo calculado × efetivo (`freteB2BReal`) no relatório, que usa `Orca.frtB2B` (valor fechado).
-- [ ] **Log de descontos Kapazi**: tabela append-only `Desconto_Kapazi_Log` (padrão `Orca_Status_Log`) — registra **toda mudança** de `ControlePedido.desconto_kapazi_perc`, consumida **só pelos relatórios** (o resumo da finalizada continua mostrando o valor atual). Gravada pelo `controle_pedido_salvar` quando o % muda; o campo `desconto_kapazi_perc` segue sendo o "valor vivo". Schema sugerido:
+- [x] **Frete B2B (regra do mínimo)**: removido o parâmetro morto `seu_frete_minimo: 52` do `Orcamento_Recalcular_Totais` — o mínimo agora vem só de **`User.frtB2B`** (`f_calcula_frete` lê `$User1.frtB2B`). O relatório `/relatorios` expõe o **`frete_efetivo`** (`freteB2BReal` senão `Orca.frtB2B`) e o `lucro_real` usa a diferença `frtB2B − frete_efetivo`.
+- [x] **Log de descontos Kapazi**: tabela append-only `Desconto_Kapazi_Log` criada (padrão `Orca_Status_Log`) — registra **toda mudança** de `ControlePedido.desconto_kapazi_perc`; consumida **só pelos relatórios** (o resumo da finalizada continua mostrando o valor atual). Gravada pelo `controle_pedido_salvar` quando o % muda; o campo `desconto_kapazi_perc` segue sendo o "valor vivo". Schema criado:
 
   ```xano
   table Desconto_Kapazi_Log {
@@ -137,20 +137,20 @@ Status: **feito (fase 1, 2026-09)** — vínculo em `Orca` (`Boleto.orca_id`), t
 
 ## 📈 Frente 7 — Relatórios gerenciais
 
-Status: registrada (implementação futura)
+Status: **feito (2026-09)** — página `/relatorios` com Financeiro de Pedidos, Recebidos por período e Funil (menu "Relatórios" habilitado). Endpoint `GET /relatorio` (auth User, `mes_inicio` + `periodo`), mesmo padrão de janela do dashboard. Detalhes no [`docs/FUNCIONALIDADES.md`](docs/FUNCIONALIDADES.md).
 
-- [ ] Página `/relatorios` (ativa o menu "Relatórios")
-- [ ] **Relatório financeiro**: custo Kapazi, desconto Kapazi, frete efetivo, lucro/margem real (fórmulas já mapeadas na Frente 4; fonte = `Desconto_Kapazi_Log`)
-- [ ] **Recebidos por período** (reusa `f_relatorio_recebidos` adequado para Orca)
-- [ ] **Funil de status** (`Orca_Status_Log`)
+- [x] Página `/relatorios` (ativa o menu "Relatórios")
+- [x] **Relatório financeiro**: custo Kapazi, desconto Kapazi, frete efetivo, lucro/margem real (fórmulas da Frente 4; `Desconto_Kapazi_Log` criado e alimentado pelo `controle_pedido_salvar`)
+- [x] **Recebidos por período** (sobre `Boleto`/`Orca`, substitui o `f_relatorio_recebidos` legado que join-ava `Pedido`)
+- [x] **Funil de status** (`Orca_Status_Log`: transições na janela, conversão → APROVADO, tempo médio até APROVAÇÃO)
 
 ## 📊 Frente 8 — Dashboard (HomeView)
 
-Status: **parcialmente feito (2026-09)** — dashboard + funil + filtro de período implementados; gráficos pendentes.
+Status: **feito (2026-09)** — dashboard + funil + filtro de período + gráficos mensais implementados.
 
 - [x] HomeView vira dashboard: cards Orçamentos/Pedidos/Boletos vencidos / a vencer / pagos (clicáveis) + chips do funil de status que navegam para `/orcamentos?status=`
 - [x] **Filtro de período no dashboard**: `dashboard_GET` com `mes_inicio`/`periodo` (contagem em `api.lambda`, sem `fDadosDashBoard`); orçamentos/pedidos/funil por `created_at`, boletos na mesma fonte/regra do `/pagamentos` (vencidos sempre, a vencer/pagos na janela)
-- [ ] Gráficos simples (vendas por mês, recebido vs a receber)
+- [x] **Gráficos no dashboard**: `dashboard_GET` devolve `serie[]` mensal (`mes`, `vendas`, `recebido`, `areceber`) no domínio do filtro (`todos` = todo histórico); `DashboardGrafico.vue` renderiza **Vendas por mês (R$)** (até o mês atual) e **Recebido vs A receber (R$)** (janela completa, com projeção futura de a receber) em barras CSS, espelhando a barra de período
 
 ## 🧮 Frente 9 — Normalização de custo e fator de corte
 

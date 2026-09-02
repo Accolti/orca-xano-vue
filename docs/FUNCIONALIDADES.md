@@ -104,6 +104,21 @@ Parcelas financeiras na tabela **`Boleto`**, vinculadas no **Orçamento/Orca** v
   - **Orçamentos** = não-pedidos (`eh_pedido != true`) com `created_at` na janela `[01/mês, fim)`; **Pedidos** = `eh_pedido` na janela; **funil** por status na mesma base.
   - **Boletos** (mesma fonte/regra do `/pagamentos`): **Vencidos** = não pagos `vencimento < hoje` (**sempre**, independente do período); **A vencer** = não pagos `hoje ≤ vencimento < fim`; **Pagos** = pagos `vencimento < fim`.
 - Front: `HomeView.vue` envia `/dashboard?periodo&mes_inicio` e recarrega a cada mudança do mês/chip.
+- **Gráficos**: além dos cards/funil, o endpoint devolve **`serie[]`** mensal (`mes`, `vendas`, `recebido`, `areceber`), usada por `DashboardGrafico.vue` (barras CSS, sem lib):
+  - **Vendas por mês (R$)** — soma dos pedidos convertidos (`Orca.vnd_tot` de `eh_pedido`) até o mês atual;
+  - **Recebido vs A receber (R$)** — parcelas pagas pelo mês do pagamento × não pagas pelo mês do vencimento (vencida entra no mês em que venceu), na janela completa do filtro (inclui projeção futura de "a receber").
+  - Domínio: N meses a partir de `mes_inicio` (Mensal/Trimestral/Semestral/Anual); `todos` = todo o histórico (1º registro → mês atual/último vencimento).
+
+## Relatórios (página `/relatorios`)
+
+`RelatoriosView.vue` (rota `/relatorios`, menu **"Relatórios"** habilitado) usa a mesma barra **"Período a partir de"** (mês + chips Mensal/Trimestral/Semestral/Anual/Todos) e chama **`GET /relatorio?mes_inicio&periodo`** (auth User). Agregação em `api.lambda` sobre Orca/item/ControlePedido/Boleto/`Orca_Status_Log`; janela igual ao dashboard (`todos` = sem limite). Substitui o legado `f_relatorio_recebidos` (que join-ava `Pedido`). Três seções:
+
+- **Financeiro (Pedidos)** — pedidos convertidos (`eh_pedido`) por `created_at` no período:
+  `custo_kapazi` = Σ `item.vlr_cst_nota_unit` × `qtd` (mercadoria pura, sem frete) · `desconto_kapazi` = `perc` × `custo_kapazi/100` · `frete_efetivo` = `ControlePedido.freteB2BReal` quando preenchido, senão `Orca.frtB2B` · `lucro_real = luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)` · `margem_real = lucro_real/vnd_tot × 100`. O **perc de desconto** vem do `Desconto_Kapazi_Log` mais recente da orça; sem log, usa `ControlePedido.desconto_kapazi_perc`. Totais por coluna no topo + tabela por pedido (Orçamento/Cliente/Data/Custo/Desconto/Frete/Venda/Lucro/Margem).
+- **Recebidos no período** — parcelas de `Boleto` **pagas** cujo mês do `pagamento` cai na janela: orçamento, vencimento, data do pagamento, valor, forma; totais (R$ recebido + nº de parcelas).
+- **Funil de status** — transições de `Orca_Status_Log` na janela (join Orca do usuário): contagem por transição `anterior → destino`, nº de **aprovações**, **conversão → APROVADO** (aprovados ÷ orçamentos criados na janela) e **tempo médio até APROVAÇÃO** (dias entre `Orca.created_at` e a 1ª transição p/ APROVADO).
+
+**`Desconto_Kapazi_Log`** (tabela append-only): gravada pelo `controle_pedido_salvar` quando o **% do desconto muda** (inclui a 1ª definição; guarda `desconto_anterior`, `desconto_novo`, `valor_desconto_rs` = Σ itens × novo/100, `frete_efetivo_rs`, `user_id`). Consumida **só pelos relatórios** — o resumo da finalizada continua mostrando o valor vivo do `ControlePedido`.
 
 ## Cliente no orçamento — cadastro rápido com vínculo automático
 
@@ -147,7 +162,7 @@ RASCUNHO → AGUARDANDO_RETORNO → APROVADO (cliente aprova) → vendedor envia
 - Desconto concedido pela fábrica sobre o custo, em % (base = Σ `vlr_cst_nota_unit × qtd`). Só **aumenta o lucro**, não altera a venda.
 - `controle_pedido_salvar` grava; na finalizada o resumo mostra linhas **derivadas** (não persistidas) quando `desconto_kapazi_perc > 0`: **Custo Kapazi efetivo** (`custoKapaziTotal − desconto`), **Lucro Real (c/ desconto)** (`luc_tot + desconto`) e **Margem Real (c/ desconto)** (`(luc_tot + desconto)/vnd_tot × 100`, 2 casas).
 - **Onde/quando aparece na UI**: o input "Desconto Kapazi (%)" fica no card **"Dados para Kapazi (Fábrica)"** da **tela finalizada (resumo)** de `OrcamentosView.vue`, condicionado a `v-if="isVinculado || statusAtual === 'APROVADO'"` (`OrcamentosView.vue:2328`) — ou seja, **só** quando o orçamento virou pedido (`eh_pedido`) **ou** está com status `APROVADO`. Em RASCUNHO/ENVIADO/AGUARDANDO_RETORNO não existe; não aparece na listagem. O campo fica no grid do card (junto de Nº Pedido da Fábrica, Nº NF, Acerto) e é persistido pelo botão "Salvar Dados da Fábrica" (`controle_pedido_salvar`, fora da trava de edição). Efeito visual quando `perc > 0`: o resumo exibe as linhas **derivadas** "Custo Kapazi efetivo", "Lucro Real (c/ desconto)" e "Margem Real (c/ desconto)" (`OrcamentosView.vue:2086-2099`).
-- **Decisão de arquitetura (Opção A)**: desconto fica como **metadado**; o **relatório** (futuro) deve calcular `lucro_real = luc_tot + (custoKapazi × perc/100)` — **não** assar no banco nem recalcular os 83.
+- **Decisão de arquitetura (Opção A)**: desconto fica como **metadado**; o **relatório** calcula `lucro_real = luc_tot + (custoKapazi × perc/100)` — **não** é assado no banco nem recalcula os itens (ver "Relatórios" abaixo).
 
 ## Tema claro/escuro + identidade Azul/Laranja
 

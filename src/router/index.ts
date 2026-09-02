@@ -31,6 +31,11 @@ const router = createRouter({
       component: () => import('../views/PagamentosView.vue'),
     },
     {
+      path: '/relatorios',
+      name: 'relatorios',
+      component: () => import('../views/RelatoriosView.vue'),
+    },
+    {
       path: '/orcamentos/novo',
       name: 'orcamentos-novo',
       component: () => import('../views/OrcamentosView.vue'),

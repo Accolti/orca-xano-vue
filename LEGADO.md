@@ -2,7 +2,7 @@
 
 Inventário do que **não faz parte do sistema atual** de precificação/orçamento.
 
-> **Status:** `NENHUM` = sem uso no frontend atual; `EM USO` = ainda referenciado; `PARA EXCLUIR` = candidato a exclusão após validação.
+> **Status:** `NENHUM` = sem uso no frontend atual; `EM USO` = ainda referenciado; `PARA EXCLUIR` = candidato a exclusão após validação; `EXCLUÍDA` = já removida do workspace.
 > **Funcionalidades vigentes** (orçamento, status, pedido, Kapazi, perfil, tema, medida exata, PDF/WhatsApp): ver [`docs/FUNCIONALIDADES.md`](./docs/FUNCIONALIDADES.md).
 > **Regra:** só excluir depois que WhatsApp/PDF/Pedido forem validados com `Orcamento_Detalhes_v2`.
 
@@ -12,7 +12,7 @@ Inventário do que **não faz parte do sistema atual** de precificação/orçame
 |---|---|---|
 | `Orcamento_Detalhes_Function` | PARA EXCLUIR (quebrada: chama `fcalcularPrazo` 214058 inexistente) | `Orcamento_Detalhes_v2` |
 | `Orcamento_Detalhes_Function_0_old` | PARA EXCLUIR | `Orcamento_Detalhes_v2` |
-| `orcamento_orquestrador` (lowercase, stub antiga) | PARA EXCLUIR | `f_Orcamento_Orquestrador` |
+| `Orcamento_Orquestrador` (antiga, sem prefixo `f_`) | **EXCLUÍDA (2026-09)** | `f_Orcamento_Orquestrador` |
 | `fcalcularPrazo` | PARA EXCLUIR (referência quebrada) | `Orcamento_Detalhes_v2` (prazo fixo) |
 | `Valor_Venda_M2` | PARA EXCLUIR | orquestrador (`f_Orcamento_Orquestrador`) |
 | `Valor_Venda_ML` / `Valor_Venda_ML_old` | PARA EXCLUIR | orquestrador |
