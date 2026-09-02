@@ -245,6 +245,27 @@ A precificação (DIFAL, crédito ICMS, ST) usa `User.uf` + `User.regime_id` (ed
 - **Banner informativo (sem bloqueio)**: `OrcamentosView.vue` — computed `perfilPrecificacaoIncompleto` (`!user.uf || !user.regime_id`) mostra banner no topo com botão "Abrir Meus Dados" (`uiStore.perfilOpen`). **Não bloqueia o cálculo nem abre o modal automaticamente** — o app funciona normal com qualquer usuário; se faltar UF/Regime, o backend usa fallback (`SP`/`regime_id=0`).
 - **Consistência por orçamento**: `calcularOrquestrador` (`orcamento.ts`) envia `uf_destino: header?.uf_destino ?? user?.uf ?? 'SP'` e `regime_id: header?.regime_id ?? user?.regime_id ?? 0` — recalcular/adicionar item num orçamento existente usa o regime/UF **gravados na criação** (`Orca.regime_id`/`Orca.uf_destino`, persistidos via `post_orca`), honrando o aviso do modal "mudança só vale para novos orçamentos". `OrcamentoItem_Inserir` é pass-through dos valores fiscais calculados no front (não recalcula regime).
 
+## Controle Financeiro (Frente 6) e Faturamento
+
+Parcelas financeiras na tabela **`Boleto`** com `orca_id` (vínculo no Orçamento/Orca) + `user_id`. **Sem gateway** — controle interno + baixa manual.
+
+- **Backend** (auth User): `pagamentos` (GET, join Orca → `cod_orca`/`eh_pedido`/`cliente_id` e `Forma_Pagamento` → `tipo`; filtro opcional `orca_id`), `pagamento_salvar` (POST, **substitui** as parcelas de uma orca — valida owner), `pagamento_baixa` (POST, marca `pagamento = now` / estorno `null`), `pagamento_excluir` (POST). Forma_Pagamento: 1=Boleto, 2=PIX, 3=Espécie — **"Cartão de Crédito" (id 4) criar manualmente no dashboard** (o POST da forma não grava `tipo`).
+- **Front**: `utils/pagamentos.ts` (`FORMAS_PAGAMENTO`, `gerarParcelasFinanceiras`, `nomeForma`), `stores/pagamentos.ts`, `PagamentoModal.vue` (prop `modoFaturamento`), `PagamentosView.vue` (rota `/pagamentos`, menu **"Boletos"** habilitado). Botões **"💳 Financeiro"** e **"Faturar"** na `OrcamentosView`.
+- **Faturar = cadastrar parcelas + avançar status**: em `AGUARDANDO_FATURAMENTO` + `eh_pedido`, `faturarComParcelas()` abre o `PagamentoModal` em modo faturamento ("Salvar e Faturar"); `@saved` → `aoSalvarFinanceiro()` → `mudarStatus('FATURADO')`. Pós-conversão os status permitidos são **FATURADO/ENTREGUE/CANCELADO** — reversões e RECUSADO ficam bloqueados (backend `orcamento_status` + botão "Recusar" oculto quando `isVinculado`).
+- **Filtros `/pagamentos`**: abas de status (Todos/Em aberto/A vencer/Vencidos/Pagos) — ids alinhados ao `statusParcela` (`em_aberto`/`a_vencer`); **"Em aberto" = todas as NÃO pagas**. Barra de **período**: "Período a partir de" (`type="month"`, default mês atual) + chips Todos os períodos/Mensal/Trimestral/Semestral/Anual — janela pelo `vencimento` a partir do **dia 1º** do mês + 1/3/6/12 meses; **sem limite inferior** (vencidas sempre entram); combina (AND) com a aba de status. Parcela sem vencimento só aparece em "Todos os períodos".
+- **Lição de template**: modais/Teleports que precisam abrir nas DUAS visões do `OrcamentosView` (edição `!mostrarResumo` e resumo `v-else`) devem ficar na **raiz** de `.orcamento-page`, fora dos blocos v-if/v-else — o `PagamentoModal` estava dentro do bloco de edição e os botões "Faturar"/"💳 Financeiro" (na visão resumo) setavam o `modelValue` sem modal no DOM → "não abriu nenhum modal". Posição no DOM é irrelevante (Teleport → body); o que importa é o modal estar **montado**.
+
+## Dashboard (Home) com filtro de período (Frente 8)
+
+`dashboard_GET` **reescrito** (sem a função legada `fDadosDashBoard`, que dava números divergentes): inputs `mes_inicio` (YYYY-MM) e `periodo` (`todos|mensal|trimestral|semestral|anual`). Busca Orcas (`status`/`eh_pedido`/`created_at`) e Boletos (`vencimento`/`pagamento`) do usuário e **conta em `api.lambda` (JS)** (evita sintaxe frágil de filtro de data do Xano):
+- Orçamentos = não-pedidos com `created_at` na janela `[01/mês, fim)`; Pedidos = `eh_pedido` na janela; funil por status (mesma base).
+- Boletos (mesma fonte/regra do `/pagamentos`): **Vencidos** = não pagos `vencimento < hoje` (sempre) · **A vencer** = não pagos `hoje ≤ venc < fim` · **Pagos** = pagos `venc < fim`.
+`HomeView.vue` virou dashboard (cards clicáveis + chips do funil que navegam para `/orcamentos?status=`) e tem a barra "Período a partir de" (mês + chips) chamando `/dashboard?periodo&mes_inicio`.
+
+## Cliente no orçamento — cadastro rápido com vínculo automático
+
+Botão **"＋ Novo cliente"** (sempre visível no cabeçalho da seção Cliente, na visão de edição) abre o `ClienteModal` em **modo criação**. O `ClienteModal` agora emite `saved` **com o cliente salvo** (`Partial<Cliente>`; `id` vem do `Cliente_2` no response do POST de criação, ou do `editandoId` no PATCH). `aoSalvarCliente` (`OrcamentosView`) monta o `Cliente` completo e seta `clienteSelecionado` — o novo cliente já fica **vinculado ao orçamento aberto** (próximo Inserir/Calcular/Salvar usa `cliente.id`). Ver dados continua em modo somente leitura (`clienteModalSomenteLeitura`).
+
 ## What's NOT set up
 
 - **No test runner** — Vitest, Cypress, Playwright configs do not exist. If adding tests, create the config files.
@@ -264,6 +285,7 @@ A precificação (DIFAL, crédito ICMS, ST) usa `User.uf` + `User.regime_id` (ed
 - **Eval de `Descricao` com `concat` quebra se usarmos `first_notnull`/parênteses no argumento**: `concat:($db.X.nome|first_notnull:"")` não é aceito pelo XanoScript em `eval` → endpoint 500. Manter o `concat` simples e blindar a descrição no **frontend** (fallback `item.Descricao || item.descricao`).
 - **`|default:<var.property>` no `value` de um `var`/`var.update` quebra com `Unable to locate func entry: default`**: em `Precificar`, `var $aliq_st { value = $input.aliq_st_interna |default:$estado_destino.aliquota_modal }` era parseado como chamada de função `default(...)` → erro só em regime ≠ MEI com produto com ST (`tem_st`). Correção: `value = $input.aliq_st_interna` + `conditional { if (!$aliq_st) { var.update $aliq_st { value = $estado_destino.aliquota_modal } } }`. Obs.: `|first_notnull`/`|first_notempty` com propriedade em `db.edit`/`db.add` **funcionam** — o problema é específico do `|default:` no `value` de variável.
 - **`xano function run` NÃO é teste válido para chamadas entre funções**: o CLI falha com "Function does not exist: function:<id>" mesmo quando a função chamada existe e o app funciona. Verificar sempre no **app** (ou no teste do próprio Xano no dashboard).
+- **Modais/Teleports usados por botões em visões condicionais precisam estar MONTADOS na visão onde o botão está.** A `OrcamentosView` tem duas visões mutuamente exclusivas (edição `<template v-if="!mostrarResumo">` e resumo `<template v-else>`). O `PagamentoModal` foi colocado dentro do bloco de edição, mas os botões "Faturar"/"💳 Financeiro" estão na visão resumo → clicavam, setavam o `modelValue` e nada abria (modal fora do DOM). Correção: mover o modal para a **raiz** de `.orcamento-page`, fora dos dois blocos (posição é irrelevante — Teleport → body). `SimulacaoModal`/`ClienteModal`, que só abrem na edição, podem permanecer dentro do bloco.
 
 ## Conventions
 

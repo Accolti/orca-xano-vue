@@ -38,15 +38,20 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Condições de pagamento** — seletor avançado (instituição + mais vantajosa ⭐, checkboxes Pix/Boleto/Cartão, desconto Pix com impacto em lucro/margem, mesclagem de métodos)
 - **Detalhes ML** — `detalhes_calculo.ml` gravado (rolos/metros/orientação) e exibido na tabela, WhatsApp e PDFs
 - **Quantidade decimal** — `item.qtd` aceita frações (ex.: metros lineares), input com `step="0.01"`
+- **Controle Financeiro** — página `/pagamentos`: parcelas por orçamento com abas de status (Em aberto = não pagas / A vencer / Vencidos / Pagos) + baixa/estorno manual; barra **"Período a partir de"** (Mensal/Trimestral/Semestral/Anual)
+- **Faturar** — em `AGUARDANDO_FATURAMENTO`, salva as parcelas via `PagamentoModal` e avança para `FATURADO`; status pós-conversão: FATURADO/ENTREGUE/CANCELADO
+- **Dashboard com período** — Home vira painel (cards + funil de status) filtrável por mês de início e Mensal/Trimestral/Semestral/Anual (`/dashboard?periodo&mes_inicio`)
+- **Novo cliente dentro do orçamento** — botão "＋ Novo cliente" na seção Cliente cria o cliente e já o vincula ao orçamento aberto
 
 ## Rotas
 
 | Path | View | Protegida |
 |---|---|---|
-| `/` | HomeView | Sim |
+| `/` | HomeView (dashboard) | Sim |
 | `/clientes` | ClientesView | Sim |
 | `/orcamentos` | OrcamentosListView (paginada) | Sim |
 | `/pedidos` | PedidosView | Sim |
+| `/pagamentos` | PagamentosView (controle financeiro) | Sim |
 | `/orcamentos/novo` | OrcamentosView (criação) | Sim |
 | `/orcamentos/:codOrca` | OrcamentosView (edição) | Sim |
 | `/login` | LoginView | Não (redireciona se logado) |
@@ -83,6 +88,11 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `PATCH` | `/Cliente_Endereco_Telefone` | Atualizar cliente |
 | `GET` | `/cliente/{id}` | Ler um cliente |
 | `DELETE` | `/cliente/{id}` | Excluir cliente |
+| `GET` | `/pagamentos` | Listar parcelas financeiras (filtro `orca_id` opcional) |
+| `POST` | `/pagamento_salvar` | Substituir parcelas de uma orça |
+| `POST` | `/pagamento_baixa` | Baixar/estornar uma parcela |
+| `POST` | `/pagamento_excluir` | Excluir parcela |
+| `GET` | `/dashboard` | Resumo do dashboard (`mes_inicio` + `periodo`) |
 
 ## APIs externas
 

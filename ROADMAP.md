@@ -109,7 +109,7 @@ Status: registrada (implementação futura) — origem: `LEGADO.md`/contexto do 
     ]
   }
   ```
-- [ ] **Boletos**: base já existe no backend (`Boleto`, `f_boleto_pago`, `f_boleto_a_vencer`, `f_boleto_vencido`, `f_sum_pedidos_boletos`) — construir telas de controle (em aberto / a vencer / vencidos / recebidos) e fluxo de baixa
+- [x] **Boletos**: telas de controle e fluxo de baixa construídas em `/pagamentos` (ver **Frente 6**) — `Boleto.orca_id`, abas de status + filtro de período, `PagamentoModal` no orçamento
 - [ ] **Controle de Pedidos**: painel consolidado do fluxo Kapazi (enviado → nº fábrica → aprovação layout → NF → boletos → entregue) com status e prazos
 - [ ] **SAC (pós-venda)**: tabela própria de atendimento/reclamações por pedido (não engessar no fluxo atual)
 
@@ -123,12 +123,17 @@ Status: registrada (implementação futura)
 
 ## 💵 Frente 6 — Controle de Pagamentos
 
-Status: registrada (implementação futura)
+Status: **feito (fase 1, 2026-09)** — vínculo em `Orca` (`Boleto.orca_id`), telas, filtros e baixa manual. Detalhes na seção "Controle Financeiro" do [`docs/FUNCIONALIDADES.md`](docs/FUNCIONALIDADES.md).
 
-- [ ] Página `/pagamentos` (ativa o menu "Boletos"): lista de parcelas por pedido (boleto: valor + nº de parcelas + vencimentos; pix; etc.)
-- [ ] Abas/filtros: Em aberto / A vencer / Vencidos / Pago (reusa `fBoleto_*` com `Tipo: "Dados"`)
-- [ ] Baixa manual de pagamento (registrar `pagamento`) + ajuste de valor/vencimento
-- [ ] **Migrar `Boleto` para `Orca`**: tabela ganha `orca_id` (substitui `pedido_id` legado); `fBoleto_Vencido`/`A_Vencer`/`Pago`, `f_relatorio_recebidos` e `fSumPedidosBoletos` passam a usar Orca (vínculo resolvido por `Orca.pedido_id` legado → `cod_orca` ou direto)
+- [x] Página `/pagamentos` (menu "Boletos" ativo): lista de parcelas por orçamento com `cod_orca` + selo "(Pedido)"
+- [x] Abas de status: Todos / **Em aberto** (= todas as não pagas) / A vencer / Vencidos / Pagos
+- [x] **Filtro de período**: "Período a partir de" (mês, default atual) + Mensal/Trimestral/Semestral/Anual (janela de vencimento do 1º do mês + 1/3/6/12 meses; vencidas sempre entram; combina com a aba de status)
+- [x] `PagamentoModal` no orçamento (💳 Financeiro) com "Gerar das condições" + edição de valor/vencimento/forma
+- [x] Baixa manual (`pagamento_baixa`: marca/estorna `pagamento`) + `pagamento_salvar` (substitui parcelas) + `pagamento_excluir`
+- [x] **Faturar** = salvar parcelas + avançar status (`AGUARDANDO_FATURAMENTO → FATURADO`); status pós-conversão: FATURADO/ENTREGUE/CANCELADO (RECUSADO bloqueado)
+- [x] Backend `pagamentos`/`pagamento_salvar`/`pagamento_baixa`/`pagamento_excluir` (auth User) + `Boleto.orca_id`
+- [ ] Gateway de pagamento (boleto registrado/Pix) — hoje é controle interno + baixa manual
+- [ ] Tabela `Boleto` legada (`pedido_id`) — limpeza na migração (Frente 5)
 
 ## 📈 Frente 7 — Relatórios gerenciais
 
@@ -141,10 +146,10 @@ Status: registrada (implementação futura)
 
 ## 📊 Frente 8 — Dashboard (HomeView)
 
-Status: registrada (implementação futura)
+Status: **parcialmente feito (2026-09)** — dashboard + funil + filtro de período implementados; gráficos pendentes.
 
-- [ ] HomeView vira dashboard: cards com Orçamentos, Pedidos, Boletos vencidos / a vencer / pagos (já calculados em `fDadosDashBoard`)
-- [ ] **Status em destaque** (funil: RASCUNHO / AGUARDANDO_RETORNO / APROVADO / PEDIDO / ...)
+- [x] HomeView vira dashboard: cards Orçamentos/Pedidos/Boletos vencidos / a vencer / pagos (clicáveis) + chips do funil de status que navegam para `/orcamentos?status=`
+- [x] **Filtro de período no dashboard**: `dashboard_GET` com `mes_inicio`/`periodo` (contagem em `api.lambda`, sem `fDadosDashBoard`); orçamentos/pedidos/funil por `created_at`, boletos na mesma fonte/regra do `/pagamentos` (vencidos sempre, a vencer/pagos na janela)
 - [ ] Gráficos simples (vendas por mês, recebido vs a receber)
 
 ## 🧮 Frente 9 — Normalização de custo e fator de corte
