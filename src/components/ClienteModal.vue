@@ -264,6 +264,19 @@ async function buscarCNPJ() {
   const raw = form.cnpj_cpf.replace(/\D/g, '')
   if (raw.length !== 14) return
 
+  // Limpa campos de dados vindos de uma busca anterior antes de preencher com a nova
+  // (evita gravar informações de outro CNPJ se a consulta falhar).
+  form.razao_social = ''
+  form.nome_fantasia = ''
+  form.inscricao_estadual = ''
+  form.cep = ''
+  form.logradouro = ''
+  form.numero = ''
+  form.complemento = ''
+  form.bairro = ''
+  form.cidade = ''
+  form.uf = ''
+
   buscandoCNPJ.value = true
   erroCNPJ.value = null
   try {

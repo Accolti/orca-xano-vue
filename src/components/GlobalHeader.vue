@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
 import { useUiStore } from '@/stores/ui'
 import PerfilModal from '@/components/PerfilModal.vue'
+import SenhaModal from '@/components/SenhaModal.vue'
 import DevUserSwitcher from '@/components/DevUserSwitcher.vue'
 
 defineEmits<{ toggleSidebar: [] }>()
@@ -14,7 +15,17 @@ const uiStore = useUiStore()
 
 const versaoMenuOpen = ref(false)
 const userMenuOpen = ref(false)
+const senhaOpen = ref(false)
 const isDev = import.meta.env.DEV
+
+// Conta criada por senha (signup) tem senha; contas Google não.
+const temSenha = computed(() => !(authStore.user as any)?.google_oauth)
+
+function abrirSenha() {
+  userMenuOpen.value = false
+  versaoMenuOpen.value = false
+  senhaOpen.value = true
+}
 
 function toggleVersaoMenu() {
   versaoMenuOpen.value = !versaoMenuOpen.value
@@ -175,6 +186,25 @@ onBeforeUnmount(() => {
         </Transition>
       </div>
       <button
+        v-if="temSenha"
+        class="header-icon"
+        title="Trocar senha"
+        aria-label="Trocar senha"
+        @click="abrirSenha"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+      </button>
+      <button
         class="header-icon"
         title="Perfil"
         aria-label="Perfil"
@@ -194,6 +224,7 @@ onBeforeUnmount(() => {
     </div>
 
     <PerfilModal v-model="uiStore.perfilOpen" />
+    <SenhaModal v-model="senhaOpen" />
   </header>
 </template>
 

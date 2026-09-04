@@ -94,8 +94,8 @@ async function handleSubmit() {
       </button>
 
       <p class="switch-link">
-        Não tem conta?
-        <RouterLink to="/signup">Cadastre-se</RouterLink>
+        Já possui convite?
+        <RouterLink to="/signup">Criar conta</RouterLink>
       </p>
     </div>
   </div>

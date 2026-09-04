@@ -242,15 +242,28 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     const nivelId = nivelSelecionado.value?.id ?? 0
     const matchFk = (produtoVal: number | undefined, selecionado: number) =>
       selecionado === 0 || (produtoVal ?? 0) === 0 || produtoVal === selecionado
-    return (
-      catalogo.allProdutos.find(
-        (p) =>
-          p.material_id === m.id &&
-          matchFk(p.linha_id, linhaId) &&
-          matchFk(p.tipo_id, tipoId) &&
-          matchFk(p.nivel_id, nivelId),
-      ) ?? null
+    const candidatos = catalogo.allProdutos.filter(
+      (p) =>
+        p.material_id === m.id &&
+        matchFk(p.linha_id, linhaId) &&
+        matchFk(p.tipo_id, tipoId) &&
+        matchFk(p.nivel_id, nivelId),
     )
+    // Com variação escolhida, o produto do cálculo é o DONO dela (mesmo detalhe_id).
+    // Evita mandar o primeiro da combinação (ex.: Liso 29) quando o usuário escolhe
+    // uma variação do Personalizado 81 — produtos que dividem a combinação mas têm
+    // detalhe_id diferente.
+    const variacao = variacaoSelecionada.value
+    if (variacao) {
+      const dono =
+        candidatos.find(
+          (p) =>
+            (p.detalhe_id ?? 0) === variacao.detalhe_id ||
+            (p._variacao ?? []).some((v) => v.id === variacao.id),
+        ) ?? null
+      if (dono) return dono
+    }
+    return candidatos[0] ?? null
   })
 
   // Unidade de venda do produto selecionado (default M2).

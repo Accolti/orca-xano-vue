@@ -177,3 +177,33 @@ Status: **parcialmente feito** (2026-08) — herança de custo e `modo_corte` no
 ### Pendente (futuro)
 - [ ] **A2 — tabela `Preco_Produto` centralizada** (histórico/validade de preço) — só vale quando houver necessidade real; hoje a herança no cadastro resolve.
 - [ ] Borda: manter como está (complemento por material via `Borda.valor`) — decidido não mover para o produto (duplicaria informação).
+
+## 🧾 Frente 10 — Formas de receber & taxas por conta (piloto → base Asaas)
+
+Status: **levantamento aprovado (2026-09)** — implementação futura. Origem: revisão de "novos usuários" + roadmap Asaas (planos Básico/afiliados, boleto/NF via Asaas).
+
+### Decisões do piloto
+- **Herdar o existente por padrão**: enquanto uma conta não cadastra as próprias taxas/condições, usa a **tabela global atual** (`Taxa_Banco`) — sem quebra p/ contas atuais.
+- **Cada conta (vendedor) pode cadastrar a SUA forma de operar as condições de pagamento** — exige **front + adequações** (hoje é global e sem tela).
+- **Cadastro manual a priori**; ideia futura: "inteligência" buscar taxas padrão de adquirentes e popular automaticamente.
+- **Distinção de canal de cobrança** (hoje inexistente): **link de pagamento**, **maquininha/POS**, **celular**, Pix e boleto têm **taxas diferentes** — o cartão muda conforme o canal (online/link vs presencial/POS).
+
+### Modelo de dados (proposta)
+- `Taxa_Banco` ganha **`user_id`** (nulo = tabela global/default) e **`canal`** (`cartao_link` | `cartao_pos` | `cartao_celular` | `pix` | `boleto`), mantendo `provedor_id`/`provedor`, `parcelas`, `cc_taxa`, `ativo`.
+- Nova **`Preferencia_Pagamento_User`** (por user/conta): métodos ativos (Pix/Boleto/Cartão/Link), desconto Pix padrão, máx. parcelas sem juros **por canal**, repasse de taxa, prazos fixos.
+- Forma de receber é **informativa** no piloto (chave Pix/dados da conta p/ referência) — sem emissão.
+
+### Front & adequações (piloto)
+- Tela **"Como recebo & condições"** (admin da conta): cadastro canal × provedor × parcelas × taxa + métodos/prazos/repasse/desconto Pix.
+- **Seletor de condições do orçamento**: usa as taxas da **conta do dono do orçamento** (fallback global); permite escolher o **canal de cobrança** aplicando a taxa do canal na condição; refletir no texto quando fizer sentido.
+- Cache de `taxas_banco` **por user** (chave inclui `user_id`).
+
+### Backend (piloto)
+- `taxas_banco` GET filtra por `user_id` com fallback global; CRUD por user validando owner; `Preferencia_Pagamento_User` GET/POST (owner).
+
+### Fases futuras (pós-piloto)
+- **Auto-taxas**: cadastro inteligente de tabelas padrão por adquirente/canal.
+- **Asaas**: vínculo de conta (API key/customer), emissão Pix/Boleto/Cartão-link (`billingType`) e NF; webhook marca baixa; tabela da conta segue alimentando o cálculo das condições.
+- **Planos**: Básico (1 admin = vendedor único) e Vendedores + Afiliados → hierarquia (F3) + split Asaas.
+- Maquininha/POS/celular: controle **manual** no Financeiro (fora do link).
+

@@ -22,6 +22,7 @@ const form = reactive({
   isPJ: true,
   uf: '',
   regime_id: 0,
+  organizacao_id: 0,
   frtB2B: 0,
   margem: 0,
   DiasVencimentoOrcamento: 0,
@@ -33,6 +34,7 @@ const erroSalvar = ref<string | null>(null)
 const salvoMsg = ref<string | null>(null)
 let salvoTimer: ReturnType<typeof setTimeout> | null = null
 const regimes = ref<Array<{ id: number; descricao: string; slug: string }>>([])
+const organizacoes = ref<Array<{ id: number; nome: string; uf: string }>>([])
 const regimeAntigo = ref<number | null>(null)
 const confirmandoRegime = ref(false)
 
@@ -132,6 +134,7 @@ function preencherForm() {
   form.isPJ = u.isPJ !== false
   form.uf = u.uf ?? ''
   form.regime_id = u.regime_id ?? 0
+  form.organizacao_id = Number(u.organizacao_id) || 0
   form.frtB2B = u.frtB2B ?? 0
   form.margem = u.margem ?? 0
   form.DiasVencimentoOrcamento = u.DiasVencimentoOrcamento ?? 15
@@ -174,9 +177,28 @@ watch(
     }
     preencherForm()
     await carregarRegimes()
+    await carregarOrganizacoes()
     carregando.value = false
   },
 )
+
+async function carregarOrganizacoes() {
+  try {
+    const resp = await xano.get('/api:-qqRIakp/organizacao')
+    const lista = resp.getBody() as any
+    if (Array.isArray(lista)) {
+      organizacoes.value = lista
+        .map((o: any) => ({
+          id: Number(o.id) || 0,
+          nome: o.nome || `Organização ${o.id}`,
+          uf: (o.uf || '').toUpperCase(),
+        }))
+        .filter((o) => o.id > 0)
+    }
+  } catch {
+    organizacoes.value = []
+  }
+}
 
 function confirmarRegime(): boolean {
   if (form.regime_id !== regimeAntigo.value) {
@@ -197,13 +219,22 @@ function submit(ignoraConfirmacaoRegime = false) {
     erroSalvar.value = 'UF é obrigatória.'
     return
   }
+  if (!form.regime_id) {
+    erroSalvar.value = 'Regime Tributário é obrigatório.'
+    return
+  }
+  if (!form.organizacao_id) {
+    erroSalvar.value = 'Fornecedor (Organização) é obrigatório.'
+    return
+  }
   if (
     form.margem === null ||
     form.margem === undefined ||
+    Number(form.margem) <= 0 ||
     form.DiasVencimentoOrcamento === null ||
     form.DiasVencimentoOrcamento === undefined
   ) {
-    erroSalvar.value = 'Margem e Dias de validade são obrigatórios.'
+    erroSalvar.value = 'Margem deve ser maior que zero e Dias de validade são obrigatórios.'
     return
   }
   if (!ignoraConfirmacaoRegime && !confirmarRegime()) return
@@ -236,6 +267,7 @@ function submit(ignoraConfirmacaoRegime = false) {
       isPJ: form.isPJ,
       uf: form.uf,
       regime_id: form.regime_id || undefined,
+      organizacao_id: form.organizacao_id || undefined,
       frtB2B: form.frtB2B,
       margem: form.margem,
       DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
@@ -369,6 +401,19 @@ function descricaoRegime(id: number): string {
                     <small class="field-hint">Mudar o regime só vale para novos orçamentos.</small>
                   </div>
                 </div>
+                <div class="field">
+                  <label for="pf-org">Fornecedor (Organização) *</label>
+                  <select id="pf-org" v-model.number="form.organizacao_id">
+                    <option :value="0" disabled>Selecione o fornecedor</option>
+                    <option v-for="o in organizacoes" :key="o.id" :value="o.id">
+                      {{ o.nome }} — {{ o.uf }}
+                    </option>
+                  </select>
+                  <small class="field-hint"
+                    >Organização que fornece a mercadoria (ex.: Kapazi — PR). Vale para novos
+                    orçamentos.</small
+                  >
+                </div>
                 <div class="row-2">
                   <div class="field">
                     <label for="pf-frete">Frete B2B mínimo (R$)</label>
@@ -376,7 +421,17 @@ function descricaoRegime(id: number): string {
                   </div>
                   <div class="field">
                     <label for="pf-margem">Margem (%) *</label>
-                    <input id="pf-margem" v-model.number="form.margem" type="number" step="0.01" />
+                    <input
+                      id="pf-margem"
+                      v-model.number="form.margem"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="Ex.: 50 a 120"
+                    />
+                    <small class="field-hint"
+                      >Valor percentual (markup) sobre o custo — ex.: 50 a 120.</small
+                    >
                   </div>
                 </div>
                 <div class="field">

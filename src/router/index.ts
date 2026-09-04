@@ -36,6 +36,11 @@ const router = createRouter({
       component: () => import('../views/RelatoriosView.vue'),
     },
     {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: () => import('../views/OnboardingView.vue'),
+    },
+    {
       path: '/orcamentos/novo',
       name: 'orcamentos-novo',
       component: () => import('../views/OrcamentosView.vue'),

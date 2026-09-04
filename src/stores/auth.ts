@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import { useCatalogoStore } from './catalogo'
+import { useOrcamentoStore } from './orcamento'
 
 export interface User {
   id: number
@@ -191,6 +192,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('authToken')
     xano.setAuthToken(null)
     useCatalogoStore().resetarSessao()
+    // Limpa o orçamento em edição (número/cabeçalho/resultado) para o próximo usuário
+    // não herdar dados da conta anterior (ex.: número de um pedido convertido).
+    useOrcamentoStore().resetar()
   }
 
   return {

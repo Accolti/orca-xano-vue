@@ -397,7 +397,12 @@ onMounted(async () => {
           <tbody>
             <tr v-for="p in resultadosVisiveis" :key="p.id">
               <td class="cell-cod">{{ p.id }}</td>
-              <td class="cell-cliente">{{ p.descricao }}</td>
+              <td class="cell-cliente">
+                {{ p.descricao }}
+                <span v-if="!p.classificacao_id" class="badge-status badge-recusado dev-sem-cla">
+                  sem classificação
+                </span>
+              </td>
               <td>{{ p.material_nome }}</td>
               <td>{{ p.linha_nome || '-' }}</td>
               <td>{{ p.tipo_nome || '-' }}</td>

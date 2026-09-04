@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import DashboardGrafico from '@/components/DashboardGrafico.vue'
+import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -132,6 +133,8 @@ onMounted(carregar)
         <p class="subtitle">Visão geral da sua conta.</p>
       </div>
     </header>
+
+    <PendenciasPerfilBanner />
 
     <div class="periodo-bar">
       <label class="periodo-label">

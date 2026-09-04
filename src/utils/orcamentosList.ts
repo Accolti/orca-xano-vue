@@ -119,6 +119,7 @@ export function useOrcamentosListActions() {
 
   const gerandoPdfDe = ref<number | null>(null)
   const enviandoWaDe = ref<number | null>(null)
+  const duplicandoDe = ref<number | null>(null)
   const toastMsg = ref('')
   let toastTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -153,12 +154,16 @@ export function useOrcamentosListActions() {
 
   // Duplica o orçamento e abre o novo em modo edição (para ajustar itens/bordas/qtd/dimensões)
   async function duplicarOrcamento(row: OrcamentoRow) {
+    if (duplicandoDe.value === row.id) return
+    duplicandoDe.value = row.id
     try {
       const novoCod = await orcamentoStore.duplicarOrcamento(row.id)
       mostrarToast(`Orçamento ${row.cod_orca} duplicado como ${novoCod}`)
       router.push(`/orcamentos/${novoCod}`)
     } catch (err: any) {
       mostrarToast(err?.message || 'Erro ao duplicar orçamento')
+    } finally {
+      duplicandoDe.value = null
     }
   }
 
@@ -271,6 +276,7 @@ export function useOrcamentosListActions() {
   return {
     gerandoPdfDe,
     enviandoWaDe,
+    duplicandoDe,
     toastMsg,
     mostrarToast,
     editarOrcamento,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import {
   useOrcamentosListActions,
   statusLabel,
@@ -22,6 +23,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 const {
   gerandoPdfDe,
   enviandoWaDe,
+  duplicandoDe,
   toastMsg,
   novoOrcamento,
   editarOrcamento,
@@ -95,6 +97,7 @@ async function excluir(row: OrcamentoRow) {
 
 <template>
   <div class="orc-list-page">
+    <PendenciasPerfilBanner />
     <section class="card header-card">
       <div class="header-top">
         <h2>Orçamentos</h2>
@@ -217,6 +220,7 @@ async function excluir(row: OrcamentoRow) {
                 <button
                   class="btn-icon btn-icon-duplicar"
                   title="Duplicar orçamento"
+                  :disabled="duplicandoDe === row.id"
                   @click="duplicarOrcamento(row)"
                 >
                   <svg
@@ -348,6 +352,7 @@ async function excluir(row: OrcamentoRow) {
             <button
               class="btn-icon btn-icon-duplicar"
               title="Duplicar orçamento"
+              :disabled="duplicandoDe === row.id"
               @click="duplicarOrcamento(row)"
             >
               <svg

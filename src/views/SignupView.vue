@@ -26,6 +26,10 @@ async function handleSubmit() {
     <div class="auth-card">
       <h1>Criar Conta</h1>
 
+      <p class="convite-aviso">
+        Cadastro por convite. Entre em contato para liberar seu acesso.
+      </p>
+
       <form @submit.prevent="handleSubmit">
         <div class="field-row">
           <div class="field">
@@ -93,6 +97,16 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
+.convite-aviso {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--danger-soft);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin: 0 0 1rem;
+}
+
 .auth-page {
   display: flex;
   justify-content: center;

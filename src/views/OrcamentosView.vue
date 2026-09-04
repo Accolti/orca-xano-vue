@@ -18,15 +18,14 @@ import { provedoresDisponiveis } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import PagamentoModal from '@/components/PagamentoModal.vue'
+import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
-import { useUiStore } from '@/stores/ui'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 import type { TaxaBanco } from '@/types/orcamento'
 
 const route = useRoute()
 const router = useRouter()
-const uiStore = useUiStore()
 const codOrcaParam = route.params.codOrca as string | undefined
 const isEditMode = computed(() => !!codOrcaParam)
 const isVinculado = computed(() => {
@@ -159,12 +158,6 @@ const margemPadrao = computed(() => {
   return authStore.user?.margem ?? 100
 })
 const fretePadrao = computed(() => authStore.user?.frtB2B ?? 52)
-
-// Perfil sem UF ou Regime Tributário → precificação com fallback pode sair errada
-// (DIFAL/crédito ICMS). Bloqueia o cálculo e mostra banner pedindo cadastro completo.
-const perfilPrecificacaoIncompleto = computed(
-  () => !authStore.user?.uf || !authStore.user?.regime_id,
-)
 
 const formValido = computed(() => {
   if (!clienteSelecionado.value) return false
@@ -1401,15 +1394,7 @@ async function enviarWhatsApp() {
 
 <template>
   <div class="orcamento-page">
-    <div v-if="perfilPrecificacaoIncompleto" class="perfil-banner" role="alert">
-      <span class="perfil-banner-text">
-        Cadastro incompleto — configure <strong>UF</strong> e <strong>Regime Tributário</strong> em
-        Meus Dados para precificar corretamente.
-      </span>
-      <button class="btn btn-sm btn-accent" @click="uiStore.perfilOpen = true">
-        Abrir Meus Dados
-      </button>
-    </div>
+    <PendenciasPerfilBanner />
     <template v-if="!mostrarResumo">
       <!-- A. Cabeçalho e Identificação do Cliente -->
       <section class="card welcome-card">
