@@ -12,6 +12,8 @@ const router = useRouter()
 const pendentes = computed(() => pendenciasPerfil(authStore.user))
 const criticas = computed(() => pendentes.value.filter((p) => p.critico))
 const recomendacoes = computed(() => pendentes.value.filter((p) => !p.critico))
+// Só exibe quando o usuário já foi carregado (evita flash durante o fetchMe no boot)
+const visivel = computed(() => !!authStore.user && pendentes.value.length > 0)
 
 function abrirMeusDados() {
   uiStore.perfilOpen = true
@@ -24,7 +26,7 @@ function irParaOnboarding() {
 
 <template>
   <div
-    v-if="pendentes.length"
+    v-if="visivel"
     class="ppb"
     :class="{ 'ppb-critico': criticas.length > 0 }"
     role="alert"

@@ -10,6 +10,8 @@ export interface PendenciaPerfil {
 }
 
 export function pendenciasPerfil(u: User | null | undefined): PendenciaPerfil[] {
+  if (!u) return []
+
   const lista: PendenciaPerfil[] = []
 
   const uf = (u?.uf || '').trim()
