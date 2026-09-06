@@ -49,10 +49,16 @@ Status: **parcialmente feito** (seletor de instituição ⭐, checkboxes Pix/Bol
 
 ## 👥 Frente 3 — Multi-vendedor, planos, comissão e permissões
 
-Status: registrada (implementação futura)
+Status: **fase inicial feita (2026-09)** — roles + gestão de equipe (`/equipe`). Comissões, permissões visuais e planos pendentes (planos de Comissões Fase A abaixo).
 
-- [ ] `role` no User (admin / vendedor_master / vendedor) + `vendedor_pai_id` + `percentual_comissao`
-- [ ] Visibilidade por permissão: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
+### Feito ✅ (fase inicial)
+- `User.role` (`admin_geral`/`admin`/`vendedor`) + `vendedor_pai_id` + `percentual_comissao` + `ativo` (legado sem role = admin)
+- Endpoints: `GET /equipe`, `POST /equipe_criar`, `POST /equipe_vincular`, `POST /equipe_editar` (auth User; dono/`admin_geral`)
+- `EquipeView.vue` (rota `/equipe`, menu 👥 só p/ admin) — criar vendedor (login/senha inicial), vincular conta existente, editar %/desativar
+- `auth.ts`: helpers `isAdminGeral`/`isAdmin`/`isVendedor`
+
+### Pendente
+- [ ] **Permissões visuais (F3)**: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
 - [ ] Limite de desconto por vendedor
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
 - [ ] **Tela de comissões pagas aos vendedores-filhos**: lista por vendedor, período, valor da comissão, status (calculada/paga) — depende de `vendedor_pai_id` + `percentual_comissao`. Rota própria `/comissoes`

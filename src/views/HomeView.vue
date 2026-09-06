@@ -7,6 +7,7 @@ import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import DashboardGrafico from '@/components/DashboardGrafico.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
+import PeriodoBar from '@/components/PeriodoBar.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -22,22 +23,9 @@ type PeriodoOpcao = 'todos' | 'mensal' | 'trimestral' | 'semestral' | 'anual'
 const periodo = ref<PeriodoOpcao>('todos')
 const mesInicio = ref(mesAtualISO())
 
-const periodos: { id: PeriodoOpcao; label: string }[] = [
-  { id: 'todos', label: 'Todos os períodos' },
-  { id: 'mensal', label: 'Mensal' },
-  { id: 'trimestral', label: 'Trimestral' },
-  { id: 'semestral', label: 'Semestral' },
-  { id: 'anual', label: 'Anual' },
-]
-
 function mesAtualISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function mudarPeriodo(p: PeriodoOpcao) {
-  periodo.value = p
-  carregar()
 }
 
 const loading = ref(true)
@@ -136,23 +124,11 @@ onMounted(carregar)
 
     <PendenciasPerfilBanner />
 
-    <div class="periodo-bar">
-      <label class="periodo-label">
-        Período a partir de
-        <input v-model="mesInicio" type="month" class="periodo-input" @change="carregar" />
-      </label>
-      <div class="periodo-chips">
-        <button
-          v-for="p in periodos"
-          :key="p.id"
-          class="aba"
-          :class="{ active: periodo === p.id }"
-          @click="mudarPeriodo(p.id)"
-        >
-          {{ p.label }}
-        </button>
-      </div>
-    </div>
+    <PeriodoBar
+      v-model:periodo="periodo"
+      v-model:mesInicio="mesInicio"
+      @mudou="carregar"
+    />
 
     <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>
 

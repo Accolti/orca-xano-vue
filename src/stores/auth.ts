@@ -5,6 +5,8 @@ import { XanoRequestError } from '@xano/js-sdk'
 import { useCatalogoStore } from './catalogo'
 import { useOrcamentoStore } from './orcamento'
 
+export type UserRole = 'admin_geral' | 'admin' | 'vendedor'
+
 export interface User {
   id: number
   created_at: string
@@ -24,6 +26,10 @@ export interface User {
   isPJ: number
   uf?: string
   regime_id?: number
+  role?: UserRole | null
+  vendedor_pai_id?: number | null
+  percentual_comissao?: number | null
+  ativo?: boolean
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
   _endereco_user?: {
     id?: number
@@ -45,6 +51,16 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<string | null>(null)
 
   const isAuthenticated = computed(() => !!token.value)
+
+  // Role efetiva: contas sem role (legado) contam como "admin".
+  const role = computed<UserRole>(() => {
+    const r = user.value?.role as UserRole | null | undefined
+    if (r) return r
+    return user.value ? 'admin' : 'admin'
+  })
+  const isAdminGeral = computed(() => role.value === 'admin_geral')
+  const isAdmin = computed(() => role.value === 'admin' || role.value === 'admin_geral')
+  const isVendedor = computed(() => role.value === 'vendedor')
 
   if (token.value) {
     xano.setAuthToken(token.value)
@@ -203,6 +219,10 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     isAuthenticated,
+    role,
+    isAdminGeral,
+    isAdmin,
+    isVendedor,
     login,
     signup,
     fetchMe,

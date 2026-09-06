@@ -17,12 +17,18 @@ interface MenuItem {
   path?: string
   disabled?: boolean
   modal?: boolean
+  adminOnly?: boolean
+}
+
+function visivel(item: MenuItem) {
+  return !item.adminOnly || authStore.isAdmin
 }
 
 const menuItems: MenuItem[] = [
   { icon: '\u{1F3E0}', label: 'Home', path: '/' },
   { icon: '\u{1F464}', label: 'Clientes', path: '/clientes' },
   { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
+  { icon: '\u{1F465}', label: 'Equipe', path: '/equipe', adminOnly: true },
   { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
   { icon: '\u{1F4B3}', label: 'Boletos', path: '/pagamentos' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios' },
@@ -94,7 +100,7 @@ function handleLogout() {
 
           <nav class="drawer-nav">
             <RouterLink
-              v-for="item in menuItems.filter((i) => !i.modal)"
+              v-for="item in menuItems.filter((i) => visivel(i) && !i.modal)"
               :key="item.label"
               :to="item.path ?? ''"
               :class="{
@@ -107,7 +113,7 @@ function handleLogout() {
               <span class="nav-label">{{ item.label }}</span>
             </RouterLink>
             <button
-              v-for="item in menuItems.filter((i) => i.modal)"
+              v-for="item in menuItems.filter((i) => visivel(i) && i.modal)"
               :key="item.label"
               type="button"
               class="nav-item"

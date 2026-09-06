@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePagamentoStore, type PagamentoRow } from '@/stores/pagamentos'
 import { nomeForma } from '@/utils/pagamentos'
+import PeriodoBar from '@/components/PeriodoBar.vue'
 
 const pagamentoStore = usePagamentoStore()
 const router = useRouter()
@@ -65,14 +66,6 @@ const abas: { id: Aba; label: string }[] = [
   { id: 'a_vencer', label: 'A vencer' },
   { id: 'vencido', label: 'Vencidos' },
   { id: 'pago', label: 'Pagos' },
-]
-
-const periodos: { id: Periodo; label: string }[] = [
-  { id: 'todos', label: 'Todos os períodos' },
-  { id: 'mensal', label: 'Mensal' },
-  { id: 'trimestral', label: 'Trimestral' },
-  { id: 'semestral', label: 'Semestral' },
-  { id: 'anual', label: 'Anual' },
 ]
 
 const visiveis = computed(() => {
@@ -181,23 +174,7 @@ onMounted(() => {
       <h2>Controle Financeiro</h2>
     </div>
 
-    <div class="periodo-bar">
-      <label class="periodo-label">
-        Período a partir de
-        <input v-model="mesInicio" type="month" class="periodo-input" />
-      </label>
-      <div class="periodo-chips">
-        <button
-          v-for="p in periodos"
-          :key="p.id"
-          class="aba"
-          :class="{ active: periodo === p.id }"
-          @click="periodo = p.id"
-        >
-          {{ p.label }}
-        </button>
-      </div>
-    </div>
+    <PeriodoBar v-model:periodo="periodo" v-model:mesInicio="mesInicio" />
 
     <div class="abas">
       <button

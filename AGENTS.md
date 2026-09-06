@@ -78,6 +78,10 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 - **`prompt=select_account`**: a URL gerada por `google_oauth_getauthurl` inclui `prompt=select_account` → o Google **sempre mostra o seletor de contas** ao clicar em "Entrar com o Google" (permite trocar entre contas Google já cadastradas sem limpar a sessão do Google).
 - **Usuário novo via Google**: o `continue` **não cria** o usuário — `db.get User { email }` + `precondition ($user != null)` → rejeita com "Usuário não cadastrado" (acesso restrito). Para usar, **pré-criar** o `User` com o e-mail do Google (via `/signup` ou dashboard); o 1º login Google auto-vincula `google_oauth`.
 
+### Roles e Equipe (F3 inicial)
+
+`User` ganhou `role` (`admin_geral`/`admin`/`vendedor`; legado sem role = admin), `vendedor_pai_id` (FK User) e `percentual_comissao` (base futura p/ comissões). Endpoints auth User: `equipe` (GET), `equipe_criar`/`equipe_vincular`/`equipe_editar` (POST). `EquipeView.vue` (rota `/equipe`, menu 👥 só p/ admin via `isAdmin`) cria vendedor com login/senha inicial, vincula conta existente e edita %/ativo. `auth.ts` expõe `role`/`isAdminGeral`/`isAdmin`/`isVendedor`.
+
 ### Troca de usuário (dev)
 
 - **`DevUserSwitcher.vue`** (novo) + botão **👥** no `GlobalHeader` (só `isDev`): popover que guarda contas de teste em `localStorage` (`orca_dev_usuarios`: `[{ nome, email, senha }]`) com formulário add/remove, botões **"Entrar"** (`authStore.login` + redirect `/`) e **"Sair"** (logout → `/login`). Some do build de produção.
