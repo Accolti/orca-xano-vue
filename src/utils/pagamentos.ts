@@ -33,6 +33,10 @@ export interface GerarParcelasInput {
   parcelasCartao: number | null
   cartaoParcelas: CartaoOpcaoParcela[]
   dataBase?: string // yyyy-mm-dd (default hoje)
+  // Nº de parcelas do boleto (default = máximo calculado; só reduzir)
+  parcelasBoleto?: number | null
+  // Nº de parcelas do Pix (1x ou 2x; default 2x)
+  parcelasPix?: number | null
 }
 
 function somaDias(base: Date, dias: number): string {
@@ -64,6 +68,8 @@ export function gerarParcelasFinanceiras({
   parcelasCartao,
   cartaoParcelas,
   dataBase,
+  parcelasBoleto,
+  parcelasPix,
 }: GerarParcelasInput): ParcelaFinanceira[] {
   const base = dataBase ? new Date(`${dataBase}T00:00:00`) : new Date()
   const parcelas: ParcelaFinanceira[] = []
@@ -72,15 +78,27 @@ export function gerarParcelasFinanceiras({
 
   if (metodos.pix && valorVenda > 0) {
     const desconto = descontoPixPercentual > 0 ? valorVenda * (descontoPixPercentual / 100) : 0
-    const valorPix = (valorVenda - desconto) / 2
-    vencimentos(base, 2).forEach((vencimento) => {
-      parcelas.push({ valor: parseFloat(valorPix.toFixed(2)), vencimento, forma_pagamento_id: 2 })
+    const valorPix = valorVenda - desconto
+    const nPixUser = Number(parcelasPix)
+    const pixParcelas = Number.isInteger(nPixUser) && nPixUser >= 1 && nPixUser <= 2 ? nPixUser : 2
+    const valorPixParcela = valorPix / pixParcelas
+    vencimentos(base, pixParcelas).forEach((vencimento) => {
+      parcelas.push({
+        valor: parseFloat(valorPixParcela.toFixed(2)),
+        vencimento,
+        forma_pagamento_id: 2,
+      })
     })
   }
 
   if (metodos.boleto && valorVenda > 0) {
     const metadeCusto = valorCusto / 2
-    const numeroParcelas = Math.max(1, Math.floor(valorVenda / metadeCusto))
+    const parcelasMax = valorCusto > 0 ? Math.max(1, Math.floor(valorVenda / metadeCusto)) : 1
+    const nUsuario = Number(parcelasBoleto)
+    const numeroParcelas =
+      Number.isInteger(nUsuario) && nUsuario >= 1 && nUsuario <= parcelasMax
+        ? nUsuario
+        : parcelasMax
     const valorBoleto = valorVenda / numeroParcelas
     vencimentos(base, numeroParcelas).forEach((vencimento) => {
       parcelas.push({

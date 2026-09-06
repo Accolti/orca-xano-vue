@@ -32,6 +32,10 @@ export interface OpcoesPagamento {
   cartao: OpcaoCartao[]
   texto: string
   pixImpacto: PixImpacto
+  boletoMax: number
+  boletoParcelas: number
+  pixMax: number
+  pixParcelas: number
 }
 
 export interface MetodosSelecionados {
@@ -54,6 +58,10 @@ export interface CalcularCondicoesInput {
   mesclar?: boolean
   parcelaCartao?: number | null
   trazerTodasParcelas?: boolean
+  // Nº de parcelas do boleto escolhido pelo vendedor (só para menos; default = máximo)
+  parcelasBoleto?: number | null
+  // Nº de parcelas do Pix escolhido (1x ou 2x; default 2x — mais que 2 vira Boleto)
+  parcelasPix?: number | null
 }
 
 // Regras atuais: Pix 2x fixas + Boleto parcelado pela métrica metadeCusto.
@@ -71,6 +79,8 @@ export function calcularCondicoesPagamento({
   mesclar = false,
   parcelaCartao = null,
   trazerTodasParcelas = false,
+  parcelasBoleto = null,
+  parcelasPix = null,
 }: CalcularCondicoesInput): OpcoesPagamento {
   const venda = Number(valorVenda) || 0
   const custo = Number(valorCusto) || 0
@@ -81,15 +91,22 @@ export function calcularCondicoesPagamento({
   const usaBoleto = metodos?.boleto !== false
   const usaCartao = metodos?.cartao !== false
 
-  // ---- PIX ----
+  // ---- PIX (1x ou 2x — ajustável pelo vendedor; mais que 2 vira Boleto) ----
   const descontoPix = descontoPixPercentual > 0 ? venda * (descontoPixPercentual / 100) : 0
   const valorVendaPix = venda - descontoPix
 
-  const primeiraParcelaPix = valorVendaPix / 2
-  const segundaParcelaPix = valorVendaPix / 2
+  const pixMax = 2
+  const nPixUser = Number(parcelasPix)
+  const pixParcelas =
+    Number.isInteger(nPixUser) && nPixUser >= 1 && nPixUser <= pixMax ? nPixUser : pixMax
+  const valorParcelaPix = valorVendaPix / pixParcelas
   const descontoPixTexto =
     descontoPixPercentual > 0 ? ` — ${descontoPixPercentual}% de desconto` : ''
-  const pixString = `Pix (2x de ${formatarMoeda(primeiraParcelaPix)})${descontoPixTexto}: 1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias.`
+  const prazoPix =
+    pixParcelas === 1
+      ? `paga em até ${entradaPrazo} dias do pedido`
+      : `1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias`
+  const pixString = `Pix (${pixParcelas}x de ${formatarMoeda(valorParcelaPix)})${descontoPixTexto}: ${prazoPix} : total de R$ ${formatarMoeda(valorVendaPix)}.`
 
   // Impacto do desconto no Pix (lucro e margem sobre a venda SEM desconto, para comparação)
   const pixImpacto: PixImpacto = {
@@ -99,20 +116,30 @@ export function calcularCondicoesPagamento({
     margem: venda > 0 ? parseFloat((((valorVendaPix - custo) / venda) * 100).toFixed(2)) : 0,
   }
 
-  // ---- BOLETO ----
+  // ---- BOLETO (parcelas ajustáveis pelo vendedor, só para menos) ----
   const metadeCusto = custo / 2
-  const numeroParcelasBoleto = Math.max(1, Math.floor(venda / metadeCusto))
+  const parcelasMaxBoleto = custo > 0 ? Math.max(1, Math.floor(venda / metadeCusto)) : 1
+  const nUsuario = Number(parcelasBoleto)
+  const numeroParcelasBoleto =
+    Number.isInteger(nUsuario) && nUsuario >= 1 && nUsuario <= parcelasMaxBoleto
+      ? nUsuario
+      : parcelasMaxBoleto
   const valorParcelasBoleto = venda / numeroParcelasBoleto
 
-  let prazos = `${entradaPrazo} dias do pedido`
-  const prazosRestantes: string[] = []
+  const juntarPrazos = (lista: number[]): string => {
+    if (!lista.length) return ''
+    if (lista.length === 1) return String(lista[0])
+    return `${lista.slice(0, -1).join(', ')} e ${lista[lista.length - 1]}`
+  }
+  const prazosRestantesNum: number[] = []
   for (let i = 1; i < numeroParcelasBoleto; i++) {
-    prazosRestantes.push(String(entradaPrazo + i * intervaloParcelas))
+    prazosRestantesNum.push(entradaPrazo + i * intervaloParcelas)
   }
+  let prazoBoleto = `${entradaPrazo} dias do pedido`
   if (numeroParcelasBoleto > 1) {
-    prazos += `; demais em ${prazosRestantes.join(' e ')} dias`
+    prazoBoleto += `, demais em ${juntarPrazos(prazosRestantesNum)} dias`
   }
-  const boletoString = `Boleto (${numeroParcelasBoleto}x de ${formatarMoeda(valorParcelasBoleto)}): 1ª parcela em ${prazos}.`
+  const boletoString = `Boleto (${numeroParcelasBoleto}x de ${formatarMoeda(valorParcelasBoleto)}): ${prazoBoleto} : total de R$ ${formatarMoeda(venda)}.`
 
   // ---- CARTÃO (com instituição e marcação de mais vantajosa) ----
   const parcelasCalculadas = calcularTabelaParcelamento(
@@ -186,5 +213,9 @@ export function calcularCondicoesPagamento({
     cartao,
     texto,
     pixImpacto,
+    boletoMax: parcelasMaxBoleto,
+    boletoParcelas: numeroParcelasBoleto,
+    pixMax,
+    pixParcelas,
   }
 }

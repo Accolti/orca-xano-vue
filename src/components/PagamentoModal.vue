@@ -19,6 +19,10 @@ const props = defineProps<{
   descontoPixPercentual: number
   parcelasCartao: number | null
   cartaoParcelas: CartaoOpcaoParcela[]
+  parcelasBoleto?: number | null
+  parcelasPix?: number | null
+  // "Faturar para o cliente" negociado (gera boleto com vencimento = entrega + 20 dias)
+  faturar?: boolean
   modoFaturamento?: boolean
 }>()
 
@@ -40,6 +44,125 @@ interface Row {
 }
 
 const rows = ref<Row[]>([])
+
+type AceiteTipo = 'todas' | 'pix' | 'boleto' | 'cartao' | 'faturamento'
+const aceite = ref<AceiteTipo>('todas')
+const boletoN = ref<number | null>(null)
+const cartaoN = ref<number | null>(null)
+const pixN = ref<number | null>(null)
+// Data de entrega prevista (usada no boleto de faturamento: vencimento = entrega + 20 dias)
+const entregaDate = ref(hojeISO())
+const ENTREGA_DEFAULT_DIAS = 15
+
+function somaDiasISO(iso: string, dias: number): string {
+  const d = new Date(`${iso}T00:00:00`)
+  if (isNaN(d.getTime())) return iso
+  d.setDate(d.getDate() + dias)
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mes}-${dia}`
+}
+
+function entregaDefaultISO(): string {
+  return somaDiasISO(hojeISO(), ENTREGA_DEFAULT_DIAS)
+}
+
+const vencFaturamento = computed(() => (entregaDate.value ? somaDiasISO(entregaDate.value, 20) : ''))
+
+function parcelaFaturamento(): ParcelaFinanceira {
+  return {
+    valor: Number(props.venda) || 0,
+    vencimento: vencFaturamento.value || hojeISO(),
+    forma_pagamento_id: 1,
+  }
+}
+
+// Máximo de parcelas do boleto (regra atual: venda ÷ metade do custo)
+const boletoMax = computed(() => {
+  const v = Number(props.venda) || 0
+  const c = Number(props.custo) || 0
+  return c > 0 ? Math.max(1, Math.floor(v / (c / 2))) : 1
+})
+
+function boletoAtual(): number {
+  const n = Number(boletoN.value)
+  return Number.isInteger(n) && n >= 1 && n <= boletoMax.value ? n : boletoMax.value
+}
+
+function cartaoAtual(): number | null {
+  const n = Number(cartaoN.value)
+  const existe = Number.isInteger(n) && props.cartaoParcelas.some((o) => o.parcelas === n)
+  if (existe) return n
+  return props.parcelasCartao && props.cartaoParcelas.some((o) => o.parcelas === props.parcelasCartao)
+    ? props.parcelasCartao
+    : (props.cartaoParcelas[0]?.parcelas ?? null)
+}
+
+function pixAtual(): number {
+  const n = Number(pixN.value)
+  return n === 1 || n === 2 ? n : 2
+}
+
+function gerarPara(tipo: AceiteTipo): ParcelaFinanceira[] {
+  const comum = {
+    venda: Number(props.venda) || 0,
+    custo: Number(props.custo) || 0,
+    descontoPixPercentual: props.descontoPixPercentual,
+    cartaoParcelas: props.cartaoParcelas,
+  }
+  if (tipo === 'pix') {
+    return gerarParcelasFinanceiras({
+      ...comum,
+      metodos: { pix: true, boleto: false, cartao: false },
+      parcelasCartao: null,
+      parcelasPix: pixAtual(),
+    })
+  }
+  if (tipo === 'boleto') {
+    return gerarParcelasFinanceiras({
+      ...comum,
+      metodos: { pix: false, boleto: true, cartao: false },
+      parcelasCartao: null,
+      parcelasBoleto: boletoAtual(),
+    })
+  }
+  if (tipo === 'cartao') {
+    return gerarParcelasFinanceiras({
+      ...comum,
+      metodos: { pix: false, boleto: false, cartao: true },
+      parcelasCartao: cartaoAtual(),
+    })
+  }
+  if (tipo === 'faturamento') {
+    return [parcelaFaturamento()]
+  }
+  // todas (como negociadas)
+  const todas = gerarParcelasFinanceiras({
+    ...comum,
+    metodos: props.metodos,
+    parcelasCartao: cartaoAtual(),
+    parcelasBoleto: props.parcelasBoleto ?? boletoMax.value,
+    parcelasPix: props.parcelasPix ?? 2,
+  })
+  if (props.faturar) {
+    todas.push(parcelaFaturamento())
+  }
+  return todas.sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+}
+
+function rowsDe(parcelas: ParcelaFinanceira[]): Row[] {
+  return parcelas.map((p) => ({
+    valor: p.valor,
+    vencimento: p.vencimento,
+    forma_pagamento_id: p.forma_pagamento_id,
+  }))
+}
+
+function aplicarAceite(tipo: AceiteTipo) {
+  aceite.value = tipo
+  erro.value = null
+  rows.value = rowsDe(gerarPara(tipo))
+}
 
 const totalParcelas = computed(() =>
   somarParcelas(
@@ -65,6 +188,17 @@ function close() {
 async function abrir() {
   erro.value = null
   rows.value = []
+  aceite.value = 'todas'
+  const pb = Number(props.parcelasBoleto)
+  boletoN.value = Number.isInteger(pb) && pb >= 1 && pb <= boletoMax.value ? pb : null
+  const pp = Number(props.parcelasPix)
+  pixN.value = pp === 1 || pp === 2 ? pp : 2
+  entregaDate.value = entregaDefaultISO()
+  const pc = Number(props.parcelasCartao)
+  cartaoN.value =
+    pc && props.cartaoParcelas.some((o) => o.parcelas === pc)
+      ? pc
+      : (props.cartaoParcelas[0]?.parcelas ?? null)
   carregando.value = true
   try {
     const existentes = await pagamentoStore.carregarPorOrca(props.orcaId)
@@ -89,19 +223,8 @@ watch(
 
 function gerarDasCondicoes() {
   erro.value = null
-  const geradas = gerarParcelasFinanceiras({
-    venda: props.venda,
-    custo: props.custo,
-    metodos: props.metodos,
-    descontoPixPercentual: props.descontoPixPercentual,
-    parcelasCartao: props.parcelasCartao,
-    cartaoParcelas: props.cartaoParcelas,
-  })
-  rows.value = geradas.map((p: ParcelaFinanceira) => ({
-    valor: p.valor,
-    vencimento: p.vencimento,
-    forma_pagamento_id: p.forma_pagamento_id,
-  }))
+  aceite.value = 'todas'
+  rows.value = rowsDe(gerarPara('todas'))
 }
 
 function adicionar() {
@@ -171,6 +294,94 @@ function formatarMoeda(valor: number | null): string {
                 <button class="btn btn-outline" @click="gerarDasCondicoes">
                   Gerar das condições negociadas
                 </button>
+              </div>
+
+              <div class="aceite">
+                <span class="aceite-titulo">Qual condição o cliente aceitou? (opcional)</span>
+                <div class="aceite-chips">
+                  <button
+                    type="button"
+                    class="aceite-chip"
+                    :class="{ active: aceite === 'todas' }"
+                    @click="aplicarAceite('todas')"
+                  >
+                    Todas (como negociadas)
+                  </button>
+                  <button
+                    v-if="props.metodos.pix"
+                    type="button"
+                    class="aceite-chip"
+                    :class="{ active: aceite === 'pix' }"
+                    @click="aplicarAceite('pix')"
+                  >
+                    Pix
+                  </button>
+                  <button
+                    v-if="props.metodos.boleto"
+                    type="button"
+                    class="aceite-chip"
+                    :class="{ active: aceite === 'boleto' }"
+                    @click="aplicarAceite('boleto')"
+                  >
+                    Boleto
+                  </button>
+                  <button
+                    v-if="props.metodos.cartao && props.cartaoParcelas.length"
+                    type="button"
+                    class="aceite-chip"
+                    :class="{ active: aceite === 'cartao' }"
+                    @click="aplicarAceite('cartao')"
+                  >
+                    Cartão
+                  </button>
+                  <button
+                    v-if="props.faturar"
+                    type="button"
+                    class="aceite-chip"
+                    :class="{ active: aceite === 'faturamento' }"
+                    @click="aplicarAceite('faturamento')"
+                  >
+                    Faturamento (boleto)
+                  </button>
+                </div>
+
+                <div v-if="aceite === 'pix'" class="aceite-sub">
+                  <label for="aceite-pix-n">Parcelas do Pix</label>
+                  <select id="aceite-pix-n" v-model.number="pixN" @change="aplicarAceite('pix')">
+                    <option :value="1">1x (pagamento em até 5 dias)</option>
+                    <option :value="2">2x</option>
+                  </select>
+                </div>
+
+                <div v-if="aceite === 'boleto' && boletoMax > 1" class="aceite-sub">
+                  <label for="aceite-boleto-n">Parcelas do Boleto</label>
+                  <select id="aceite-boleto-n" v-model.number="boletoN" @change="aplicarAceite('boleto')">
+                    <option v-for="n in boletoMax" :key="n" :value="n">{{ n }}x</option>
+                  </select>
+                </div>
+
+                <div v-if="aceite === 'cartao' && props.cartaoParcelas.length > 1" class="aceite-sub">
+                  <label for="aceite-cartao-n">Parcelas do Cartão</label>
+                  <select id="aceite-cartao-n" v-model.number="cartaoN" @change="aplicarAceite('cartao')">
+                    <option v-for="o in props.cartaoParcelas" :key="o.parcelas" :value="o.parcelas">
+                      {{ o.parcelas }}x de R$ {{ formatarMoeda(o.valorParcela) }}
+                    </option>
+                  </select>
+                </div>
+
+                <div
+                  v-if="props.faturar && (aceite === 'faturamento' || aceite === 'todas')"
+                  class="aceite-sub"
+                >
+                  <label for="aceite-entrega">Data de entrega prevista</label>
+                  <input
+                    id="aceite-entrega"
+                    v-model="entregaDate"
+                    type="date"
+                    @change="aplicarAceite(aceite === 'faturamento' ? 'faturamento' : 'todas')"
+                  />
+                  <span class="aceite-hint">Vencimento do boleto: {{ vencFaturamento }}</span>
+                </div>
               </div>
 
               <div v-if="rows.length === 0" class="vazio">
@@ -306,6 +517,79 @@ function formatarMoeda(valor: number | null): string {
 
 .parc-actions {
   margin-bottom: 1rem;
+}
+
+.aceite {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.aceite-titulo {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.aceite-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.aceite-chip {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.aceite-chip:hover {
+  background: var(--table-hover);
+}
+
+.aceite-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.aceite-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.aceite-sub label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.aceite-sub select,
+.aceite-sub input[type='date'] {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.aceite-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
 }
 
 .parc-row {

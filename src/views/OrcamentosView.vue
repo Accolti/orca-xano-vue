@@ -73,6 +73,10 @@ const metodosPagamento = ref<{ pix: boolean; boleto: boolean; cartao: boolean }>
 const mesclarMetodos = ref(false)
 const trazerTodasParcelas = ref(false)
 const descontoPixPercentual = ref<number>(0)
+// Nº de parcelas do boleto escolhido pelo vendedor (null = máximo calculado)
+const parcelasBoleto = ref<number | null>(null)
+// Nº de parcelas do Pix escolhido (null = 2x)
+const parcelasPix = ref<number | null>(null)
 const provedorSelecionado = ref<string | number | null>(null)
 // Estado salvo do seletor (condicoes_pagamento_params) — para reaplicar ao carregar
 const condicoesParamsSalvos = ref<string | null>(null)
@@ -559,6 +563,8 @@ function serializarCondicoesParams(): string {
     mesclar: mesclarMetodos.value,
     trazerTodasParcelas: trazerTodasParcelas.value,
     descontoPixPercentual: descontoPixPercentual.value,
+    parcelas_boleto: parcelasBoleto.value,
+    parcelas_pix: parcelasPix.value,
     provedorId,
     provedor,
     parcelas,
@@ -590,6 +596,12 @@ function restaurarCondicoesParams(paramsStr?: string | null) {
   if (typeof p.descontoPixPercentual === 'number') {
     descontoPixPercentual.value = p.descontoPixPercentual
   }
+  if (typeof p.parcelas_boleto === 'number' && p.parcelas_boleto >= 1) {
+    parcelasBoleto.value = p.parcelas_boleto
+  }
+  if (typeof p.parcelas_pix === 'number' && (p.parcelas_pix === 1 || p.parcelas_pix === 2)) {
+    parcelasPix.value = p.parcelas_pix
+  }
   repassarTaxasCartao.value = typeof p.repassarTaxas === 'boolean' ? p.repassarTaxas : true
   if (p.aba === 'pix' || p.aba === 'cartao') abaPagamento.value = p.aba
 
@@ -613,6 +625,8 @@ function resetarCondicoesUi() {
   mesclarMetodos.value = false
   trazerTodasParcelas.value = false
   descontoPixPercentual.value = 0
+  parcelasBoleto.value = null
+  parcelasPix.value = null
   provedorSelecionado.value = null
   condicoesParamsSalvos.value = null
 }
@@ -907,6 +921,8 @@ function calcularCondicoesPadrao(): string {
     mesclar: true,
     parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
     trazerTodasParcelas: trazerTodasParcelas.value,
+    parcelasBoleto: parcelasBoleto.value ?? undefined,
+    parcelasPix: parcelasPix.value ?? undefined,
   }).texto
 }
 
@@ -925,8 +941,13 @@ const condicoesCalculadas = computed(() => {
     mesclar: mesclarMetodos.value,
     parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
     trazerTodasParcelas: trazerTodasParcelas.value,
+    parcelasBoleto: parcelasBoleto.value ?? undefined,
+    parcelasPix: parcelasPix.value ?? undefined,
   })
 })
+
+// Máximo de parcelas do boleto (segue o cálculo padrão: venda ÷ metade do custo)
+const maxParcelasBoleto = computed(() => Math.max(1, condicoesCalculadas.value.boletoMax ?? 1))
 
 // Instituições disponíveis na tabela de taxas (seletor aparece quando > 1)
 const provedores = computed(() => provedoresDisponiveis(catalogo.taxasBanco))
@@ -1057,6 +1078,51 @@ function selecionarPagamento(tipo: 'pix' | 'cartao', chave?: string | null) {
     if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
     condicoesPagamento.value = linhas.join('\n')
   }
+}
+
+// Atualiza o texto das condições com Pix/Boleto (sem trocar a aba) — usado ao
+// reduzir as parcelas do boleto.
+function recomporTextoPixBoleto() {
+  const c = condicoesCalculadas.value
+  if (mesclarMetodos.value) {
+    condicoesPagamento.value = c.texto
+    return
+  }
+  const linhas: string[] = []
+  if (metodosPagamento.value.pix) linhas.push(c.pix)
+  if (metodosPagamento.value.boleto) linhas.push(c.boleto)
+  if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
+  condicoesPagamento.value = linhas.join('\n')
+}
+
+function formatarValorParcelaBoleto(n: number): string {
+  const header = orcamentoStore.orcamentoHeader
+  const venda = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  return formatarMoeda(n > 0 ? venda / n : 0)
+}
+
+function alterarParcelasBoleto(e: Event) {
+  const n = Number((e.target as HTMLSelectElement).value)
+  if (Number.isInteger(n) && n >= 1) parcelasBoleto.value = n
+  recomporTextoPixBoleto()
+}
+
+function valorPixComDesconto(): number {
+  const header = orcamentoStore.orcamentoHeader
+  const venda = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
+  const desc = descontoPixPercentual.value > 0 ? venda * (descontoPixPercentual.value / 100) : 0
+  return venda - desc
+}
+
+function formatarValorParcelaPix(n: number): string {
+  const total = valorPixComDesconto()
+  return formatarMoeda(n > 0 ? total / n : 0)
+}
+
+function alterarParcelasPix(e: Event) {
+  const n = Number((e.target as HTMLSelectElement).value)
+  if (n === 1 || n === 2) parcelasPix.value = n
+  recomporTextoPixBoleto()
 }
 
 // Define o modo de repasse explicitamente (toggle) e re-preenche o texto
@@ -2848,9 +2914,33 @@ async function enviarWhatsApp() {
                   }}%)
                 </p>
                 <p v-if="metodosPagamento.pix" class="cond-linha">{{ condicoesCalculadas.pix }}</p>
+                <div v-if="metodosPagamento.pix" class="cond-boleto-parcelas">
+                  <label for="cond-parcelas-pix">Parcelas do Pix</label>
+                  <select
+                    id="cond-parcelas-pix"
+                    :value="parcelasPix ?? 2"
+                    @change="alterarParcelasPix"
+                  >
+                    <option :value="1">1x de {{ formatarValorParcelaPix(1) }} (pagamento em até 5 dias)</option>
+                    <option :value="2">2x de {{ formatarValorParcelaPix(2) }}</option>
+                  </select>
+                </div>
                 <p v-if="metodosPagamento.boleto" class="cond-linha">
                   {{ condicoesCalculadas.boleto }}
                 </p>
+                <div v-if="metodosPagamento.boleto" class="cond-boleto-parcelas">
+                  <label for="cond-parcelas-boleto">Parcelas do Boleto (máx.
+                    {{ maxParcelasBoleto }}x)</label>
+                  <select
+                    id="cond-parcelas-boleto"
+                    :value="parcelasBoleto ?? maxParcelasBoleto"
+                    @change="alterarParcelasBoleto"
+                  >
+                    <option v-for="n in maxParcelasBoleto" :key="n" :value="n">
+                      {{ n }}x de {{ formatarValorParcelaBoleto(n) }}
+                    </option>
+                  </select>
+                </div>
                 <p v-if="faturarCliente" class="cond-linha cond-faturar">
                   Faturamos com até 20 dias da entrega do produto
                 </p>
@@ -3303,6 +3393,9 @@ async function enviarWhatsApp() {
       :desconto-pix-percentual="descontoPixPercentual"
       :parcelas-cartao="pagamentoModalParcelasCartao"
       :cartao-parcelas="pagamentoModalCartao"
+      :parcelas-boleto="parcelasBoleto"
+      :parcelas-pix="parcelasPix"
+      :faturar="faturarCliente"
       :modo-faturamento="pagamentoModalModoFaturamento"
       @saved="aoSalvarFinanceiro"
     />
@@ -5216,5 +5309,25 @@ async function enviarWhatsApp() {
 .toast-fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(10px);
+}
+
+.cond-boleto-parcelas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.cond-boleto-parcelas select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
 }
 </style>
