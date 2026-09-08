@@ -61,11 +61,14 @@ Status: **fase inicial feita (2026-09)** — roles + gestão de equipe (`/equipe
 - [ ] **Permissões visuais (F3)**: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
 - [ ] Limite de desconto por vendedor
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
-- [ ] **Tela de comissões pagas aos vendedores-filhos**: lista por vendedor, período, valor da comissão, status (calculada/paga) — depende de `vendedor_pai_id` + `percentual_comissao`. Rota própria `/comissoes`
+- [ ] **Tela de comissões** (Fase A entregue em `/comissoes`, 2026-09 — marcar paga, totais por período). Evoluções: comissão por afiliado (split) e planos
 
-### Comissões — Fase A (plano aprovado em 2026-09 — implementar depois)
+### Comissões — Fase A (plano aprovado em 2026-09 — implementado em 2026-09)
 
 Modelo decidido: **empresa com vendedores** (role `admin` = dono/gestor, `vendedor` = subordinado), comissão do vendedor sobre o **lucro real do pedido**, gatilho **ao receber** (implementar como "pedido 100% pago" — todas as parcelas recebidas).
+
+- **Feito**: tabela `Comissao` (append-only, `user_id`/`orca_id`/`percentual`/`lucro_real_base`/`base_valor`/`tipo` (vendedor|override)/`valor`/`status` calculada|paga/`data_pagamento`); lançamento em `pagamento_baixa` quando pedido `eh_pedido` do vendedor-filho fica 100% pago (lucro real com `Desconto_Kapazi_Log`/frete efetivo, idempotente); `GET /comissoes` (admin → filhos, admin_geral → todos, vendedor → só as dele, com `PeriodoBar` e totais calculada/paga); `POST /comissao_pagar` (pai/admin_geral); `ComissoesView.vue` (rota `/comissoes`, menu 💸) com botão "Marcar paga".
+- **A.2 (Master/faixas por markup)**: role `vendedor_master` (nível entre admin e ponta); tabela `Faixa_Comissao` por empresa (`faixa_min/max`, `comissao_total_perc`); engine dinâmica: quando o pedido do ponta fica 100% pago e a empresa tem faixas, calcula pelo **markup efetivo** e lança **2 comissões** (ponta com o % cadastrado + Master override = total da faixa − ponta), base = **venda (`vnd_tot`)**; sem faixas → fallback Fase A fixo. Endpoints `faixas_comissao` (GET) e `faixa_comissao_salvar` (POST); `equipe_criar`/`equipe_vincular` aceitam `vendedor_master` (só admin/admin_geral). Front: `EquipeView` cria Master; `FaixasComissaoView` (rota `/faixas`, menu ⚙️ Config. Comissões); `ComissoesView` mostra Base/tipo; projeção "sua comissão nesta venda" no orçamento (vendedor/Master).
 
 - **Dados**: `User.role` (`admin` default das contas atuais | `vendedor`), `User.vendedor_pai_id` (FK User), `User.percentual_comissao`. Tabela `Comissao` (append-only): `user_id`, `orca_id`, `percentual`, `lucro_real_base`, `valor`, `status` (`calculada`|`paga`), `data_pagamento`; lançamento único por `orca_id`.
 - **Backend**:

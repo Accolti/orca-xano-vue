@@ -18,17 +18,22 @@ interface MenuItem {
   disabled?: boolean
   modal?: boolean
   adminOnly?: boolean
+  manager?: boolean
 }
 
 function visivel(item: MenuItem) {
-  return !item.adminOnly || authStore.isAdmin
+  if (item.adminOnly) return authStore.isAdmin
+  if (item.manager) return authStore.isAdmin || authStore.isVendedorMaster
+  return true
 }
 
 const menuItems: MenuItem[] = [
   { icon: '\u{1F3E0}', label: 'Home', path: '/' },
   { icon: '\u{1F464}', label: 'Clientes', path: '/clientes' },
   { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
-  { icon: '\u{1F465}', label: 'Equipe', path: '/equipe', adminOnly: true },
+  { icon: '\u{1F465}', label: 'Equipe', path: '/equipe', manager: true },
+  { icon: '\u{1F4B0}', label: 'Comissões', path: '/comissoes' },
+  { icon: '\u{2699}\u{FE0F}', label: 'Config. Comissões', path: '/faixas', adminOnly: true },
   { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
   { icon: '\u{1F4B3}', label: 'Boletos', path: '/pagamentos' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios' },

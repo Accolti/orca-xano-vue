@@ -163,6 +163,61 @@ const margemPadrao = computed(() => {
 })
 const fretePadrao = computed(() => authStore.user?.frtB2B ?? 52)
 
+// ---- Projeção de comissão (visão do vendedor/Master) ----
+const faixasComissao = ref<Array<{ faixa_min: number; faixa_max: number | null; comissao_total_perc: number }>>([])
+const percentualComissaoProprio = ref<number | null>(null)
+
+async function carregarFaixasComissao() {
+  if (!authStore.isVendedor && !authStore.isVendedorMaster) return
+  try {
+    const resp = await xano.get('/api:-qqRIakp/faixas_comissao')
+    const d = resp.getBody() ?? {}
+    faixasComissao.value = ((d?.faixas ?? []) as any[]).map((f) => ({
+      faixa_min: Number(f.faixa_min) || 0,
+      faixa_max: f.faixa_max != null ? Number(f.faixa_max) : null,
+      comissao_total_perc: Number(f.comissao_total_perc) || 0,
+    }))
+    percentualComissaoProprio.value =
+      d?.percentual_comissao != null ? Number(d.percentual_comissao) : null
+  } catch {
+    /* sem faixas/erro → sem projeção */
+  }
+}
+
+const projecaoComissao = computed(() => {
+  if (!authStore.isVendedor && !authStore.isVendedorMaster) return ''
+  const header = orcamentoStore.orcamentoHeader
+  if (!header) return ''
+  const cst = Number(header.cst_tot) || 0
+  const vnd = Number(header.vnd_tot) || 0
+  if (!cst || !vnd) return ''
+  const markupEf = Number(header.markup_efetivo) || (vnd / cst - 1) * 100
+  const banda = faixasComissao.value.find(
+    (f) => markupEf >= f.faixa_min && (f.faixa_max == null || markupEf <= f.faixa_max),
+  )
+  if (!banda) return ''
+  const total = banda.comissao_total_perc
+  const fmtMarkup = `${markupEf.toFixed(0)}%`
+  if (authStore.isVendedor) {
+    const pct = Number(percentualComissaoProprio.value) || 0
+    const pctUso = Math.min(pct, total)
+    const val = (vnd * pctUso) / 100
+    return `Com markup de ${fmtMarkup}, sua comissão nesta venda: ${pctUso.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% (R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})${pct > total ? ' (limitada pela faixa)' : ''}.`
+  }
+  return `Faixa de markup ${fmtMarkup}: comissão total liberada de ${total.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% ao Master.`
+})
+
+watch(
+  [() => authStore.user?.id, () => orcamentoStore.orcamentoHeader?.id],
+  () => {
+    carregarFaixasComissao()
+  },
+)
+
+onMounted(() => {
+  carregarFaixasComissao()
+})
+
 const formValido = computed(() => {
   if (!clienteSelecionado.value) return false
   if (!orcamentoStore.materialSelecionado) return false
@@ -1461,6 +1516,7 @@ async function enviarWhatsApp() {
 <template>
   <div class="orcamento-page">
     <PendenciasPerfilBanner />
+    <p v-if="projecaoComissao" class="comissao-proj">💸 {{ projecaoComissao }}</p>
     <template v-if="!mostrarResumo">
       <!-- A. Cabeçalho e Identificação do Cliente -->
       <section class="card welcome-card">
@@ -5328,6 +5384,16 @@ async function enviarWhatsApp() {
   background: var(--card-bg);
   color: var(--text-primary);
   font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.comissao-proj {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
   font-size: 0.85rem;
 }
 </style>

@@ -5,7 +5,7 @@ import { XanoRequestError } from '@xano/js-sdk'
 import { useCatalogoStore } from './catalogo'
 import { useOrcamentoStore } from './orcamento'
 
-export type UserRole = 'admin_geral' | 'admin' | 'vendedor'
+export type UserRole = 'admin_geral' | 'admin' | 'vendedor_master' | 'vendedor'
 
 export interface User {
   id: number
@@ -60,6 +60,7 @@ export const useAuthStore = defineStore('auth', () => {
   })
   const isAdminGeral = computed(() => role.value === 'admin_geral')
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'admin_geral')
+  const isVendedorMaster = computed(() => role.value === 'vendedor_master')
   const isVendedor = computed(() => role.value === 'vendedor')
 
   if (token.value) {
@@ -222,6 +223,7 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     isAdminGeral,
     isAdmin,
+    isVendedorMaster,
     isVendedor,
     login,
     signup,

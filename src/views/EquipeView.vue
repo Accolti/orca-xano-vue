@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
@@ -19,6 +19,8 @@ interface MembroEquipe {
 
 const authStore = useAuthStore()
 
+const podeGerenciar = computed(() => authStore.isAdmin || authStore.isVendedorMaster)
+
 const membros = ref<MembroEquipe[]>([])
 const loading = ref(false)
 const erro = ref<string | null>(null)
@@ -30,8 +32,9 @@ const criarForm = reactive({
   email: '',
   password: '',
   percentual: 0,
+  role: 'vendedor' as 'vendedor' | 'vendedor_master',
 })
-const vincularForm = reactive({ email: '', percentual: 0 })
+const vincularForm = reactive({ email: '', percentual: 0, role: 'vendedor' as 'vendedor' | 'vendedor_master' })
 
 const salvandoCriar = ref(false)
 const salvandoVincular = ref(false)
@@ -95,12 +98,14 @@ async function criarVendedor() {
       email: criarForm.email,
       password: criarForm.password,
       percentual_comissao: criarForm.percentual || undefined,
+      role: criarForm.role,
     })
     criarForm.name_first = ''
     criarForm.name_last = ''
     criarForm.email = ''
     criarForm.password = ''
     criarForm.percentual = 0
+    criarForm.role = 'vendedor'
     avisarOk('Vendedor criado com sucesso.')
     await carregar()
   } catch (err) {
@@ -122,9 +127,11 @@ async function vincular() {
     await xano.post('/api:-qqRIakp/equipe_vincular', {
       email: vincularForm.email,
       percentual_comissao: vincularForm.percentual || undefined,
+      role: vincularForm.role,
     })
     vincularForm.email = ''
     vincularForm.percentual = 0
+    vincularForm.role = 'vendedor'
     avisarOk('Conta vinculada como vendedor.')
     await carregar()
   } catch (err) {
@@ -177,8 +184,26 @@ async function alternarAtivo(m: MembroEquipe) {
   }
 }
 
+async function promoverAdmin(m: MembroEquipe) {
+  if (!confirm(`Promover ${nomeMembro(m)} (${m.email}) a Admin (conta independente)?`)) return
+  try {
+    await xano.post('/api:-qqRIakp/equipe_role', { user_id: m.id, role: 'admin' })
+    avisarOk('Usuário promovido a Admin.')
+    await carregar()
+  } catch (err) {
+    avisarErro(err)
+  }
+}
+
 function nomeMembro(m: MembroEquipe): string {
   return [m.name_first, m.name_last].filter(Boolean).join(' ').trim() || m.name || m.email
+}
+
+function roleLabel(role?: string | null): string {
+  if (role === 'vendedor_master') return 'Master'
+  if (role === 'admin_geral') return 'Admin Geral'
+  if (role === 'admin') return 'Admin'
+  return 'Vendedor'
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -194,11 +219,17 @@ onMounted(carregar)
     <header class="eqp-head">
       <h1>Equipe</h1>
       <p class="subtitle">Cadastre os vendedores da sua conta. Role atual: {{
-        authStore.isAdminGeral ? 'Admin Geral' : authStore.isAdmin ? 'Admin' : 'Vendedor'
+        authStore.isAdminGeral
+          ? 'Admin Geral'
+          : authStore.isAdmin
+            ? 'Admin'
+            : authStore.isVendedorMaster
+              ? 'Vendedor Master'
+              : 'Vendedor'
       }}</p>
     </header>
 
-    <p v-if="!authStore.isAdmin" class="restrito">Acesso restrito a administradores.</p>
+    <p v-if="!podeGerenciar" class="restrito">Acesso restrito a administradores e Master.</p>
 
     <template v-else>
       <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>
@@ -241,6 +272,13 @@ onMounted(carregar)
               placeholder="0"
             />
           </div>
+          <div v-if="authStore.isAdmin" class="field">
+            <label for="eq-role">Papel</label>
+            <select id="eq-role" v-model="criarForm.role">
+              <option value="vendedor">Vendedor</option>
+              <option value="vendedor_master">Vendedor Master</option>
+            </select>
+          </div>
           <button class="btn btn-primary" :disabled="salvandoCriar" @click="criarVendedor">
             {{ salvandoCriar ? 'Criando…' : 'Criar vendedor' }}
           </button>
@@ -264,6 +302,13 @@ onMounted(carregar)
               placeholder="0"
             />
           </div>
+          <div v-if="authStore.isAdmin" class="field">
+            <label for="eq-vinc-role">Vincular como</label>
+            <select id="eq-vinc-role" v-model="vincularForm.role">
+              <option value="vendedor">Vendedor</option>
+              <option value="vendedor_master">Vendedor Master</option>
+            </select>
+          </div>
           <button class="btn btn-primary" :disabled="salvandoVincular" @click="vincular">
             {{ salvandoVincular ? 'Vinculando…' : 'Vincular como vendedor' }}
           </button>
@@ -278,6 +323,7 @@ onMounted(carregar)
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>Papel</th>
                 <th>E-mail</th>
                 <th>Comissão</th>
                 <th>Status</th>
@@ -287,6 +333,7 @@ onMounted(carregar)
             <tbody>
               <tr v-for="m in membros" :key="m.id">
                 <td>{{ nomeMembro(m) }}</td>
+                <td>{{ roleLabel(m.role) }}</td>
                 <td>{{ m.email }}</td>
                 <td>
                   <template v-if="editandoId === m.id">
@@ -313,6 +360,18 @@ onMounted(carregar)
                     <button class="btn btn-sm btn-outline" @click="cancelarEdicao">✕</button>
                   </template>
                   <template v-else>
+                    <button
+                      v-if="
+                        authStore.isAdminGeral &&
+                        m.id !== authStore.user?.id &&
+                        m.role !== 'admin' &&
+                        m.role !== 'admin_geral'
+                      "
+                      class="btn btn-sm btn-outline"
+                      @click="promoverAdmin(m)"
+                    >
+                      Promover a Admin
+                    </button>
                     <button class="btn btn-sm btn-outline" @click="iniciarEdicao(m)">Editar %</button>
                     <button
                       class="btn btn-sm btn-outline"
@@ -428,7 +487,8 @@ onMounted(carregar)
   color: var(--text-primary);
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   padding: 0.45rem 0.55rem;
   border: 1px solid var(--border-light);
@@ -437,6 +497,10 @@ onMounted(carregar)
   color: var(--text-primary);
   font-family: inherit;
   font-size: 0.9rem;
+}
+
+.field select {
+  cursor: pointer;
 }
 
 .field input:focus {
