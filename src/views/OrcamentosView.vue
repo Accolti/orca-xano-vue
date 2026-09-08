@@ -2094,6 +2094,7 @@ async function enviarWhatsApp() {
               <div class="area-fc-input">
                 <input :value="areaFaturada.toFixed(2)" readonly class="input-readonly input-big" />
                 <button
+                  v-if="!authStore.ehFilho"
                   class="btn-eye"
                   :class="{ active: mostrarCustos }"
                   @click="toggleCustos"
@@ -2140,7 +2141,7 @@ async function enviarWhatsApp() {
           </section>
 
           <!-- G. Detalhamento Financeiro (Toggle) -->
-          <section v-if="mostrarCustos" class="card custos-card">
+          <section v-if="mostrarCustos && !authStore.ehFilho" class="card custos-card">
             <h3 class="section-title">Detalhamento Financeiro</h3>
 
             <div class="custos-grid">
@@ -2795,6 +2796,7 @@ async function enviarWhatsApp() {
         <div class="resumo-totais-header">
           <span class="resumo-escopo">Resumo</span>
           <button
+            v-if="!authStore.ehFilho"
             class="btn-eye header-eye"
             :class="{ active: mostrarCustosHeader }"
             @click="toggleCustosHeader"
@@ -2875,7 +2877,7 @@ async function enviarWhatsApp() {
           </div>
         </div>
 
-        <div v-if="mostrarCustosHeader" class="resumo-totais resumo-sensivel">
+        <div v-if="mostrarCustosHeader && !authStore.ehFilho" class="resumo-totais resumo-sensivel">
           <div class="resumo-total-item">
             <span class="resumo-label">Custo Total</span>
             <span>{{ formatarMoeda(orcamentoStore.orcamentoHeader?.cst_tot ?? 0) }}</span>
