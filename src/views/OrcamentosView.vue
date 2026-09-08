@@ -300,7 +300,11 @@ onMounted(async () => {
   catalogo.fetchTaxasBanco().catch(() => {})
   if (isEditMode.value && codOrcaParam) {
     try {
-      await orcamentoStore.carregarOrcamento(codOrcaParam)
+      if (/^\d+$/.test(codOrcaParam)) {
+        await orcamentoStore.carregarOrcamentoPorId(Number(codOrcaParam))
+      } else {
+        await orcamentoStore.carregarOrcamento(codOrcaParam)
+      }
       // Pedido (convertido) é read-only: abre direto na tela finalizada
       if (isVinculado.value) mostrarResumo.value = true
       const orcaId = orcamentoStore.orcamentoHeader?.id
@@ -1482,7 +1486,11 @@ async function enviarWhatsApp() {
     // Garante telefones do cliente no header (_cliente._telefone_cliente_of_cliente)
     const header = orcamentoStore.orcamentoHeader
     if (!header?._cliente?._telefone_cliente_of_cliente?.length) {
-      await orcamentoStore.carregarOrcamento(codOrca)
+      if (/^\d+$/.test(codOrca)) {
+        await orcamentoStore.carregarOrcamentoPorId(Number(codOrca))
+      } else {
+        await orcamentoStore.carregarOrcamento(codOrca)
+      }
     }
     const h = orcamentoStore.orcamentoHeader
     const telefone = obterWhatsappCliente(h?._cliente ?? null)

@@ -912,6 +912,28 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   }
 
+  async function carregarOrcamentoPorId(orcaId: number) {
+    limparFormItem()
+    carregandoOrcamento.value = true
+    error.value = null
+    try {
+      const response = await xano.get('/api:-qqRIakp/orca_por_id', { orca_id: orcaId })
+      const body = response.getBody() as any
+      const header = body?.ORCA_1 ?? null
+      if (!header?.id) {
+        throw new Error('Orçamento não encontrado')
+      }
+      orcamentoHeader.value = header
+      itensInseridos.value = body?.itemS ?? []
+      numeroOrcamento.value = header?.cod_orca ?? String(orcaId)
+    } catch (err: any) {
+      console.error('Erro ao carregar orçamento por id:', err)
+      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao carregar orçamento')
+    } finally {
+      carregandoOrcamento.value = false
+    }
+  }
+
   async function deleteOrcamento(orcaId: number) {
     try {
       await xano.delete('/api:-qqRIakp/orcamento_deletar', {
@@ -1184,6 +1206,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     atualizarItem,
     resetar,
     carregarOrcamento,
+    carregarOrcamentoPorId,
     deleteOrcamento,
     duplicarOrcamento,
     recalcularTotais,
