@@ -35,6 +35,31 @@ const isVinculado = computed(() => {
 
 const orcamentoStore = useOrcamentoStore()
 const authStore = useAuthStore()
+
+const souDonoOrcamento = computed(
+  () =>
+    !orcamentoStore.orcamentoHeader?.user_id ||
+    orcamentoStore.orcamentoHeader.user_id === authStore.user?.id,
+)
+const viewerPai = computed(() => !!orcamentoStore.orcamentoHeader?.id && !souDonoOrcamento.value)
+const descontoPendente = computed(() => {
+  const h = orcamentoStore.orcamentoHeader
+  return (Number(h?.desconto) || 0) > 0 && h?.desconto_aprovado === false
+})
+
+async function aprovarDesconto(aprovado: boolean) {
+  const id = orcamentoStore.orcamentoHeader?.id
+  if (!id) return
+  try {
+    await xano.post('/api:-qqRIakp/orcamento_aprovar_desconto', { orca_id: id, aprovado })
+    await orcamentoStore.carregarOrcamentoPorId(id)
+    toastMsg.value = aprovado ? 'Desconto aprovado.' : 'Desconto recusado.'
+    if (toastTimer) clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => (toastMsg.value = ''), 3000)
+  } catch (err: any) {
+    alert(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao aprovar desconto')
+  }
+}
 const clienteStore = useClienteStore()
 const catalogo = useCatalogoStore()
 
@@ -305,8 +330,8 @@ onMounted(async () => {
       } else {
         await orcamentoStore.carregarOrcamento(codOrcaParam)
       }
-      // Pedido (convertido) é read-only: abre direto na tela finalizada
-      if (isVinculado.value) mostrarResumo.value = true
+      // Pedido (convertido) ou orçamento de outro (pai vendo) → tela finalizada/read-only
+      if (isVinculado.value || !souDonoOrcamento.value) mostrarResumo.value = true
       const orcaId = orcamentoStore.orcamentoHeader?.id
       if (orcaId) {
         await orcamentoStore.carregarStatusHistorico(orcaId)
@@ -1524,6 +1549,23 @@ async function enviarWhatsApp() {
 <template>
   <div class="orcamento-page">
     <PendenciasPerfilBanner />
+    <div v-if="descontoPendente" class="desc-banner" :class="{ 'desc-pai': viewerPai }">
+      <span v-if="souDonoOrcamento">
+        Desconto acima do limite livre aguarda aprovação do pai — o envio/avanço de status fica
+        bloqueado até a aprovação.
+      </span>
+      <template v-else>
+        <span>
+          Desconto de
+          <strong>{{ formatarMoeda(Number(orcamentoStore.orcamentoHeader?.desconto) || 0) }}</strong>
+          aguarda sua aprovação.
+        </span>
+        <div class="desc-banner-acoes">
+          <button class="btn btn-sm btn-primary" @click="aprovarDesconto(true)">Aprovar</button>
+          <button class="btn btn-sm btn-outline" @click="aprovarDesconto(false)">Recusar</button>
+        </div>
+      </template>
+    </div>
     <p v-if="projecaoComissao" class="comissao-proj">💸 {{ projecaoComissao }}</p>
     <template v-if="!mostrarResumo">
       <!-- A. Cabeçalho e Identificação do Cliente -->
@@ -2255,6 +2297,7 @@ async function enviarWhatsApp() {
                 clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social
               }}</span>
               <button
+                v-if="!authStore.ehFilho"
                 class="btn-eye header-eye"
                 :class="{ active: mostrarCustosHeader }"
                 @click="toggleCustosHeader"
@@ -2323,7 +2366,7 @@ async function enviarWhatsApp() {
                 }}</span>
               </div>
             </div>
-            <div v-if="mostrarCustosHeader" class="totais-sensivel">
+            <div v-if="mostrarCustosHeader && !authStore.ehFilho" class="totais-sensivel">
               <div class="totais-item">
                 <span class="totais-label">Custo Total</span>
                 <span class="totais-valor">{{
@@ -5403,5 +5446,31 @@ async function enviarWhatsApp() {
   border: 1px solid #bbf7d0;
   color: #15803d;
   font-size: 0.85rem;
+}
+
+.desc-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 0.85rem;
+}
+
+.desc-banner.desc-pai {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.desc-banner-acoes {
+  display: flex;
+  gap: 0.5rem;
 }
 </style>

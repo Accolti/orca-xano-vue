@@ -29,6 +29,8 @@ export interface User {
   role?: UserRole | null
   vendedor_pai_id?: number | null
   percentual_comissao?: number | null
+  desconto_livre_perc?: number | null
+  desconto_max_perc?: number | null
   ativo?: boolean
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
   _endereco_user?: {
