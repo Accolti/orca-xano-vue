@@ -52,11 +52,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
-  // Role efetiva: contas sem role (legado) contam como "admin".
+  // Role efetiva: contas sem role (legado) com vendedor_pai_id contam como vendedor;
+  // sem role e sem pai → admin.
   const role = computed<UserRole>(() => {
     const r = user.value?.role as UserRole | null | undefined
     if (r) return r
-    return user.value ? 'admin' : 'admin'
+    if (!user.value) return 'admin'
+    if (user.value.vendedor_pai_id) return 'vendedor'
+    return 'admin'
   })
   const isAdminGeral = computed(() => role.value === 'admin_geral')
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'admin_geral')
