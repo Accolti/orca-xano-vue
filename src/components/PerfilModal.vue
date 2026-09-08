@@ -26,6 +26,8 @@ const form = reactive({
   frtB2B: 0,
   margem: 0,
   DiasVencimentoOrcamento: 0,
+  desconto_livre_perc: null as number | null,
+  desconto_max_perc: null as number | null,
 })
 
 const carregando = ref(false)
@@ -139,6 +141,8 @@ function preencherForm() {
   form.margem = u.margem ?? 0
   form.DiasVencimentoOrcamento = u.DiasVencimentoOrcamento ?? 15
   regimeAntigo.value = u.regime_id ?? 0
+  form.desconto_livre_perc = u.desconto_livre_perc != null ? Number(u.desconto_livre_perc) : null
+  form.desconto_max_perc = u.desconto_max_perc != null ? Number(u.desconto_max_perc) : null
 
   // Filhos: usam a config da empresa (efetiva) internamente para salvar sem expor/editar
   if (authStore.ehFilho) {
@@ -256,6 +260,20 @@ function submit(ignoraConfirmacaoRegime = false) {
   }
   if (!ignoraConfirmacaoRegime && !confirmarRegime()) return
 
+  const dl = form.desconto_livre_perc
+  const dm = form.desconto_max_perc
+  if (
+    dl != null &&
+    dm != null &&
+    String(dl).trim() !== '' &&
+    String(dm).trim() !== '' &&
+    Number(dl) >= Number(dm) &&
+    Number(dm) > 0
+  ) {
+    erroSalvar.value = 'O desconto máximo deve ser maior que o desconto livre.'
+    return
+  }
+
   salvando.value = true
   erroSalvar.value = null
   salvoMsg.value = null
@@ -287,6 +305,14 @@ function submit(ignoraConfirmacaoRegime = false) {
       organizacao_id: form.organizacao_id || undefined,
       frtB2B: form.frtB2B,
       margem: form.margem,
+      desconto_livre_perc:
+        form.desconto_livre_perc == null || String(form.desconto_livre_perc).trim() === ''
+          ? undefined
+          : Number(form.desconto_livre_perc),
+      desconto_max_perc:
+        form.desconto_max_perc == null || String(form.desconto_max_perc).trim() === ''
+          ? undefined
+          : Number(form.desconto_max_perc),
       DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
     })
     .then(async () => {
@@ -459,6 +485,32 @@ function descricaoRegime(id: number): string {
                     type="number"
                     min="1"
                   />
+                </div>
+                <div class="row-2">
+                  <div class="field">
+                    <label for="pf-desc-livre">Desconto livre da equipe (%)</label>
+                    <input
+                      id="pf-desc-livre"
+                      v-model.number="form.desconto_livre_perc"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="7"
+                    />
+                    <small class="field-hint">Limite que os vendedores aplicam sem aprovação.</small>
+                  </div>
+                  <div class="field">
+                    <label for="pf-desc-max">Desconto máx. com aprovação (%)</label>
+                    <input
+                      id="pf-desc-max"
+                      v-model.number="form.desconto_max_perc"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="15"
+                    />
+                    <small class="field-hint">Acima disso o sistema bloqueia.</small>
+                  </div>
                 </div>
               </section>
 

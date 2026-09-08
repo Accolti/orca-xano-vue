@@ -13,6 +13,8 @@ interface MembroEquipe {
   role?: string | null
   vendedor_pai_id?: number | null
   percentual_comissao?: number | null
+  desconto_livre_perc?: number | null
+  desconto_max_perc?: number | null
   ativo?: boolean
   created_at?: number | string
 }
@@ -41,6 +43,9 @@ const salvandoVincular = ref(false)
 
 const editandoId = ref<number | null>(null)
 const editPercentual = ref<number | null>(null)
+const editLivre = ref<number | null>(null)
+const editMax = ref<number | null>(null)
+const usarPadraoDesc = ref(true)
 const salvandoEdicao = ref(false)
 
 function getErrorMessage(err: unknown): string {
@@ -144,12 +149,20 @@ async function vincular() {
 function iniciarEdicao(m: MembroEquipe) {
   editandoId.value = m.id
   editPercentual.value = Number(m.percentual_comissao) || 0
+  const temLivre = m.desconto_livre_perc != null
+  const temMax = m.desconto_max_perc != null
+  editLivre.value = temLivre ? Number(m.desconto_livre_perc) : null
+  editMax.value = temMax ? Number(m.desconto_max_perc) : null
+  usarPadraoDesc.value = !temLivre && !temMax
   erro.value = null
 }
 
 function cancelarEdicao() {
   editandoId.value = null
   editPercentual.value = null
+  editLivre.value = null
+  editMax.value = null
+  usarPadraoDesc.value = true
 }
 
 async function salvarEdicao(m: MembroEquipe) {
@@ -157,12 +170,25 @@ async function salvarEdicao(m: MembroEquipe) {
   salvandoEdicao.value = true
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/equipe_editar', {
+    const payload: Record<string, unknown> = {
       user_id: m.id,
       percentual_comissao: editPercentual.value ?? undefined,
-    })
+    }
+    if (!usarPadraoDesc.value) {
+      const dLivre = editLivre.value == null ? null : Number(editLivre.value)
+      const dMax = editMax.value == null ? null : Number(editMax.value)
+      payload.desconto_livre_perc = dLivre
+      payload.desconto_max_perc = dMax
+    } else {
+      payload.desconto_livre_perc = null
+      payload.desconto_max_perc = null
+    }
+    await xano.post('/api:-qqRIakp/equipe_editar', payload)
     editandoId.value = null
     editPercentual.value = null
+    editLivre.value = null
+    editMax.value = null
+    usarPadraoDesc.value = true
     avisarOk('Dados do vendedor atualizados.')
     await carregar()
   } catch (err) {
@@ -344,6 +370,26 @@ onMounted(carregar)
                       step="0.01"
                       class="edit-perc"
                     />
+                    <label class="desc-padrao">
+                      <input v-model="usarPadraoDesc" type="checkbox" />
+                      Usar limite padrão da empresa
+                    </label>
+                    <div v-if="!usarPadraoDesc" class="desc-override">
+                      <input
+                        v-model.number="editLivre"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Livre %"
+                      />
+                      <input
+                        v-model.number="editMax"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Máx %"
+                      />
+                    </div>
                   </template>
                   <template v-else>{{ fmtPct(m.percentual_comissao) }}</template>
                 </td>
@@ -509,6 +555,32 @@ onMounted(carregar)
 }
 
 .edit-perc {
+  width: 90px;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.desc-padrao {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.desc-override {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.desc-override input {
   width: 90px;
   padding: 0.3rem 0.45rem;
   border: 1px solid var(--border-light);

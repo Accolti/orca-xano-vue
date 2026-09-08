@@ -813,6 +813,25 @@ async function aplicarNegociacao() {
   }
 }
 
+// Negociação do vendedor filho: aplica desconto/frete/mão de obra SEM alterar margem
+async function aplicarDescontoFilho() {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return
+  recaleError.value = null
+  try {
+    await orcamentoStore.recalcularTotais(orcaId, {
+      frtB2C: Number(freteB2CResumo.value) || 0,
+      desconto: Number(descontoResumo.value) || 0,
+      maoDeObra: Number(maoDeObraResumo.value) || 0,
+      observacao: observacaoOrcamento.value,
+      condicoesPagamento: condicoesPagamento.value,
+    })
+    sincronizarSimulacao()
+  } catch (err: any) {
+    recaleError.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao aplicar'
+  }
+}
+
 // Código do orçamento atual: gerado na inserção ou o da rota em edição
 const codOrcaAtual = computed(() => orcamentoStore.numeroOrcamento ?? codOrcaParam ?? '')
 
@@ -2430,6 +2449,57 @@ async function enviarWhatsApp() {
                   formatarMoeda(orcamentoStore.totaisRecalculo?.difal_tot ?? 0)
                 }}</span>
               </div>
+            </div>
+            <div
+              v-if="!isVinculado && authStore.ehFilho && !mostrarResumo"
+              class="recalc-card desc-filho-card"
+            >
+              <h4 class="recalc-title">Negociação (desconto/frete)</h4>
+              <div class="recalc-grid">
+                <div class="recalc-item">
+                  <label>Desconto (R$)</label>
+                  <div class="novo-valor-wrap">
+                    <input
+                      v-model.number="descontoResumo"
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      class="input-num"
+                    />
+                  </div>
+                </div>
+                <div class="recalc-item">
+                  <label>Frete B2C (R$)</label>
+                  <div class="novo-valor-wrap">
+                    <input
+                      v-model.number="freteB2CResumo"
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      class="input-num"
+                    />
+                  </div>
+                </div>
+                <div class="recalc-item">
+                  <label>Mão de Obra (R$)</label>
+                  <div class="novo-valor-wrap">
+                    <input
+                      v-model.number="maoDeObraResumo"
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      class="input-num"
+                    />
+                  </div>
+                </div>
+                <div class="recalc-item recalc-item-action">
+                  <button class="btn btn-primary btn-sm" @click="aplicarDescontoFilho">Aplicar</button>
+                </div>
+              </div>
+              <p v-if="recaleError" class="cond-linha erro-msg-min">{{ recaleError }}</p>
+              <p v-if="descontoPendente && souDonoOrcamento" class="cond-badge badge-alerta">
+                Desconto acima do limite livre — aguarda aprovação do pai.
+              </p>
             </div>
             <div class="totais-validade">
               Validade:
