@@ -159,9 +159,9 @@ const margemPadrao = computed(() => {
     return orcamentoStore.orcamentoHeader.margem
   }
   // Orçamento novo ou sem itens (todos removidos) → margem do usuário
-  return authStore.user?.margem ?? 100
+  return (authStore.userEfetivo ?? authStore.user)?.margem ?? 100
 })
-const fretePadrao = computed(() => authStore.user?.frtB2B ?? 52)
+const fretePadrao = computed(() => (authStore.userEfetivo ?? authStore.user)?.frtB2B ?? 52)
 
 // ---- Projeção de comissão (visão do vendedor/Master) ----
 const faixasComissao = ref<Array<{ faixa_min: number; faixa_max: number | null; comissao_total_perc: number }>>([])
@@ -378,7 +378,7 @@ const resumoAberto = ref(true)
 const editandoItemId = ref<number | null>(null)
 
 const validadeCalculada = computed(() => {
-  const dias = authStore.user?.DiasVencimentoOrcamento ?? 15
+  const dias = (authStore.userEfetivo ?? authStore.user)?.DiasVencimentoOrcamento ?? 15
   const venc = new Date(Date.now() + dias * 86400000)
   return venc.toLocaleDateString('en-US')
 })
@@ -1244,7 +1244,7 @@ async function gerarPdf() {
     header: orcamentoStore.orcamentoHeader,
     itens: orcamentoStore.itensInseridos,
     cliente: clienteSelecionado.value,
-    user: authStore.user,
+    user: authStore.userEfetivo ?? authStore.user,
     faturar: faturarCliente.value,
     condicoesPagamento: cond,
   })
@@ -1257,7 +1257,7 @@ async function gerarPdfPedidoVendaView() {
     header: orcamentoStore.orcamentoHeader,
     itens: orcamentoStore.itensInseridos,
     cliente: clienteSelecionado.value,
-    user: authStore.user,
+    user: authStore.userEfetivo ?? authStore.user,
     condicoesPagamento: cond,
   })
 }

@@ -227,6 +227,11 @@ onMounted(async () => {
       /* sessão inválida — guarda de rota redireciona */
     }
   }
+  // Filhos herdam a config da empresa — não fazem onboarding
+  if (authStore.ehFilho) {
+    router.push('/')
+    return
+  }
   preencherForm()
   await carregarRegimes()
   await carregarOrganizacoes()

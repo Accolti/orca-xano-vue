@@ -177,7 +177,7 @@ export function useOrcamentosListActions() {
         header,
         itens: orcamentoStore.itensInseridos,
         cliente,
-        user: authStore.user,
+        user: authStore.userEfetivo ?? authStore.user,
       })
     } catch {
       /* erro silencioso: header já fica no store */
@@ -196,7 +196,7 @@ export function useOrcamentosListActions() {
         header,
         itens: orcamentoStore.itensInseridos,
         cliente,
-        user: authStore.user,
+        user: authStore.userEfetivo ?? authStore.user,
       })
     } catch {
       /* erro silencioso: header já fica no store */

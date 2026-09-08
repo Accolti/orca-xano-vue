@@ -12,6 +12,10 @@ export interface PendenciaPerfil {
 export function pendenciasPerfil(u: User | null | undefined): PendenciaPerfil[] {
   if (!u) return []
 
+  // Filhos (vendedor/vendedor_master) herdam a config da empresa — pendências são do pai
+  const r = u.role as string | null | undefined
+  if (r === 'vendedor' || r === 'vendedor_master') return []
+
   const lista: PendenciaPerfil[] = []
 
   const uf = (u?.uf || '').trim()

@@ -62,6 +62,12 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'admin_geral')
   const isVendedorMaster = computed(() => role.value === 'vendedor_master')
   const isVendedor = computed(() => role.value === 'vendedor')
+  // Config da empresa dona (filhos herdam do pai no runtime)
+  const empresaEfetiva = ref<Partial<User> | null>(null)
+  const userEfetivo = computed<User | null>(() =>
+    user.value ? ({ ...user.value, ...(empresaEfetiva.value ?? {}) } as User) : null,
+  )
+  const ehFilho = computed(() => isVendedor.value || isVendedorMaster.value)
 
   if (token.value) {
     xano.setAuthToken(token.value)
@@ -79,6 +85,17 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
     return (err as Error).message || 'Erro inesperado'
+  }
+
+  async function loadPerfilEfetivo() {
+    if (!user.value) return
+    try {
+      const response = await xano.get('/api:-qqRIakp/perfil_efetivo')
+      const d = response.getBody() ?? {}
+      empresaEfetiva.value = d ?? null
+    } catch {
+      empresaEfetiva.value = null
+    }
   }
 
   async function login(email: string, password: string) {
@@ -138,6 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await xano.get('/api:-qqRIakp/auth/me')
       user.value = response.getBody()
+      await loadPerfilEfetivo()
     } catch (err) {
       console.error('[auth/me]', err)
       if (err instanceof XanoRequestError) {
@@ -206,6 +224,7 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     token.value = null
     user.value = null
+    empresaEfetiva.value = null
     localStorage.removeItem('authToken')
     xano.setAuthToken(null)
     useCatalogoStore().resetarSessao()
@@ -225,6 +244,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     isVendedorMaster,
     isVendedor,
+    ehFilho,
+    empresaEfetiva,
+    userEfetivo,
     login,
     signup,
     fetchMe,

@@ -418,8 +418,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         nmLinha: getNomeLinha(),
         nmNivel: getNomeNivel(),
         nmBorda: getNomeBorda(),
-        margem: String(margemPersonalizada.value ?? authIns.user?.margem ?? 0),
-        frete_b2b: String(fretePersonalizado.value ?? authIns.user?.frtB2B ?? 0),
+        margem: String(margemPersonalizada.value ?? (authIns.userEfetivo ?? authIns.user)?.margem ?? 0),
+        frete_b2b: String(fretePersonalizado.value ?? (authIns.userEfetivo ?? authIns.user)?.frtB2B ?? 0),
         quantidade: quantidade.value,
         IPI: String(material.ipi || 0),
         IMP: String(material.imp || 0),
@@ -509,7 +509,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     error.value = null
 
     const authIns = useAuthStore()
-    const user = authIns.user
+    const user = authIns.userEfetivo ?? authIns.user
     const produto = produtoSelecionado.value
 
     // markup: 1º item (sem orca) usa user.margem; com orca usa a margem do header
@@ -655,9 +655,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       }
 
       const authIns = useAuthStore()
+      const usuarioEf = authIns.userEfetivo ?? authIns.user
 
       const hoje = new Date()
-      const dias = authIns.user?.DiasVencimentoOrcamento ?? 15
+      const dias = usuarioEf?.DiasVencimentoOrcamento ?? 15
       const venc = new Date(hoje.getTime() + dias * 86400000)
       const validade = venc.toLocaleDateString('en-US')
 
@@ -676,13 +677,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           cod_orca: numeroOrcamento.value!,
           orca_id: orcaId ?? 0,
           cliente_id: String(cliente_id),
-          frtB2B: fretePersonalizado.value ?? authIns.user?.frtB2B ?? null,
+          frtB2B: fretePersonalizado.value ?? usuarioEf?.frtB2B ?? null,
           frtB2C: null,
           validade,
           margem:
             (existingCodOrca ? orcamentoHeader.value?.margem : null) ??
             margemPersonalizada.value ??
-            authIns.user?.margem ??
+            usuarioEf?.margem ??
             0,
           observacao: observacao ?? '',
           produto_id: it.produto_id ?? 0,
@@ -745,13 +746,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           cod_orca: numeroOrcamento.value!,
           orca_id: orcaId ?? 0,
           cliente_id: String(cliente_id),
-          frtB2B: fretePersonalizado.value ?? authIns.user?.frtB2B ?? null,
+          frtB2B: fretePersonalizado.value ?? usuarioEf?.frtB2B ?? null,
           frtB2C: null,
           validade,
           margem:
             (existingCodOrca ? orcamentoHeader.value?.margem : null) ??
             margemPersonalizada.value ??
-            authIns.user?.margem ??
+            usuarioEf?.margem ??
             0,
           observacao: observacao ?? '',
           produto_id: produto.id,
@@ -828,7 +829,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       const margemBase =
         orcamentoHeader.value?.margem ??
         margemPersonalizada.value ??
-        useAuthStore().user?.margem ??
+        (useAuthStore().userEfetivo ?? useAuthStore().user)?.margem ??
         0
       const payload = montarPayloadItem(descricao, margemBase)
       const response = await xano.post('/api:-qqRIakp/OrcamentoItem_Atualizar', {

@@ -139,6 +139,23 @@ function preencherForm() {
   form.margem = u.margem ?? 0
   form.DiasVencimentoOrcamento = u.DiasVencimentoOrcamento ?? 15
   regimeAntigo.value = u.regime_id ?? 0
+
+  // Filhos: usam a config da empresa (efetiva) internamente para salvar sem expor/editar
+  if (authStore.ehFilho) {
+    const ef = authStore.userEfetivo as any
+    if (!form.uf && ef?.uf) form.uf = ef.uf
+    if (!form.regime_id && ef?.regime_id) form.regime_id = ef.regime_id
+    if (!form.organizacao_id && ef?.organizacao_id) form.organizacao_id = Number(ef.organizacao_id)
+    if (Number(form.margem) <= 0 && ef?.margem) form.margem = Number(ef.margem)
+    if ((Number(form.frtB2B) || 0) <= 0 && ef?.frtB2B) form.frtB2B = Number(ef.frtB2B)
+    if (!form.DiasVencimentoOrcamento && ef?.DiasVencimentoOrcamento) {
+      form.DiasVencimentoOrcamento = Number(ef.DiasVencimentoOrcamento) || 15
+    }
+    if (!form.razao && ef?.razao) form.razao = ef.razao
+    if (!form.cnpj && ef?.cnpj) form.cnpj = ef.cnpj
+    if (!form.fantasia && ef?.fantasia) form.fantasia = ef.fantasia
+    if (!form.ie && ef?.ie) form.ie = ef.ie
+  }
 }
 
 async function carregarRegimes() {
@@ -316,8 +333,8 @@ function descricaoRegime(id: number): string {
             <p v-if="carregando" class="loading-msg">Carregando...</p>
 
             <template v-else>
-              <section class="form-section">
-                <h3>Identificação</h3>
+  <section class="form-section">
+    <h3>Identificação</h3>
                 <div class="row-2">
                   <div class="field">
                     <label for="pf-nome">Nome</label>
@@ -345,7 +362,7 @@ function descricaoRegime(id: number): string {
                 </div>
               </section>
 
-              <section class="form-section">
+              <section v-if="!authStore.ehFilho" class="form-section">
                 <h3>Empresa</h3>
                 <div class="field">
                   <label for="pf-razao">Razão Social</label>
@@ -380,7 +397,7 @@ function descricaoRegime(id: number): string {
                 </div>
               </section>
 
-              <section class="form-section">
+              <section v-if="!authStore.ehFilho" class="form-section">
                 <h3>Precificação</h3>
                 <div class="row-2">
                   <div class="field">
