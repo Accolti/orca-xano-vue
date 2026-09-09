@@ -26,7 +26,7 @@ const errorMsg = ref('')
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const modoPendentes = ref(false)
-const pendentes = ref<Array<{ id: number; cod_orca: string; vendedor: string; venda: number; desconto: number; data: string }>>([])
+const pendentes = ref<Array<{ id: number; user_id: number; cod_orca: string; vendedor: string; venda: number; desconto: number; data: string }>>([])
 const pendLoading = ref(false)
 const pendErro = ref('')
 
@@ -234,7 +234,13 @@ async function excluir(row: OrcamentoRow) {
               <td>{{ fmtDataLista(p.data) }}</td>
               <td class="cell-acoes">
                 <button class="btn btn-sm btn-outline" @click="abrirPendente(p.id)">Abrir</button>
-                <button class="btn btn-sm btn-primary" @click="aprovarPendente(p)">Aprovar</button>
+                <button
+                  v-if="p.user_id !== authStore.user?.id"
+                  class="btn btn-sm btn-primary"
+                  @click="aprovarPendente(p)"
+                >
+                  Aprovar
+                </button>
               </td>
             </tr>
           </tbody>

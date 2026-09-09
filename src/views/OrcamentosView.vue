@@ -42,9 +42,17 @@ const souDonoOrcamento = computed(
     orcamentoStore.orcamentoHeader.user_id === authStore.user?.id,
 )
 const viewerPai = computed(() => !!orcamentoStore.orcamentoHeader?.id && !souDonoOrcamento.value)
+const descontoRecusado = computed(() => {
+  const h = orcamentoStore.orcamentoHeader
+  return (Number(h?.desconto) || 0) > 0 && h?.desconto_status === 'recusado'
+})
 const descontoPendente = computed(() => {
   const h = orcamentoStore.orcamentoHeader
-  return (Number(h?.desconto) || 0) > 0 && h?.desconto_aprovado === false
+  return (
+    (Number(h?.desconto) || 0) > 0 &&
+    h?.desconto_status !== 'recusado' &&
+    h?.desconto_aprovado === false
+  )
 })
 
 async function aprovarDesconto(aprovado: boolean) {
@@ -1583,6 +1591,15 @@ async function enviarWhatsApp() {
           <button class="btn btn-sm btn-primary" @click="aprovarDesconto(true)">Aprovar</button>
           <button class="btn btn-sm btn-outline" @click="aprovarDesconto(false)">Recusar</button>
         </div>
+      </template>
+    </div>
+    <div v-if="descontoRecusado" class="desc-banner desc-recusado">
+      <span v-if="souDonoOrcamento">
+        Desconto recusado pelo pai — reduza ou remova o desconto para continuar.
+      </span>
+      <template v-else>
+        <span>Desconto recusado por você neste orçamento.</span>
+        <button class="btn btn-sm btn-outline" @click="aprovarDesconto(true)">Re-aprovar</button>
       </template>
     </div>
     <p v-if="projecaoComissao" class="comissao-proj">💸 {{ projecaoComissao }}</p>
@@ -5544,5 +5561,11 @@ async function enviarWhatsApp() {
 .desc-banner-acoes {
   display: flex;
   gap: 0.5rem;
+}
+
+.desc-recusado {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 </style>
