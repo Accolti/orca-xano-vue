@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { xano } from '@/services/xano'
+import { XanoRequestError } from '@xano/js-sdk'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import {
   useOrcamentosListActions,
@@ -12,6 +15,8 @@ import {
 } from '@/utils/orcamentosList'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 
 const termoBusca = ref('')
 const filtroStatus = ref('')
@@ -20,11 +25,81 @@ const loading = ref(false)
 const errorMsg = ref('')
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+const modoPendentes = ref(false)
+const pendentes = ref<Array<{ id: number; cod_orca: string; vendedor: string; venda: number; desconto: number; data: string }>>([])
+const pendLoading = ref(false)
+const pendErro = ref('')
+
+const podeVerPendentes = computed(() => authStore.isAdmin || authStore.isVendedorMaster)
+
+function getErrMsg(err: unknown): string {
+  if (err instanceof XanoRequestError) {
+    try {
+      const body = err.getResponse().getBody()
+      if (typeof body === 'string') return body
+      if (body?.message) return body.message
+      if (body?.error?.message) return body.error.message
+    } catch {
+      /* ignore */
+    }
+  }
+  return (err as Error)?.message || 'Erro'
+}
+
+async function carregarPendentes() {
+  pendLoading.value = true
+  pendErro.value = ''
+  try {
+    const resp = await xano.get('/api:-qqRIakp/orcamentos_pendentes_aprovacao')
+    const d = resp.getBody() ?? {}
+    pendentes.value = (d?.linhas ?? []) as typeof pendentes.value
+  } catch (err) {
+    pendErro.value = getErrMsg(err)
+  } finally {
+    pendLoading.value = false
+  }
+}
+
+function alternarPendentes() {
+  modoPendentes.value = !modoPendentes.value
+  if (modoPendentes.value) {
+    carregarPendentes()
+  }
+}
+
+function abrirPendente(id: number) {
+  router.push(`/orcamentos/${id}`)
+}
+
+async function aprovarPendente(row: { id: number }) {
+  try {
+    await xano.post('/api:-qqRIakp/orcamento_aprovar_desconto', {
+      orca_id: row.id,
+      aprovado: true,
+    })
+    mostrarToast('Desconto aprovado.')
+    await carregarPendentes()
+  } catch (err) {
+    pendErro.value = getErrMsg(err)
+  }
+}
+
+function fmtMoedaLista(n: number | string | null | undefined): string {
+  return `R$ ${(Number(n) || 0).toFixed(2).replace('.', ',')}`
+}
+
+function fmtDataLista(d: string): string {
+  if (!d) return '—'
+  const p = d.split('-')
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d
+}
+
 const {
   gerandoPdfDe,
   enviandoWaDe,
   duplicandoDe,
   toastMsg,
+  mostrarToast,
   novoOrcamento,
   editarOrcamento,
   gerarPdf,
@@ -122,6 +197,52 @@ async function excluir(row: OrcamentoRow) {
           </select>
         </div>
       </div>
+      <div v-if="podeVerPendentes" class="pend-chip-row">
+        <button
+          type="button"
+          class="aba pend-chip"
+          :class="{ active: modoPendentes }"
+          @click="alternarPendentes"
+        >
+          Pendentes de aprovação
+        </button>
+      </div>
+    </section>
+
+    <section v-if="modoPendentes" class="card pend-card">
+      <h3>Pendentes de aprovação</h3>
+      <p v-if="pendLoading" class="pend-msg">Carregando...</p>
+      <p v-if="pendErro" class="pend-msg pend-erro">{{ pendErro }}</p>
+      <div v-if="!pendLoading && !pendErro && pendentes.length" class="tabela-orcamentos-wrap">
+        <table class="tabela-orcamentos">
+          <thead>
+            <tr>
+              <th>Orçamento</th>
+              <th>Vendedor</th>
+              <th>Venda</th>
+              <th>Desconto</th>
+              <th>Data</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in pendentes" :key="p.id">
+              <td class="cell-cod">{{ p.cod_orca }}</td>
+              <td>{{ p.vendedor }}</td>
+              <td class="cell-valor">{{ fmtMoedaLista(p.venda) }}</td>
+              <td class="cell-valor">{{ fmtMoedaLista(p.desconto) }}</td>
+              <td>{{ fmtDataLista(p.data) }}</td>
+              <td class="cell-acoes">
+                <button class="btn btn-sm btn-outline" @click="abrirPendente(p.id)">Abrir</button>
+                <button class="btn btn-sm btn-primary" @click="aprovarPendente(p)">Aprovar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else-if="!pendLoading && !pendErro && !pendentes.length" class="pend-msg">
+        Nenhum desconto pendente de aprovação.
+      </p>
     </section>
 
     <section v-if="loading" class="card loading-card">
@@ -132,7 +253,7 @@ async function excluir(row: OrcamentoRow) {
       <p class="error-msg">{{ errorMsg }}</p>
     </section>
 
-    <section v-if="!loading && resultadosVisiveis.length" class="card tabela-card">
+    <section v-if="!loading && resultadosVisiveis.length && !modoPendentes" class="card tabela-card">
       <div class="tabela-orcamentos-wrap">
         <table class="tabela-orcamentos">
           <thead>
@@ -406,12 +527,12 @@ async function excluir(row: OrcamentoRow) {
       </div>
     </section>
 
-    <section v-if="!loading && termoBusca.length >= 3 && !resultadosVisiveis.length" class="card">
+    <section v-if="!loading && termoBusca.length >= 3 && !resultadosVisiveis.length && !modoPendentes" class="card">
       <p class="empty-msg">Nenhum orçamento encontrado para "{{ termoBusca }}"</p>
     </section>
 
     <section
-      v-if="!loading && filtroStatus && !resultadosVisiveis.length && termoBusca.length < 3"
+      v-if="!loading && filtroStatus && !resultadosVisiveis.length && termoBusca.length < 3 && !modoPendentes"
       class="card"
     >
       <p class="empty-msg">Nenhum orçamento com o status "{{ statusLabel(filtroStatus) }}"</p>
@@ -920,5 +1041,40 @@ async function excluir(row: OrcamentoRow) {
 .toast-fade-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(10px);
+}
+
+.pend-chip-row {
+  margin-top: 0.8rem;
+}
+
+.pend-chip {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pend-chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.pend-card h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.pend-msg {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.pend-erro {
+  color: var(--danger);
 }
 </style>
