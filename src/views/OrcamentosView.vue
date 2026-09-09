@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
@@ -875,6 +875,7 @@ function editarItem(item: any) {
     return
   }
   orcamentoStore.selecionarMaterial(material)
+  orcamentoStore.restaurandoItem = true
 
   const linha =
     catalogo.allLinhas.find((l) => l.id === (item.linha_id ?? prod?.linha_id ?? 0)) ?? null
@@ -915,6 +916,9 @@ function editarItem(item: any) {
     orcamentoStore.comprimento = item.comp ?? 0
   }
   observacao.value = item.descricao ?? ''
+  nextTick(() => {
+    orcamentoStore.restaurandoItem = false
+  })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 

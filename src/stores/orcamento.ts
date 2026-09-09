@@ -71,6 +71,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const nivelSelecionado = ref<Nivel | null>(null)
   const bordaSelecionada = ref<Borda | null>(null)
   const variacaoSelecionada = ref<Variacao | null>(null)
+  // Evita que o watch de Nível limpe a seleção durante a restauração de um item
+  const restaurandoItem = ref(false)
 
   const largura = ref<number>(0)
   const comprimento = ref<number>(0)
@@ -178,7 +180,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   })
 
   watch(mostrarNivel, (val) => {
-    if (!val) nivelSelecionado.value = null
+    if (!val && !restaurandoItem.value) nivelSelecionado.value = null
   })
 
   const mostrarBorda = computed(() => {
@@ -1158,6 +1160,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     linhaSelecionada,
     tipoSelecionado,
     nivelSelecionado,
+    restaurandoItem,
     bordaSelecionada,
     variacaoSelecionada,
     variacoes,
