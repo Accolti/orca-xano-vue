@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
 import { useUiStore } from '@/stores/ui'
+import { xano } from '@/services/xano'
 import PerfilModal from '@/components/PerfilModal.vue'
 import SenhaModal from '@/components/SenhaModal.vue'
 import DevUserSwitcher from '@/components/DevUserSwitcher.vue'
@@ -12,14 +14,71 @@ defineEmits<{ toggleSidebar: [] }>()
 const authStore = useAuthStore()
 const catalogoStore = useCatalogoStore()
 const uiStore = useUiStore()
+const router = useRouter()
 
 const versaoMenuOpen = ref(false)
 const userMenuOpen = ref(false)
 const senhaOpen = ref(false)
+const notifOpen = ref(false)
+const notifList = ref<
+  Array<{ id: number; tipo: string; orca_id: number; cod_orca: string | null; created_at: string }>
+>([])
+const notifNaoLidas = ref(0)
 const isDev = import.meta.env.DEV
+
+let notifTimer: ReturnType<typeof setInterval> | null = null
 
 // Conta criada por senha (signup) tem senha; contas Google não.
 const temSenha = computed(() => !(authStore.user as any)?.google_oauth)
+
+const rotuloNotif = computed(
+  () =>
+    (notifList.value.length ? `${notifList.value.length} notificações` : '') +
+    (notifNaoLidas.value ? ` · ${notifNaoLidas.value} novas` : ''),
+)
+
+async function carregarNotifs() {
+  if (!authStore.isAuthenticated) return
+  try {
+    const resp = await xano.get('/api:-qqRIakp/notificacoes')
+    const d = resp.getBody() ?? {}
+    notifList.value = (d?.notificacoes ?? []) as typeof notifList.value
+    notifNaoLidas.value = Number(d?.nao_lidas) || 0
+  } catch {
+    /* silencioso */
+  }
+}
+
+function abrirNotifs() {
+  notifOpen.value = !notifOpen.value
+  if (notifOpen.value) {
+    userMenuOpen.value = false
+    versaoMenuOpen.value = false
+    carregarNotifs()
+  }
+}
+
+async function marcarTodasLidas() {
+  try {
+    await xano.post('/api:-qqRIakp/notificacoes_marcar_lida')
+    await carregarNotifs()
+  } catch {
+    /* silencioso */
+  }
+}
+
+function irParaNotif(n: { orca_id: number }) {
+  notifOpen.value = false
+  router.push(`/orcamentos/${n.orca_id}`)
+}
+
+function tituloNotif(n: { tipo: string; cod_orca: string | null }): string {
+  const orca = n.cod_orca ? `#${n.cod_orca}` : 'orçamento'
+  if (n.tipo === 'desconto_pendente') return `Desconto aguarda sua aprovação (${orca})`
+  if (n.tipo === 'desconto_recusado') return `Desconto recusado pelo pai (${orca})`
+  if (n.tipo === 'desconto_aprovado') return `Desconto aprovado pelo pai (${orca})`
+  return `Notificação (${orca})`
+}
 
 function abrirSenha() {
   userMenuOpen.value = false
@@ -47,11 +106,21 @@ function onDocClick(e: MouseEvent) {
   if (!target.closest('.dus-wrap')) {
     userMenuOpen.value = false
   }
+  if (!target.closest('.notif-wrap')) {
+    notifOpen.value = false
+  }
 }
 
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   catalogoStore.carregarConfiguracoes().catch(() => {})
+  carregarNotifs()
+  notifTimer = setInterval(carregarNotifs, 60000)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  if (notifTimer) clearInterval(notifTimer)
 })
 
 onBeforeUnmount(() => {
@@ -158,6 +227,61 @@ onBeforeUnmount(() => {
           <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
       </button>
+      <div class="notif-wrap">
+        <button
+          class="header-icon"
+          title="Notificações"
+          aria-label="Notificações"
+          @click="abrirNotifs"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span v-if="notifNaoLidas > 0" class="notif-badge">{{ notifNaoLidas }}</span>
+        </button>
+        <Transition name="pop">
+          <div v-if="notifOpen" class="notif-popover" @click.stop>
+            <div class="notif-head">
+              <span>Notificações</span>
+              <button
+                v-if="notifList.length"
+                type="button"
+                class="notif-lidas"
+                @click="marcarTodasLidas"
+              >
+                Marcar como lidas
+              </button>
+            </div>
+            <div v-if="!notifList.length" class="notif-vazio">Sem notificações.</div>
+            <ul v-else class="notif-list">
+              <li
+                v-for="n in notifList.slice(0, 12)"
+                :key="n.id"
+                class="notif-item"
+                @click="irParaNotif(n)"
+              >
+                <span
+                  class="notif-dot"
+                  :class="{
+                    pendente: n.tipo === 'desconto_pendente',
+                    recusado: n.tipo === 'desconto_recusado',
+                    aprovado: n.tipo === 'desconto_aprovado',
+                  }"
+                />
+                <span class="notif-texto">{{ tituloNotif(n) }}</span>
+              </li>
+            </ul>
+          </div>
+        </Transition>
+      </div>
       <div v-if="isDev" class="dus-wrap">
         <button
           class="header-icon"
@@ -432,5 +556,114 @@ onBeforeUnmount(() => {
 .header-icon svg {
   width: 20px;
   height: 20px;
+}
+
+.notif-wrap {
+  position: relative;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger, #dc2626);
+  color: #fff;
+  font-size: 0.62rem;
+  line-height: 15px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.notif-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 320px;
+  max-width: 90vw;
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  z-index: 90;
+}
+
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+.notif-lidas {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--primary-light);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.notif-vazio {
+  padding: 0.9rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.83rem;
+  color: var(--text-primary);
+}
+
+.notif-item:hover {
+  background: var(--table-hover);
+}
+
+.notif-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.notif-dot.pendente {
+  background: #f59e0b;
+}
+
+.notif-dot.recusado {
+  background: #ef4444;
+}
+
+.notif-dot.aprovado {
+  background: #22c55e;
+}
+
+.notif-texto {
+  line-height: 1.3;
 }
 </style>

@@ -54,6 +54,10 @@ const descontoPendente = computed(() => {
     h?.desconto_aprovado === false
   )
 })
+// Pendência de desconto só faz sentido p/ filho dono ou quando o viewer é o pai
+const podeVerPendencia = computed(() =>
+  souDonoOrcamento.value ? authStore.ehFilho : viewerPai.value,
+)
 
 async function aprovarDesconto(aprovado: boolean) {
   const id = orcamentoStore.orcamentoHeader?.id
@@ -1576,7 +1580,7 @@ async function enviarWhatsApp() {
 <template>
   <div class="orcamento-page">
     <PendenciasPerfilBanner />
-    <div v-if="descontoPendente" class="desc-banner" :class="{ 'desc-pai': viewerPai }">
+    <div v-if="descontoPendente && podeVerPendencia" class="desc-banner" :class="{ 'desc-pai': viewerPai }">
       <span v-if="souDonoOrcamento">
         Desconto acima do limite livre aguarda aprovação do pai — o envio/avanço de status fica
         bloqueado até a aprovação.
@@ -1593,7 +1597,7 @@ async function enviarWhatsApp() {
         </div>
       </template>
     </div>
-    <div v-if="descontoRecusado" class="desc-banner desc-recusado">
+    <div v-if="descontoRecusado && podeVerPendencia" class="desc-banner desc-recusado">
       <span v-if="souDonoOrcamento">
         Desconto recusado pelo pai — reduza ou remova o desconto para continuar.
       </span>
