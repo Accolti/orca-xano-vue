@@ -116,11 +116,14 @@ const mostrarLimitesDesconto = ref(false)
 const limitesDesconto = computed(() => {
   if (authStore.isAdmin) return null
   const u = authStore.user
-  const livre = Number(u?.desconto_livre_perc)
-  const max = Number(u?.desconto_max_perc)
+  const ef = authStore.userEfetivo
+  const l = Number(u?.desconto_livre_perc)
+  const x = Number(u?.desconto_max_perc)
+  const padraoL = Number(ef?.desconto_livre_perc)
+  const padraoX = Number(ef?.desconto_max_perc)
   return {
-    livre: !Number.isNaN(livre) && livre > 0 ? livre : 0,
-    max: !Number.isNaN(max) && max > 0 ? max : 0,
+    livre: !Number.isNaN(l) && l > 0 ? l : !Number.isNaN(padraoL) && padraoL > 0 ? padraoL : 0,
+    max: !Number.isNaN(x) && x > 0 ? x : !Number.isNaN(padraoX) && padraoX > 0 ? padraoX : 0,
   }
 })
 const limiteDescontoTexto = computed(() => {

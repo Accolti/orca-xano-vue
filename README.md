@@ -45,7 +45,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Relatórios** — página `/relatorios` com Financeiro de Pedidos (custo/desconto Kapazi, frete efetivo, lucro/margem real), Recebidos por período e Funil de status (`Orca_Status_Log`), com a mesma barra de período
 - **Multi-vendedor (F3)** — hierarquia admin_geral → admin → vendedor_master → vendedor, gestão de equipe (`/equipe`), comissões Fase A + faixas por markup (`/comissoes`, `/faixas`)
 - **Permissões do filho** — vendedores não veem custo/lucro/margem/impostos/Frete B2B; herdam a config fiscal/empresa do topo em runtime (`f_perfil_efetivo`)
-- **Desconto com aprovação** — limites **por usuário** (não herdam; sem cadastro bloqueia); acima do limite livre o orçamento fica `pendente`/`recusado` até o pai aprovar (banner + fila em `/orcamentos`). O **Desconto Pix** entra na mesma política; label de limites com olho (oculto) no Desconto e no Pix
+- **Desconto com aprovação** — a empresa define o **padrão**; ponta/Master **herdam** e podem ter **override** (em `/equipe`); acima do limite livre o orçamento fica `pendente`/`recusado` até o pai aprovar (banner + fila em `/orcamentos`). O **Desconto Pix** entra na mesma política; label de limites com olho (oculto) no Desconto e no Pix
 - **Banner de configuração de comissões** — avisa admin/Master/vendedor quando faltam faixas de comissão e/ou limites de desconto (Home, Orçamento, Comissões, `/faixas`)
 - **Usuário inativo não loga** — recusado no login (backend) e deslogado no front
 - **Gating por plano** — o serviço de comissões é habilitado por `User.plano` (`plus`); sem ele o usuário entra normal e as telas de comissão mostram "Sem acesso" (menus/telas/endpoints; `admin_geral` sempre passa)

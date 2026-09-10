@@ -66,7 +66,7 @@ async function carregarEmpresas() {
     const resp = await xano.get('/api:-qqRIakp/equipe')
     const lista = (resp.getBody() as any[]) ?? []
     empresas.value = lista
-      .filter((u) => u.role === 'admin')
+      .filter((u) => u.role !== 'vendedor' && u.role !== 'vendedor_master')
       .map((u) => ({
         id: Number(u.id),
         nome: u.name_first || u.name || `#${u.id}`,

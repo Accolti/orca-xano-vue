@@ -48,6 +48,35 @@ const editMax = ref<number | null>(null)
 const usarPadraoDesc = ref(true)
 const salvandoEdicao = ref(false)
 
+// Padrão de desconto da empresa (herdado pelos vendedores que não têm valor próprio)
+const padraoEmpresaLivre = computed(() => {
+  const v = Number(authStore.userEfetivo?.desconto_livre_perc)
+  return !Number.isNaN(v) && v > 0 ? v : 0
+})
+const padraoEmpresaMax = computed(() => {
+  const v = Number(authStore.userEfetivo?.desconto_max_perc)
+  return !Number.isNaN(v) && v > 0 ? v : 0
+})
+
+function descontoEfetivo(m: MembroEquipe): { livre: number; max: number; herdado: boolean } {
+  const l = Number(m.desconto_livre_perc)
+  const x = Number(m.desconto_max_perc)
+  const temL = !Number.isNaN(l) && l > 0
+  const temX = !Number.isNaN(x) && x > 0
+  return {
+    livre: temL ? l : padraoEmpresaLivre.value,
+    max: temX ? x : padraoEmpresaMax.value,
+    herdado: !temL && !temX,
+  }
+}
+
+function alternarHerdar() {
+  if (!usarPadraoDesc.value) {
+    if (editLivre.value == null) editLivre.value = padraoEmpresaLivre.value || null
+    if (editMax.value == null) editMax.value = padraoEmpresaMax.value || null
+  }
+}
+
 function getErrorMessage(err: unknown): string {
   if (err instanceof XanoRequestError) {
     try {
@@ -150,8 +179,8 @@ async function vincular() {
 function iniciarEdicao(m: MembroEquipe) {
   editandoId.value = m.id
   editPercentual.value = Number(m.percentual_comissao) || 0
-  const temLivre = m.desconto_livre_perc != null
-  const temMax = m.desconto_max_perc != null
+  const temLivre = Number(m.desconto_livre_perc) > 0
+  const temMax = Number(m.desconto_max_perc) > 0
   editLivre.value = temLivre ? Number(m.desconto_livre_perc) : null
   editMax.value = temMax ? Number(m.desconto_max_perc) : null
   usarPadraoDesc.value = !temLivre && !temMax
@@ -168,18 +197,24 @@ function cancelarEdicao() {
 
 async function salvarEdicao(m: MembroEquipe) {
   if (salvandoEdicao.value) return
-  salvandoEdicao.value = true
   erro.value = null
+  if (!usarPadraoDesc.value) {
+    const dLivre = editLivre.value == null ? null : Number(editLivre.value)
+    const dMax = editMax.value == null ? null : Number(editMax.value)
+    if (dLivre != null && dMax != null && dMax < dLivre) {
+      erro.value = 'O desconto máximo deve ser maior ou igual ao livre.'
+      return
+    }
+  }
+  salvandoEdicao.value = true
   try {
     const payload: Record<string, unknown> = {
       user_id: m.id,
       percentual_comissao: editPercentual.value ?? undefined,
     }
     if (!usarPadraoDesc.value) {
-      const dLivre = editLivre.value == null ? null : Number(editLivre.value)
-      const dMax = editMax.value == null ? null : Number(editMax.value)
-      payload.desconto_livre_perc = dLivre
-      payload.desconto_max_perc = dMax
+      payload.desconto_livre_perc = editLivre.value == null ? null : Number(editLivre.value)
+      payload.desconto_max_perc = editMax.value == null ? null : Number(editMax.value)
     } else {
       payload.desconto_livre_perc = null
       payload.desconto_max_perc = null
@@ -361,6 +396,7 @@ onMounted(carregar)
                 <th>Papel</th>
                 <th>E-mail</th>
                 <th>Comissão</th>
+                <th>Desconto (livre/máx)</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -372,37 +408,41 @@ onMounted(carregar)
                 <td>{{ m.email }}</td>
                 <td>
                   <template v-if="editandoId === m.id">
-                    <input
-                      v-if="m.role !== 'vendedor_master'"
-                      v-model.number="editPercentual"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      class="edit-perc"
-                    />
-                    <span v-else class="hint-master">Override das faixas</span>
-                    <label class="desc-padrao">
-                      <input v-model="usarPadraoDesc" type="checkbox" />
-                      Usar limite padrão da empresa
-                    </label>
-                    <div v-if="!usarPadraoDesc" class="desc-override">
+                    <div v-if="m.role !== 'vendedor_master'" class="edit-field">
+                      <label>Comissão do vendedor (%)</label>
                       <input
-                        v-model.number="editLivre"
+                        v-model.number="editPercentual"
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="Livre %"
-                      />
-                      <input
-                        v-model.number="editMax"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Máx %"
+                        class="edit-perc"
                       />
                     </div>
+                    <span v-else class="hint-master">Comissão: override das faixas</span>
                   </template>
                   <template v-else>{{ fmtPct(m.percentual_comissao) }}</template>
+                </td>
+                <td>
+                  <template v-if="editandoId === m.id">
+                    <label class="herdar">
+                      <input v-model="usarPadraoDesc" type="checkbox" @change="alternarHerdar" />
+                      Herdar da empresa
+                    </label>
+                    <div v-if="usarPadraoDesc" class="valor-herdado">
+                      {{ padraoEmpresaLivre }}% / {{ padraoEmpresaMax }}%
+                      <small>(herdado)</small>
+                    </div>
+                    <div v-else class="edit-field">
+                      <label>Desconto livre (%)</label>
+                      <input v-model.number="editLivre" type="number" min="0" step="0.01" />
+                      <label>Desconto máx (%)</label>
+                      <input v-model.number="editMax" type="number" min="0" step="0.01" />
+                    </div>
+                  </template>
+                  <template v-else>
+                    {{ descontoEfetivo(m).livre }}% / {{ descontoEfetivo(m).max }}%
+                    <small v-if="descontoEfetivo(m).herdado" class="muted">(herdado)</small>
+                  </template>
                 </td>
                 <td>
                   <span :class="['badge-status', m.ativo !== false ? 'badge-aprovado' : 'badge-recusado']">
@@ -429,7 +469,7 @@ onMounted(carregar)
                     >
                       Promover a Admin
                     </button>
-                    <button class="btn btn-sm btn-outline" @click="iniciarEdicao(m)">Editar %</button>
+                    <button class="btn btn-sm btn-outline" @click="iniciarEdicao(m)">Editar</button>
                     <button
                       class="btn btn-sm btn-outline"
                       @click="alternarAtivo(m)"
@@ -606,6 +646,49 @@ onMounted(carregar)
   background: var(--card-bg);
   color: var(--text-primary);
   font-family: inherit;
+}
+
+.edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.edit-field label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.edit-field input {
+  width: 120px;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.herdar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  margin-bottom: 0.35rem;
+}
+
+.valor-herdado {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.valor-herdado small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
 }
 
 .tabela-wrapper {

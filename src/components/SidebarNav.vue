@@ -23,7 +23,7 @@ interface MenuItem {
 }
 
 function visivel(item: MenuItem) {
-  if (item.comissoes && !authStore.temComissoes) return false
+  if (item.comissoes && !authStore.temComissoes && !authStore.isAdminGeral) return false
   if (item.adminOnly) return authStore.isAdmin
   if (item.manager) return authStore.isAdmin || authStore.isVendedorMaster
   return true

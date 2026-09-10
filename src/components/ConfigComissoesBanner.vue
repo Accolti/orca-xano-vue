@@ -38,15 +38,30 @@ const semFaixas = computed(
     faixasVazias.value,
 )
 
-function faltaLimite(u: { desconto_livre_perc?: number | null; desconto_max_perc?: number | null }) {
-  const livre = Number(u?.desconto_livre_perc)
-  const max = Number(u?.desconto_max_perc)
-  const livreOk = u?.desconto_livre_perc != null && !Number.isNaN(livre) && livre > 0
-  const maxOk = u?.desconto_max_perc != null && !Number.isNaN(max) && max > 0
-  return !livreOk || !maxOk
+// Padrão de desconto da empresa (herdado pelos vendedores sem valor próprio).
+const padraoLivre = computed(() => {
+  const v = Number(authStore.userEfetivo?.desconto_livre_perc)
+  return !Number.isNaN(v) && v > 0 ? v : 0
+})
+const padraoMax = computed(() => {
+  const v = Number(authStore.userEfetivo?.desconto_max_perc)
+  return !Number.isNaN(v) && v > 0 ? v : 0
+})
+
+// Limite EFETIVO = valor próprio (>0) senão o padrão da empresa. "Ok" quando
+// tem livre e máx (>0) e máx ≥ livre.
+function limiteEfetivoOk(u: {
+  desconto_livre_perc?: number | null
+  desconto_max_perc?: number | null
+}) {
+  const l = Number(u?.desconto_livre_perc)
+  const x = Number(u?.desconto_max_perc)
+  const livre = !Number.isNaN(l) && l > 0 ? l : padraoLivre.value
+  const max = !Number.isNaN(x) && x > 0 ? x : padraoMax.value
+  return livre > 0 && max > 0 && max >= livre
 }
 
-const euSemLimite = computed(() => faltaLimite(authStore.user ?? {}))
+const euSemLimite = computed(() => !authStore.isAdmin && !limiteEfetivoOk(authStore.user ?? {}))
 
 // Empresa (admin): os limites que importam são os dos vendedores da equipe.
 // Master: os dele + os da equipe dele.
@@ -75,7 +90,7 @@ async function carregar() {
   if (equipe.status === 'fulfilled') {
     const lista = ((equipe.value.getBody() as any[]) ?? []).filter((m) => m?.ativo !== false)
     temEquipe.value = lista.length > 0
-    membrosSemLimite.value = lista.some((m) => faltaLimite(m))
+    membrosSemLimite.value = lista.some((m) => !limiteEfetivoOk(m))
   }
 }
 
@@ -100,10 +115,10 @@ onMounted(carregar)
         <template v-else> Solicite ao administrador da sua empresa.</template>
       </span>
       <span v-if="semLimites" class="ccb-linha">
-        <strong>Limites de desconto não definidos</strong> — sem cadastro, nenhum desconto pode
-        ser aplicado.
+        <strong>Limites de desconto não definidos</strong> — os vendedores herdam o padrão da
+        empresa; sem isso, nenhum desconto pode ser aplicado.
         <template v-if="authStore.isAdmin">
-          Defina o desconto livre/máximo de cada vendedor da equipe.
+          Defina o padrão em "Meus Dados" ou um valor próprio por vendedor em Equipe.
         </template>
         <template v-else> Solicite ao administrador da sua empresa.</template>
       </span>

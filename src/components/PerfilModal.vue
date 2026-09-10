@@ -497,7 +497,10 @@ function descricaoRegime(id: number): string {
                       step="0.01"
                       placeholder="7"
                     />
-                    <small class="field-hint">Limite que os vendedores aplicam sem aprovação.</small>
+                    <small class="field-hint">
+                      Padrão aplicado aos vendedores; cada um pode ter valor próprio em
+                      Equipe.
+                    </small>
                   </div>
                   <div class="field">
                     <label for="pf-desc-max">Desconto máx. com aprovação (%)</label>
@@ -509,7 +512,9 @@ function descricaoRegime(id: number): string {
                       step="0.01"
                       placeholder="15"
                     />
-                    <small class="field-hint">Acima disso o sistema bloqueia.</small>
+                    <small class="field-hint">
+                      Acima disso o sistema bloqueia. Deve ser ≥ o desconto livre.
+                    </small>
                   </div>
                 </div>
               </section>
