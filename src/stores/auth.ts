@@ -31,6 +31,7 @@ export interface User {
   percentual_comissao?: number | null
   desconto_livre_perc?: number | null
   desconto_max_perc?: number | null
+  plano?: string | null
   ativo?: boolean
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
   _endereco_user?: {
@@ -73,6 +74,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value ? ({ ...user.value, ...(empresaEfetiva.value ?? {}) } as User) : null,
   )
   const ehFilho = computed(() => isVendedor.value || isVendedorMaster.value)
+  // Serviço de comissões: habilitado pelo plano da empresa (filhos herdam do topo).
+  const temComissoes = computed(() => (userEfetivo.value?.plano ?? user.value?.plano) === 'plus')
 
   if (token.value) {
     xano.setAuthToken(token.value)
@@ -252,6 +255,7 @@ export const useAuthStore = defineStore('auth', () => {
     isVendedorMaster,
     isVendedor,
     ehFilho,
+    temComissoes,
     empresaEfetiva,
     userEfetivo,
     login,

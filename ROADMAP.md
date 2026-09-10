@@ -49,7 +49,7 @@ Status: **parcialmente feito** (seletor de instituição ⭐, checkboxes Pix/Bol
 
 ## 👥 Frente 3 — Multi-vendedor, planos, comissão e permissões
 
-Status: **base implementada (2026-09)** — roles/hierarquia (admin_geral → admin → vendedor_master → vendedor), gestão de equipe, permissões visuais (ocultação de custo/lucro para filhos), herança de perfil do pai, limites de desconto com aprovação do pai e notificações (sino); Comissões Fase A + A.2 entregues. Pendente: planos/assinaturas.
+Status: **base implementada (2026-09)** — roles/hierarquia (admin_geral → admin → vendedor_master → vendedor), gestão de equipe, permissões visuais (ocultação de custo/lucro para filhos), herança de perfil do pai, limites de desconto com aprovação do pai e notificações (sino); Comissões Fase A + A.2 entregues; **gating por plano** (`User.plano` = `plus` habilita; menus/telas/endpoints). Pendente: planos/assinaturas (cobrança/pagamento do plano).
 
 ### Feito ✅
 - `User.role` (`admin_geral`/`admin`/`vendedor_master`/`vendedor`) + `vendedor_pai_id` + `percentual_comissao` + `ativo` + `desconto_livre_perc`/`desconto_max_perc` (legado sem role com `vendedor_pai_id` = vendedor, senão admin)
@@ -61,7 +61,8 @@ Status: **base implementada (2026-09)** — roles/hierarquia (admin_geral → ad
 - **Notificações (sino)**: tabela `Notificacao` + badge/popover no `GlobalHeader`
 
 ### Pendente
-- [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
+- [ ] Planos/assinaturas (cobrança/pagamento do plano; hoje o gating usa `User.plano` definido pelo admin_geral)
+- [ ] Gating por plano aplicado (menus/telas/endpoints; `admin_geral` sempre passa) — **feito**
 - [ ] **Tela de comissões** (Fase A entregue em `/comissoes`, 2026-09 — marcar paga, totais por período). Evoluções: comissão por afiliado (split) e planos
 - [ ] Escopo do `GET /comissoes` por ancestral (hoje `vendedor_master` cai no ramo amplo e `admin` não vê netos)
 

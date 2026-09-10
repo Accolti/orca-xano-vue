@@ -72,6 +72,7 @@ function avisarOk(msg: string) {
 }
 
 async function carregar() {
+  if (!podeGerenciar.value || !authStore.temComissoes) return
   loading.value = true
   erro.value = null
   try {
@@ -256,6 +257,9 @@ onMounted(carregar)
     </header>
 
     <p v-if="!podeGerenciar" class="restrito">Acesso restrito a administradores e Master.</p>
+    <p v-else-if="!authStore.temComissoes" class="restrito">
+      Sem acesso a esta funcionalidade.
+    </p>
 
     <template v-else>
       <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>

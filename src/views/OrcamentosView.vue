@@ -237,6 +237,7 @@ const percentualComissaoProprio = ref<number | null>(null)
 
 async function carregarFaixasComissao() {
   if (!authStore.isVendedor && !authStore.isVendedorMaster) return
+  if (!authStore.temComissoes) return
   try {
     const resp = await xano.get('/api:-qqRIakp/faixas_comissao')
     const d = resp.getBody() ?? {}

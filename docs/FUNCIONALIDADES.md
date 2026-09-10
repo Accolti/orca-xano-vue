@@ -281,6 +281,7 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 - **Escopo por empresa** (`GET /comissoes`): `admin` (inclui `role=""`) e `vendedor_master` veem a **própria árvore** (eles + descendentes); `vendedor` só as dele; `admin_geral` (sistema) vê todas. Cada "Pai"/admin é uma **empresa independente**.
 - **Pagamento** (`POST /comissao_pagar`): permitido à **empresa admin ancestral** do dono da comissão ou ao `admin_geral`; o `vendedor_master` **não** paga. No front, `podePagar = isAdmin || isAdminGeral`.
 - **Equipe**: `admin` cria vendedor/Master; o `vendedor_master` cria apenas `vendedor` (pai = o master).
+- **Planos (gating)**: o serviço é habilitado por **`User.plano`** (`plus` habilita; `basico`/ausente não), resolvido pela **empresa efetiva**. Sem o plano, o usuário entra normal mas as telas de comissão mostram "Sem acesso a esta funcionalidade" (gate em menus, telas e endpoints; `admin_geral` sempre passa). `POST /user_plano` (admin_geral) define o plano; em `/faixas` o admin_geral escolhe empresa + plano.
 
 ## Notificações (sino)
 

@@ -22,6 +22,7 @@ const ehAdminEmpresa = computed(() => authStore.isAdmin && !authStore.isAdminGer
 const elegivel = computed(
   () =>
     !!authStore.user &&
+    authStore.temComissoes &&
     (ehAdminEmpresa.value || authStore.isVendedorMaster || authStore.isVendedor),
 )
 

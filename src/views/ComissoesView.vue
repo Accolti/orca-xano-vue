@@ -56,6 +56,7 @@ function getErrorMessage(err: unknown): string {
 }
 
 async function carregar() {
+  if (!authStore.temComissoes) return
   loading.value = true
   erro.value = null
   try {
@@ -119,12 +120,15 @@ onMounted(carregar)
 
     <ConfigComissoesBanner />
 
-    <PeriodoBar v-model:periodo="periodo" v-model:mesInicio="mesInicio" @mudou="carregar" />
-
-    <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>
-    <p v-if="erro" class="erro" role="alert">{{ erro }}</p>
+    <p v-if="!authStore.temComissoes" class="sem-acesso">Sem acesso a esta funcionalidade.</p>
 
     <template v-else>
+      <PeriodoBar v-model:periodo="periodo" v-model:mesInicio="mesInicio" @mudou="carregar" />
+
+      <p v-if="loading" class="status"><span class="spinner" /> Carregando...</p>
+      <p v-if="erro" class="erro" role="alert">{{ erro }}</p>
+
+      <template v-else>
       <div class="totais-grid">
         <div class="tot-item">
           <span class="tot-label">A pagar (calculadas)</span>
@@ -190,6 +194,7 @@ onMounted(carregar)
           </tbody>
         </table>
       </div>
+      </template>
     </template>
   </main>
 </template>
@@ -241,6 +246,11 @@ onMounted(carregar)
 
 .erro {
   color: var(--danger);
+}
+
+.sem-acesso {
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
 }
 
 .vazio {

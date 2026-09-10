@@ -48,6 +48,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Desconto com aprovação** — limites **por usuário** (não herdam; sem cadastro bloqueia); acima do limite livre o orçamento fica `pendente`/`recusado` até o pai aprovar (banner + fila em `/orcamentos`). O **Desconto Pix** entra na mesma política; label de limites com olho (oculto) no Desconto e no Pix
 - **Banner de configuração de comissões** — avisa admin/Master/vendedor quando faltam faixas de comissão e/ou limites de desconto (Home, Orçamento, Comissões, `/faixas`)
 - **Usuário inativo não loga** — recusado no login (backend) e deslogado no front
+- **Gating por plano** — o serviço de comissões é habilitado por `User.plano` (`plus`); sem ele o usuário entra normal e as telas de comissão mostram "Sem acesso" (menus/telas/endpoints; `admin_geral` sempre passa)
 - **Notificações** — sino no header com badge de não lidas (tabela `Notificacao`)
 - **Edição de item** — seletores restaurados do próprio item (incl. Nível preselecionado)
 

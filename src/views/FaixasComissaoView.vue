@@ -18,8 +18,9 @@ interface FaixaRow {
 const authStore = useAuthStore()
 
 const faixas = ref<FaixaRow[]>([])
-const empresas = ref<{ id: number; nome: string }[]>([])
+const empresas = ref<{ id: number; nome: string; plano: string }[]>([])
 const empresaSelecionada = ref<number | null>(null)
+const planoEmpresa = ref<string>('basico')
 const loading = ref(false)
 const erro = ref<string | null>(null)
 const okMsg = ref<string | null>(null)
@@ -66,16 +67,48 @@ async function carregarEmpresas() {
     const lista = (resp.getBody() as any[]) ?? []
     empresas.value = lista
       .filter((u) => u.role === 'admin')
-      .map((u) => ({ id: Number(u.id), nome: u.name_first || u.name || `#${u.id}` }))
+      .map((u) => ({
+        id: Number(u.id),
+        nome: u.name_first || u.name || `#${u.id}`,
+        plano: u.plano === 'plus' ? 'plus' : 'basico',
+      }))
     if (empresas.value.length && !empresaSelecionada.value) {
       empresaSelecionada.value = empresas.value[0]?.id ?? null
     }
+    sincronizarPlanoEmpresa()
   } catch {
     empresas.value = []
   }
 }
 
+function sincronizarPlanoEmpresa() {
+  const e = empresas.value.find((x) => x.id === empresaSelecionada.value)
+  planoEmpresa.value = e?.plano ?? 'basico'
+}
+
+function trocarEmpresa() {
+  sincronizarPlanoEmpresa()
+  carregar()
+}
+
+async function salvarPlano() {
+  if (!empresaSelecionada.value) return
+  erro.value = null
+  try {
+    await xano.post('/api:-qqRIakp/user_plano', {
+      user_id: empresaSelecionada.value,
+      plano: planoEmpresa.value,
+    })
+    const e = empresas.value.find((x) => x.id === empresaSelecionada.value)
+    if (e) e.plano = planoEmpresa.value
+    avisarOk('Plano atualizado.')
+  } catch (err) {
+    erro.value = getErrorMessage(err)
+  }
+}
+
 async function carregar() {
+  if (!authStore.isAdminGeral && !authStore.temComissoes) return
   loading.value = true
   erro.value = null
   try {
@@ -183,12 +216,20 @@ onMounted(async () => {
     <p v-if="!authStore.isAdmin && !authStore.isAdminGeral" class="restrito">
       Acesso restrito a administradores.
     </p>
+    <p v-else-if="!authStore.isAdminGeral && !authStore.temComissoes" class="restrito">
+      Sem acesso a esta funcionalidade.
+    </p>
 
     <template v-else>
       <div v-if="authStore.isAdminGeral && empresas.length" class="fx-owner">
         <label for="fx-empresa">Empresa</label>
-        <select id="fx-empresa" v-model.number="empresaSelecionada" @change="carregar">
+        <select id="fx-empresa" v-model.number="empresaSelecionada" @change="trocarEmpresa">
           <option v-for="e in empresas" :key="e.id" :value="e.id">{{ e.nome }}</option>
+        </select>
+        <label for="fx-plano">Plano</label>
+        <select id="fx-plano" v-model="planoEmpresa" @change="salvarPlano">
+          <option value="basico">Básico</option>
+          <option value="plus">Plus (comissões)</option>
         </select>
       </div>
 
