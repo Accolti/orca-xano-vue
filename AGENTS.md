@@ -86,7 +86,7 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 
 **Comissões (F3 Fase A)**: tabela `Comissao` (append-only; `user_id`/`orca_id`/`percentual`/`lucro_real_base`/`base_valor`/`tipo` vendedor|override/`valor`/`status` calculada|paga). Lançada no `pagamento_baixa` quando um pedido (`eh_pedido`) de vendedor-filho fica **100% pago** — `valor = lucro_real × percentual_comissao`, com lucro real da mesma fórmula do relatório (Desconto_Kapazi_Log + frete efetivo); idempotente por `orca_id`. Endpoints: `comissoes` (GET; escopo por **árvore/empresa** — `admin` (inclui `role=""`) e `vendedor_master` veem a própria árvore (descendentes) + eles mesmos; `vendedor` só as dele; `admin_geral` do sistema vê tudo), `comissao_pagar` (POST; **empresa admin ancestral** do dono ou `admin_geral` — o `vendedor_master` **não** paga). `ComissoesView.vue` (rota `/comissoes`, menu 💸); `podePagar = isAdmin || isAdminGeral`.
 
-**Comissões A.2 (Master/faixas por markup)**: role `vendedor_master` (2º nível); `Faixa_Comissao` por empresa (`faixa_min/max`, `comissao_total_perc`, `ativo`) configurada via `/faixas` (admin dono; admin_geral escolhe empresa). Engine: pedido do ponta 100% pago com faixas da empresa → markup efetivo da Orca → faixa → **2 lançamentos**: ponta (`%` do cadastro, base `vnd_tot`) e Master `override = total_faixa − ponta`; sem faixas → fallback Fase A (fixo sobre lucro real). `faixas_comissao` GET (resolve a empresa pela cadeia pai) e `faixa_comissao_salvar` POST. Front: `EquipeView` cria Master (admin) e vendedores (admin ou master; o master só cria `vendedor`); `FaixasComissaoView`; `ComissoesView` mostra Base/tipo; projeção "sua comissão nesta venda" no orçamento (usa `/faixas_comissao`).
+**Comissões A.2 (Master/faixas por markup)**: role `vendedor_master` (2º nível); `Faixa_Comissao` por empresa (`faixa_min/max`, `comissao_total_perc`, `ativo`) configurada via `/faixas` (admin dono; admin_geral escolhe empresa). Engine: pedido do ponta 100% pago com faixas da empresa → markup efetivo da Orca → faixa → **2 lançamentos**: ponta (`%` do cadastro, base `vnd_tot`) e Master `override = total_faixa − ponta`; sem faixas → fallback Fase A (fixo sobre lucro real). `faixas_comissao` GET (resolve a empresa pela cadeia pai) e `faixa_comissao_salvar` POST. Front: `EquipeView` cria Master (admin) e vendedores (admin ou master; o master só cria `vendedor`) — o campo "Comissão do vendedor (%)" é **oculto para o Master** (ele recebe o override das faixas); `FaixasComissaoView` (`/faixas`) é um **formulário com labels** (Markup de/até %, Comissão total %, Ordem, Ativo) com botão **"Sugerir faixas padrão"** (`50–69→7`, `70–89→8`, `90–100→10`); `ComissoesView` mostra Base/tipo; projeção "sua comissão nesta venda" no orçamento (usa `/faixas_comissao`).
 
 ### Política de desconto e aprovação do pai (F3)
 
@@ -99,11 +99,20 @@ Limites de desconto **por usuário** (`User.desconto_livre_perc`/`desconto_max_p
 
 ### Banner de configuração de comissões/limites
 
-`src/components/ConfigComissoesBanner.vue` (auto-suficiente) avisa quem configura — **admin/empresa** e **vendedor_master** (vendedor não vê) — quando:
-- **Faixas de comissão** vazias (`GET /faixas_comissao` → `faixas: []`): ação "Configurar comissões" (`/faixas`) para admin; texto "solicite ao administrador" para o master.
-- **Limites de desconto** ausentes nos **vendedores da equipe** (`GET /equipe`; o Master checa também os próprios): ação "Definir limites da equipe" (`/equipe`) para admin; texto "solicite ao administrador" para o master.
+`src/components/ConfigComissoesBanner.vue` (auto-suficiente) avisa — **admin/empresa**, **vendedor_master** e **vendedor** (este só informativo) — quando:
+- **Faixas de comissão** vazias (`GET /faixas_comissao` → `faixas: []`): ação "Configurar comissões" (`/faixas`) para admin; texto "solicite ao administrador" para master/vendedor. (Só admin/master veem este aviso.)
+- **Limites de desconto** ausentes nos **vendedores da equipe** (`GET /equipe`; o Master checa também os próprios; o vendedor checa só os dele): ação "Definir limites da equipe" (`/equipe`) para admin; texto "solicite ao administrador" para master/vendedor.
 
 Aparece em `HomeView`, `ComissoesView`, `FaixasComissaoView` (com `:apenas-limites="true"` — evita redundância) e `OrcamentosView`.
+
+### Limites de desconto na tela (label + olho) e desconto Pix
+
+- Na área de desconto (`OrcamentosView`), um **label** mostra os limites do usuário (`Desconto livre até X% · até Y% com aprovação.`) com um **olho** para ocultar/mostrar (começa **oculto**). Aparece no **Desconto (R$)** (card de negociação do filho e Ajustar Orçamento) e no **Desconto Pix (%)**.
+- **Desconto Pix entra na mesma política**: o backend (`orcamento_recalcular`) lê `condicoes_pagamento_params.descontoPixPercentual` e usa `perc = max(desconto%, pix%)` — acima do máximo bloqueia; acima do livre fica `pendente`. O front sinaliza ("Acima do máximo…" / "exigirá aprovação").
+
+### Usuário inativo
+
+`User.ativo=false` não loga: `auth/login` e o Google `oauth/google/continue` têm precondition de `ativo`; o front (`auth.ts` `fetchMe`) também faz `logout()` + "Conta inativa" se `ativo === false`.
 
 ### Notificações (sino)
 
@@ -340,6 +349,7 @@ Botão **"＋ Novo cliente"** (sempre visível no cabeçalho da seção Cliente,
 - **Modais/Teleports usados por botões em visões condicionais precisam estar MONTADOS na visão onde o botão está.** A `OrcamentosView` tem duas visões mutuamente exclusivas (edição `<template v-if="!mostrarResumo">` e resumo `<template v-else>`). O `PagamentoModal` foi colocado dentro do bloco de edição, mas os botões "Faturar"/"💳 Financeiro" estão na visão resumo → clicavam, setavam o `modelValue` e nada abria (modal fora do DOM). Correção: mover o modal para a **raiz** de `.orcamento-page`, fora dos dois blocos (posição é irrelevante — Teleport → body). `SimulacaoModal`/`ClienteModal`, que só abrem na edição, podem permanecer dentro do bloco.
 - **`<select v-model>` com `:value` de objeto casa por REFERÊNCIA**: se a lista de opções é um `computed` que **cria objetos novos** a cada avaliação, um valor setado a partir de outra fonte (ex.: `catalogo.allNiveis`) nunca casa → a combo aparece **sem seleção** (o `✕` aparece mesmo com o dado preenchido). Sintoma clássico: "a listbox tem as opções mas não vem selecionada ao editar". Correção: fazer o `computed` devolver **a própria referência** do objeto de catálogo (`catalogo.allNiveis.find(...)`), em vez de `{ ...campos }` sintetizado; ou usar `:value="x.id"` + `v-model` no id. Vale para Nível (corrigido), e é o padrão a seguir em qualquer seletor desse tipo.
 - **Watches que limpam seleção durante remontagem de item**: ao remontar um formulário a partir de um registro (ex.: `editarItem`), um `watch` reativo (como `watch(mostrarNivel)` que zera `nivelSelecionado`) dispara no meio da montagem e apaga o valor. Usar uma flag de guarda (`restaurandoItem`) ligada durante a remontagem e desligada em `nextTick`, com fallback que reaplica o valor a partir da lista já estabilizada.
+- **XanoScript executa em ordem**: em `orcamento_recalcular`, o `$statusDesc`/notificação eram calculados **antes** de `$aprovado` ser atualizado (a política de desconto roda depois) → `desconto_status` ficava sempre `"aprovado"` e a notificação nunca disparava. **Regra**: derivar estado (`statusDesc`, notificações) sempre **após** o bloco que calcula `$aprovado`. E o **desconto Pix** (`condicoes_pagamento_params.descontoPixPercentual`) entra na mesma política via `perc = max(desconto%, pix%)`.
 
 ## Conventions
 

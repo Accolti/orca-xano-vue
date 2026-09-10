@@ -102,15 +102,34 @@ async function carregar() {
   }
 }
 
+const SUGESTOES = [
+  { faixa_min: 50, faixa_max: 69, comissao_total_perc: 7 },
+  { faixa_min: 70, faixa_max: 89, comissao_total_perc: 8 },
+  { faixa_min: 90, faixa_max: 100, comissao_total_perc: 10 },
+]
+
 function novaFaixa() {
+  const next = SUGESTOES[faixas.value.length] ?? null
   faixas.value.push({
     id: null,
-    faixa_min: null,
-    faixa_max: null,
-    comissao_total_perc: null,
+    faixa_min: next?.faixa_min ?? null,
+    faixa_max: next?.faixa_max ?? null,
+    comissao_total_perc: next?.comissao_total_perc ?? null,
     ordem: faixas.value.length + 1,
     ativo: true,
   })
+}
+
+function sugerirPadrao() {
+  if (faixas.value.length) return
+  faixas.value = SUGESTOES.map((s, i) => ({
+    id: null,
+    faixa_min: s.faixa_min,
+    faixa_max: s.faixa_max,
+    comissao_total_perc: s.comissao_total_perc,
+    ordem: i + 1,
+    ativo: true,
+  }))
 }
 
 async function salvar(f: FaixaRow) {
@@ -178,55 +197,60 @@ onMounted(async () => {
       <p v-if="okMsg" class="ok" role="status">{{ okMsg }}</p>
 
       <div class="fx-note">
-        Sem faixas cadastradas, a comissão usa o regime fixo (Fase A). As faixas valem para pedidos
-        100% pagos; a base é a venda (vnd_tot) e a faixa é definida pelo markup efetivo.
+        As faixas definem o <strong>total de comissão liberado</strong> por faixa de
+        <strong>markup efetivo</strong>. O ponta recebe o % cadastrado nele e o Master fica com o
+        restante (override). Ex.: faixa <strong>50–69% → 7%</strong>; se o ponta tem 5%, ele leva 5%
+        e o Master 2%. Valem para pedidos 100% pagos; a base é a venda (<code>vnd_tot</code>).
       </div>
 
-      <div class="tabela-wrapper">
-        <table class="tabela">
-          <thead>
-            <tr>
-              <th class="td-num">Markup de (%)</th>
-              <th class="td-num">Markup até (%)</th>
-              <th class="td-num">Comissão total (%)</th>
-              <th class="td-num">Ordem</th>
-              <th>Ativo</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="f in faixas" :key="f.id ?? 'novo'">
-              <td class="td-num">
-                <input v-model.number="f.faixa_min" type="number" step="0.01" placeholder="50" />
-              </td>
-              <td class="td-num">
-                <input v-model.number="f.faixa_max" type="number" step="0.01" placeholder="69" />
-              </td>
-              <td class="td-num">
-                <input
-                  v-model.number="f.comissao_total_perc"
-                  type="number"
-                  step="0.01"
-                  placeholder="7"
-                />
-              </td>
-              <td class="td-num">
-                <input v-model.number="f.ordem" type="number" min="0" step="1" />
-              </td>
-              <td><input v-model="f.ativo" type="checkbox" /></td>
-              <td>
-                <button class="btn btn-sm btn-primary" :disabled="salvandoId != null" @click="salvar(f)">
-                  {{ salvandoId === (f.id ?? 'novo') ? '…' : 'Salvar' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <p v-if="!faixas.length" class="fx-vazio">
+        Nenhuma faixa cadastrada ainda — clique em <strong>+ Nova faixa</strong> ou use
+        <strong>Sugerir faixas padrão</strong>.
+      </p>
+
+      <div class="fx-lista">
+        <div v-for="f in faixas" :key="f.id ?? 'novo'" class="fx-card">
+          <div class="fx-card-grid">
+            <div class="field">
+              <label>Markup de (%)</label>
+              <input v-model.number="f.faixa_min" type="number" step="0.01" placeholder="50" />
+            </div>
+            <div class="field">
+              <label>Markup até (%)</label>
+              <input v-model.number="f.faixa_max" type="number" step="0.01" placeholder="69" />
+            </div>
+            <div class="field">
+              <label>Comissão total (%)</label>
+              <input
+                v-model.number="f.comissao_total_perc"
+                type="number"
+                step="0.01"
+                placeholder="7"
+              />
+            </div>
+            <div class="field field-ordem">
+              <label>Ordem</label>
+              <input v-model.number="f.ordem" type="number" min="0" step="1" />
+            </div>
+            <label class="fx-ativo">
+              <input v-model="f.ativo" type="checkbox" />
+              Ativo
+            </label>
+          </div>
+          <div class="fx-card-acoes">
+            <button class="btn btn-sm btn-primary" :disabled="salvandoId != null" @click="salvar(f)">
+              {{ salvandoId === (f.id ?? 'novo') ? '…' : 'Salvar' }}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <button v-if="!faixas.length || true" class="btn btn-outline btn-nova" @click="novaFaixa">
-        + Nova faixa
-      </button>
+      <div class="fx-rodape">
+        <button class="btn btn-primary" @click="novaFaixa">+ Nova faixa</button>
+        <button v-if="!faixas.length" class="btn btn-outline" @click="sugerirPadrao">
+          Sugerir faixas padrão
+        </button>
+      </div>
     </template>
   </main>
 </template>
@@ -287,6 +311,85 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 0.6rem 0.8rem;
   margin-bottom: 1rem;
+}
+
+.fx-note code {
+  font-size: 0.78rem;
+}
+
+.fx-vazio {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 0.5rem 0 0.75rem;
+}
+
+.fx-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fx-card {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--card-bg);
+  padding: 0.85rem 0.9rem;
+}
+
+.fx-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem 0.8rem;
+  align-items: end;
+}
+
+.fx-card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fx-card .field label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.fx-card .field input[type='number'] {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.field-ordem {
+  max-width: 90px;
+}
+
+.fx-ativo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  padding-bottom: 0.35rem;
+}
+
+.fx-card-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.7rem;
+}
+
+.fx-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .status {

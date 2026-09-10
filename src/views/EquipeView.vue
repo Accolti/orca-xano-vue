@@ -287,8 +287,8 @@ onMounted(carregar)
               placeholder="Mín. 8 caracteres"
             />
           </div>
-          <div class="field">
-            <label for="eq-perc">Comissão (%)</label>
+          <div v-if="criarForm.role !== 'vendedor_master'" class="field">
+            <label for="eq-perc">Comissão do vendedor (%)</label>
             <input
               id="eq-perc"
               v-model.number="criarForm.percentual"
@@ -297,7 +297,12 @@ onMounted(carregar)
               step="0.01"
               placeholder="0"
             />
+            <small class="hint">% que o ponta recebe sobre a venda.</small>
           </div>
+          <p v-else class="hint hint-master">
+            O Vendedor Master recebe o <strong>remanescente da faixa</strong> (override), definido em
+            Configuração de Comissões.
+          </p>
           <div v-if="authStore.isAdmin" class="field">
             <label for="eq-role">Papel</label>
             <select id="eq-role" v-model="criarForm.role">
@@ -317,8 +322,8 @@ onMounted(carregar)
             <label for="eq-vinc-email">E-mail da conta</label>
             <input id="eq-vinc-email" v-model="vincularForm.email" type="email" placeholder="email@exemplo.com" />
           </div>
-          <div class="field">
-            <label for="eq-vinc-perc">Comissão (%)</label>
+          <div v-if="vincularForm.role !== 'vendedor_master'" class="field">
+            <label for="eq-vinc-perc">Comissão do vendedor (%)</label>
             <input
               id="eq-vinc-perc"
               v-model.number="vincularForm.percentual"
@@ -364,12 +369,14 @@ onMounted(carregar)
                 <td>
                   <template v-if="editandoId === m.id">
                     <input
+                      v-if="m.role !== 'vendedor_master'"
                       v-model.number="editPercentual"
                       type="number"
                       min="0"
                       step="0.01"
                       class="edit-perc"
                     />
+                    <span v-else class="hint-master">Override das faixas</span>
                     <label class="desc-padrao">
                       <input v-model="usarPadraoDesc" type="checkbox" />
                       Usar limite padrão da empresa
@@ -519,6 +526,13 @@ onMounted(carregar)
   color: var(--text-secondary);
   margin-top: -0.4rem;
   margin-bottom: 0.75rem;
+}
+
+.hint-master {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
 }
 
 .field {

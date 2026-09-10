@@ -260,13 +260,16 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 
 ## Equipe, hierarquia e herança de perfil (F3)
 
-- **Roles**: `admin_geral`/`admin` (empresa) → `vendedor_master` → `vendedor` (ponta); legado sem role com `vendedor_pai_id` = vendedor, senão admin. `EquipeView.vue` (rota `/equipe`, menu 👥) cria vendedor/Master, vincula conta existente, edita `%`/`ativo` e promove a admin.
+- **Roles**: `admin_geral`/`admin` (empresa) → `vendedor_master` → `vendedor` (ponta); legado sem role com `vendedor_pai_id` = vendedor, senão admin. `EquipeView.vue` (rota `/equipe`, menu 👥) cria vendedor/Master, vincula conta existente, edita `%`/`ativo` e promove a admin. O campo de comissão do **Master** é oculto (ele recebe o override das faixas).
+- **Inativo não loga**: `User.ativo=false` é recusado no `auth/login` e no Google `oauth/google/continue`; o front (`fetchMe`) também desloga com "Conta inativa".
 - **Herança do pai**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime (`f_perfil_efetivo` + `GET /perfil_efetivo` → `empresaEfetiva`/`userEfetivo`/`ehFilho`), inclusive para o **cabeçalho da Orca** (`OrcamentoItem_Inserir` grava `regime_id`/`uf_origem`/`uf_destino` pela config efetiva). Filhos **não guardam** `organizacao_id`/`uf`/`regime_id`. A UI oculta custo/lucro/margem/impostos/Frete B2B/Custo Kapazi e o `utils/perfil.ts` suprime pendências de perfil para filhos.
 
 ## Desconto do filho e aprovação do pai (F3)
 
 - **Limites por usuário** (`User.desconto_livre_perc`/`desconto_max_perc`) — **não herdam** da empresa. Sem cadastro (`null`/`0`) → **0** (bloqueia qualquer desconto). O admin define os limites de cada vendedor em `/equipe`; no `PerfilModal` os campos "Desconto livre/máx da equipe" são os do próprio admin. O `%` incide sobre a **venda bruta** (`venda_bruta_tot`); filhos **não alteram margem**.
-- **Banner de configuração** (`ConfigComissoesBanner.vue`): em Home, Orçamento, Comissões e `/faixas`, avisa admin/empresa e Master quando as **faixas de comissão** estão vazias e/ou os **limites de desconto** da equipe não estão cadastrados (ações "Configurar comissões" → `/faixas` e "Definir limites da equipe" → `/equipe`).
+- **Desconto Pix na mesma política**: `orcamento_recalcular` lê `condicoes_pagamento_params.descontoPixPercentual` e usa `perc = max(desconto%, pix%)` (acima do máximo bloqueia; acima do livre → `pendente`).
+- **Label de limites + olho**: no Desconto (R$) e no Desconto Pix aparece o texto `Desconto livre até X% · até Y% com aprovação.` com um olho para ocultar/mostrar (começa oculto).
+- **Banner de configuração** (`ConfigComissoesBanner.vue`): em Home, Orçamento, Comissões e `/faixas`, avisa admin/empresa, Master e vendedor (informativo) quando as **faixas de comissão** estão vazias e/ou os **limites de desconto** da equipe não estão cadastrados (ações "Configurar comissões" → `/faixas` e "Definir limites da equipe" → `/equipe`).
 - **Estado no orçamento**: `Orca.desconto_aprovado` + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`), marcados pelo `orcamento_recalcular`. `orcamento_status` bloqueia o avanço quando `pendente` **ou `recusado`** (filho); recusa mantém o desconto e exige o filho reduzir/remover.
 - **Fluxo**: banner no orçamento para o filho dono (aguardando) e para o pai/ancestral (aprovar/recusar, somente leitura) via `orcamento_aprovar_desconto`; fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`) permite aprovar em lote. Banners só aparecem para **filho dono** ou **pai/ancestral** (`podeVerPendencia`).
 
@@ -274,7 +277,7 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 
 - **Gatilho**: quando o pedido (`eh_pedido`) de um vendedor-filho fica **100% pago** (`pagamento_baixa`), idempotente por `(orca_id, user_id, tipo)`.
 - **Fase A (fallback)**: `valor = lucro_real × percentual_comissao` do vendedor.
-- **A.2 (Master + faixas)**: com `Faixa_Comissao` da **empresa** (admin topo da cadeia) cadastrada e um `vendedor_master` na cadeia, calcula pelo **markup efetivo** da orça e lança **2 registros**: ponta (`%` do cadastro, base = **venda `vnd_tot`**) + `override` do Master (`total_faixa − ponta`).
+- **A.2 (Master + faixas)**: com `Faixa_Comissao` da **empresa** (admin topo da cadeia) cadastrada e um `vendedor_master` na cadeia, calcula pelo **markup efetivo** da orça e lança **2 registros**: ponta (`%` do cadastro, base = **venda `vnd_tot`**) + `override` do Master (`total_faixa − ponta`). A tela `/faixas` (`FaixasComissaoView`) é um **formulário com labels** (Markup de/até %, Comissão total %, Ordem, Ativo), com **"Sugerir faixas padrão"** (`50–69→7`, `70–89→8`, `90–100→10`).
 - **Escopo por empresa** (`GET /comissoes`): `admin` (inclui `role=""`) e `vendedor_master` veem a **própria árvore** (eles + descendentes); `vendedor` só as dele; `admin_geral` (sistema) vê todas. Cada "Pai"/admin é uma **empresa independente**.
 - **Pagamento** (`POST /comissao_pagar`): permitido à **empresa admin ancestral** do dono da comissão ou ao `admin_geral`; o `vendedor_master` **não** paga. No front, `podePagar = isAdmin || isAdminGeral`.
 - **Equipe**: `admin` cria vendedor/Master; o `vendedor_master` cria apenas `vendedor` (pai = o master).

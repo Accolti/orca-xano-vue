@@ -111,6 +111,36 @@ const metodosPagamento = ref<{ pix: boolean; boleto: boolean; cartao: boolean }>
 const mesclarMetodos = ref(false)
 const trazerTodasParcelas = ref(false)
 const descontoPixPercentual = ref<number>(0)
+// Limites de desconto do usuário + visibilidade (olho) — oculto por padrão
+const mostrarLimitesDesconto = ref(false)
+const limitesDesconto = computed(() => {
+  if (authStore.isAdmin) return null
+  const u = authStore.user
+  const livre = Number(u?.desconto_livre_perc)
+  const max = Number(u?.desconto_max_perc)
+  return {
+    livre: !Number.isNaN(livre) && livre > 0 ? livre : 0,
+    max: !Number.isNaN(max) && max > 0 ? max : 0,
+  }
+})
+const limiteDescontoTexto = computed(() => {
+  if (authStore.isAdmin) return 'Sem limite de desconto.'
+  const l = limitesDesconto.value
+  if (!l || (l.livre <= 0 && l.max <= 0)) {
+    return 'Sem limite de desconto cadastrado — solicite ao administrador.'
+  }
+  return `Desconto livre até ${l.livre}% · até ${l.max}% com aprovação.`
+})
+// Status do desconto Pix frente aos limites (só para filhos)
+const pixLimiteStatus = computed<'acima' | 'pendente' | null>(() => {
+  if (authStore.isAdmin) return null
+  const p = Number(descontoPixPercentual.value) || 0
+  const l = limitesDesconto.value
+  if (!l || p <= 0) return null
+  if (p > l.max) return 'acima'
+  if (p > l.livre) return 'pendente'
+  return null
+})
 // Nº de parcelas do boleto escolhido pelo vendedor (null = máximo calculado)
 const parcelasBoleto = ref<number | null>(null)
 // Nº de parcelas do Pix escolhido (null = 2x)
@@ -2499,6 +2529,21 @@ async function enviarWhatsApp() {
                       class="input-num"
                     />
                   </div>
+                  <div class="limite-desc">
+                    <button
+                      type="button"
+                      class="btn-eye"
+                      :title="
+                        mostrarLimitesDesconto ? 'Ocultar limites' : 'Ver limites de desconto'
+                      "
+                      @click="mostrarLimitesDesconto = !mostrarLimitesDesconto"
+                    >
+                      {{ mostrarLimitesDesconto ? '🙈' : '👁' }}
+                    </button>
+                    <span v-if="mostrarLimitesDesconto" class="limite-desc-texto">
+                      {{ limiteDescontoTexto }}
+                    </span>
+                  </div>
                 </div>
                 <div class="recalc-item">
                   <label>Frete B2C (R$)</label>
@@ -2612,6 +2657,21 @@ async function enviarWhatsApp() {
                       class="input-num"
                       @input="simularPorDesconto"
                     />
+                  </div>
+                  <div class="limite-desc">
+                    <button
+                      type="button"
+                      class="btn-eye"
+                      :title="
+                        mostrarLimitesDesconto ? 'Ocultar limites' : 'Ver limites de desconto'
+                      "
+                      @click="mostrarLimitesDesconto = !mostrarLimitesDesconto"
+                    >
+                      {{ mostrarLimitesDesconto ? '🙈' : '👁' }}
+                    </button>
+                    <span v-if="mostrarLimitesDesconto" class="limite-desc-texto">
+                      {{ limiteDescontoTexto }}
+                    </span>
                   </div>
                 </div>
 
@@ -3117,6 +3177,25 @@ async function enviarWhatsApp() {
                     @change="selecionarPagamento('pix')"
                   />
                 </div>
+                <div class="limite-desc">
+                  <button
+                    type="button"
+                    class="btn-eye"
+                    :title="mostrarLimitesDesconto ? 'Ocultar limites' : 'Ver limites de desconto'"
+                    @click="mostrarLimitesDesconto = !mostrarLimitesDesconto"
+                  >
+                    {{ mostrarLimitesDesconto ? '🙈' : '👁' }}
+                  </button>
+                  <span v-if="mostrarLimitesDesconto" class="limite-desc-texto">
+                    {{ limiteDescontoTexto }}
+                  </span>
+                </div>
+                <p v-if="pixLimiteStatus === 'acima'" class="cond-badge limite-aviso-erro">
+                  Acima do máximo permitido ({{ limitesDesconto?.max }}%) — ajuste para salvar.
+                </p>
+                <p v-else-if="pixLimiteStatus === 'pendente'" class="cond-badge limite-aviso-alerta">
+                  Acima do desconto livre — exigirá aprovação.
+                </p>
                 <p v-if="descontoPixPercentual > 0" class="cond-badge badge-ok cond-pix-impacto">
                   Com desconto: seu lucro será R$
                   {{ pixImpacto.lucro.toFixed(2).replace('.', ',') }} ({{
@@ -4027,6 +4106,36 @@ async function enviarWhatsApp() {
 .btn-eye svg {
   width: 18px;
   height: 18px;
+}
+
+.limite-desc {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.limite-desc .btn-eye {
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+}
+
+.limite-desc-texto {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.limite-aviso-erro {
+  background: var(--danger-soft, #fef2f2);
+  color: var(--danger);
+  border: 1px solid var(--danger-light, #fecaca);
+}
+
+.limite-aviso-alerta {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
 }
 
 .header-eye {

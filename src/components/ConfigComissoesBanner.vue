@@ -13,13 +13,19 @@ const carregouFaixas = ref(false)
 const faixasVazias = ref(false)
 const membrosSemLimite = ref(false)
 
-// Mostra só para quem configura: empresa (admin) ou Master. Vendedor não vê.
+// Mostra para quem configura (admin/empresa e Master) e também para o vendedor
+// (informativo: sem limites de desconto ele não consegue aplicar desconto).
 const elegivel = computed(
-  () => !!authStore.user && (authStore.isAdmin || authStore.isVendedorMaster),
+  () =>
+    !!authStore.user &&
+    (authStore.isAdmin || authStore.isVendedorMaster || authStore.isVendedor),
 )
 
+const podeConfigurar = computed(() => authStore.isAdmin || authStore.isVendedorMaster)
+
 const semFaixas = computed(
-  () => !props.apenasLimites && elegivel.value && carregouFaixas.value && faixasVazias.value,
+  () =>
+    !props.apenasLimites && podeConfigurar.value && carregouFaixas.value && faixasVazias.value,
 )
 
 function faltaLimite(u: { desconto_livre_perc?: number | null; desconto_max_perc?: number | null }) {
@@ -36,6 +42,7 @@ const euSemLimite = computed(() => faltaLimite(authStore.user ?? {}))
 // Master: os dele + os da equipe dele.
 const semLimites = computed(() => {
   if (!elegivel.value) return false
+  if (authStore.isVendedor) return euSemLimite.value
   if (authStore.isVendedorMaster) return euSemLimite.value || membrosSemLimite.value
   return membrosSemLimite.value
 })

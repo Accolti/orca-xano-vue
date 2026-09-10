@@ -160,20 +160,22 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await xano.get('/api:-qqRIakp/auth/me')
       user.value = response.getBody()
-      await loadPerfilEfetivo()
     } catch (err) {
       console.error('[auth/me]', err)
       if (err instanceof XanoRequestError) {
         console.error('[auth/me] status:', err.getResponse().getStatusCode())
         console.error('[auth/me] body:', err.getResponse().getBody())
       }
-      if (err instanceof XanoRequestError && err.getResponse().getStatusCode() === 401) {
-        logout()
-        throw new Error('Sessão expirada. Faça login novamente.')
-      }
       logout()
       throw new Error('Sessão expirada. Faça login novamente.')
     }
+    // Conta desativada pela empresa não pode operar (barreira extra no front;
+    // o backend também recusa no login).
+    if (user.value && user.value.ativo === false) {
+      logout()
+      throw new Error('Conta inativa. Fale com o administrador.')
+    }
+    await loadPerfilEfetivo()
   }
 
   // Dispara o fluxo Google OAuth: chama init e redireciona o usuário para o Google
