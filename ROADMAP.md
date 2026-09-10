@@ -49,19 +49,21 @@ Status: **parcialmente feito** (seletor de instituição ⭐, checkboxes Pix/Bol
 
 ## 👥 Frente 3 — Multi-vendedor, planos, comissão e permissões
 
-Status: **fase inicial feita (2026-09)** — roles + gestão de equipe (`/equipe`). Comissões, permissões visuais e planos pendentes (planos de Comissões Fase A abaixo).
+Status: **base implementada (2026-09)** — roles/hierarquia (admin_geral → admin → vendedor_master → vendedor), gestão de equipe, permissões visuais (ocultação de custo/lucro para filhos), herança de perfil do pai, limites de desconto com aprovação do pai e notificações (sino); Comissões Fase A + A.2 entregues. Pendente: planos/assinaturas.
 
-### Feito ✅ (fase inicial)
-- `User.role` (`admin_geral`/`admin`/`vendedor`) + `vendedor_pai_id` + `percentual_comissao` + `ativo` (legado sem role = admin)
-- Endpoints: `GET /equipe`, `POST /equipe_criar`, `POST /equipe_vincular`, `POST /equipe_editar` (auth User; dono/`admin_geral`)
-- `EquipeView.vue` (rota `/equipe`, menu 👥 só p/ admin) — criar vendedor (login/senha inicial), vincular conta existente, editar %/desativar
-- `auth.ts`: helpers `isAdminGeral`/`isAdmin`/`isVendedor`
+### Feito ✅
+- `User.role` (`admin_geral`/`admin`/`vendedor_master`/`vendedor`) + `vendedor_pai_id` + `percentual_comissao` + `ativo` + `desconto_livre_perc`/`desconto_max_perc` (legado sem role com `vendedor_pai_id` = vendedor, senão admin)
+- Endpoints: `GET /equipe`, `POST /equipe_criar`/`equipe_vincular`/`equipe_editar`/`equipe_role`, `GET /perfil_efetivo`, `GET /comissoes`, `POST /comissao_pagar`, `GET /faixas_comissao`, `POST /faixa_comissao_salvar`, `POST /orcamento_aprovar_desconto`, `GET /orcamentos_pendentes_aprovacao`, `GET /notificacoes`, `POST /notificacoes_marcar_lida`
+- `EquipeView.vue` (rota `/equipe`) — criar vendedor/Master, vincular conta, editar %/ativo, promover a admin; `FaixasComissaoView` (`/faixas`); `ComissoesView` (`/comissoes`)
+- `auth.ts`: helpers `isAdminGeral`/`isAdmin`/`isVendedorMaster`/`isVendedor`/`ehFilho` + `empresaEfetiva`/`userEfetivo`
+- **Permissões visuais**: filhos não veem custo/lucro/margem/impostos/Frete B2B/Custo Kapazi; herdam a config fiscal/empresa do topo em runtime (`f_perfil_efetivo`)
+- **Limite de desconto** (livre 7% / máx 15% + override por vendedor) com aprovação do pai: `Orca.desconto_aprovado`/`desconto_status`, banners por `podeVerPendencia`, fila "Pendentes de aprovação"
+- **Notificações (sino)**: tabela `Notificacao` + badge/popover no `GlobalHeader`
 
 ### Pendente
-- [ ] **Permissões visuais (F3)**: vendedor NÃO vê custo da empresa (ocultar cst/markup/margem real); só quem tem "chave" vê
-- [ ] Limite de desconto por vendedor
 - [ ] Planos/assinaturas (vendedor compra plano; sub-vendedores com comissão)
 - [ ] **Tela de comissões** (Fase A entregue em `/comissoes`, 2026-09 — marcar paga, totais por período). Evoluções: comissão por afiliado (split) e planos
+- [ ] Escopo do `GET /comissoes` por ancestral (hoje `vendedor_master` cai no ramo amplo e `admin` não vê netos)
 
 ### Comissões — Fase A (plano aprovado em 2026-09 — implementado em 2026-09)
 
@@ -75,7 +77,7 @@ Modelo decidido: **empresa com vendedores** (role `admin` = dono/gestor, `vended
   - `pagamento_baixa`: ao deixar o pedido 100% pago, calcula `lucro_real` (mesma fórmula do `/relatorio`: `luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)`, % do `Desconto_Kapazi_Log`/`ControlePedido`) e insere `Comissao` do dono (`Orca.user_id`) quando tem `vendedor_pai_id`; idempotente; estorno não remove.
   - `GET /equipe` (admin) · `POST /equipe_vincular {email, percentual}` · `POST /equipe_criar {name, email, password, percentual}` · `GET /comissoes` (período; admin vê vendedores filhos, vendedor vê os dele) · `POST /comissao_pagar {comissao_id}`.
 - **Front**: `auth` User + helpers `isAdmin`/`isVendedor`; rotas `/equipe` e `/comissoes`; views `EquipeView` (vincular/criar/editar %) e `ComissoesView` (chips de período, tabelas, "Marcar paga"); menu condicional por role.
-- **Fases futuras**: B — permissões visuais (vendedor sem custo/markup/margem, limite de desconto); C — planos/assinaturas e (se preciso) `vendedor_master` (2 níveis).
+- **Fases futuras**: B — ✅ permissões visuais (vendedor sem custo/markup/margem) e limite de desconto com aprovação do pai (2026-09); C — planos/assinaturas (✅ `vendedor_master`/2 níveis entregue).
 
 ## 📊 Frente 4 — Relatórios e controle financeiro
 

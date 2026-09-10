@@ -78,13 +78,28 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 - **`prompt=select_account`**: a URL gerada por `google_oauth_getauthurl` inclui `prompt=select_account` → o Google **sempre mostra o seletor de contas** ao clicar em "Entrar com o Google" (permite trocar entre contas Google já cadastradas sem limpar a sessão do Google).
 - **Usuário novo via Google**: o `continue` **não cria** o usuário — `db.get User { email }` + `precondition ($user != null)` → rejeita com "Usuário não cadastrado" (acesso restrito). Para usar, **pré-criar** o `User` com o e-mail do Google (via `/signup` ou dashboard); o 1º login Google auto-vincula `google_oauth`.
 
-### Roles e Equipe (F3 inicial)
+### Roles, Equipe e hierarquia (F3)
 
-`User` ganhou `role` (`admin_geral`/`admin`/`vendedor`; legado sem role = admin), `vendedor_pai_id` (FK User) e `percentual_comissao` (base futura p/ comissões). Endpoints auth User: `equipe` (GET), `equipe_criar`/`equipe_vincular`/`equipe_editar` (POST). `EquipeView.vue` (rota `/equipe`, menu 👥 só p/ admin via `isAdmin`) cria vendedor com login/senha inicial, vincula conta existente e edita %/ativo. `auth.ts` expõe `role`/`isAdminGeral`/`isAdmin`/`isVendedor`.
+`User` ganhou `role` (`admin_geral`/`admin`/`vendedor_master`/`vendedor`; legado sem role com `vendedor_pai_id` = vendedor, senão admin), `vendedor_pai_id` (FK User), `percentual_comissao`, `ativo`, `desconto_livre_perc`, `desconto_max_perc`. Cadeia: **admin/admin_geral (empresa) → vendedor_master → vendedor (ponta)**. Endpoints auth User: `equipe` (GET), `equipe_criar`/`equipe_vincular`/`equipe_editar`/`equipe_role` (POST). `EquipeView.vue` (rota `/equipe`, menu 👥 só p/ admin/master via `isAdmin`) cria vendedor/Master com login/senha inicial, vincula conta existente, edita %/ativo e promove a admin (admin_geral). `auth.ts` expõe `role`/`isAdminGeral`/`isAdmin`/`isVendedorMaster`/`isVendedor`/`ehFilho` + `empresaEfetiva`/`userEfetivo`.
+
+**Herança do perfil do pai (`perfil_efetivo`)**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime via `f_perfil_efetivo` + `GET /perfil_efetivo` (→ `authStore.empresaEfetiva`/`userEfetivo`/`ehFilho`). `f_Orcamento_Orquestrador`/`fCalculaFrete` usam a config efetiva; `utils/perfil.ts` suprime pendências de perfil p/ filhos; a UI oculta blocos sensíveis (custo/lucro/margem/impostos/Frete B2B/Custo Kapazi) quando `ehFilho`.
 
 **Comissões (F3 Fase A)**: tabela `Comissao` (append-only; `user_id`/`orca_id`/`percentual`/`lucro_real_base`/`base_valor`/`tipo` vendedor|override/`valor`/`status` calculada|paga). Lançada no `pagamento_baixa` quando um pedido (`eh_pedido`) de vendedor-filho fica **100% pago** — `valor = lucro_real × percentual_comissao`, com lucro real da mesma fórmula do relatório (Desconto_Kapazi_Log + frete efetivo); idempotente por `orca_id`. Endpoints: `comissoes` (GET; admin → filhos, admin_geral → todos, vendedor → só as dele), `comissao_pagar` (POST; pai/admin_geral). `ComissoesView.vue` (rota `/comissoes`, menu 💸).
 
 **Comissões A.2 (Master/faixas por markup)**: role `vendedor_master` (2º nível); `Faixa_Comissao` por empresa (`faixa_min/max`, `comissao_total_perc`, `ativo`) configurada via `/faixas` (admin dono; admin_geral escolhe empresa). Engine: pedido do ponta 100% pago com faixas da empresa → markup efetivo da Orca → faixa → **2 lançamentos**: ponta (`%` do cadastro, base `vnd_tot`) e Master `override = total_faixa − ponta`; sem faixas → fallback Fase A (fixo sobre lucro real). `faixas_comissao` GET (resolve a empresa pela cadeia pai) e `faixa_comissao_salvar` POST. Front: `EquipeView` cria Master (admin); `FaixasComissaoView`; `ComissoesView` mostra Base/tipo; projeção "sua comissão nesta venda" no orçamento (usa `/faixas_comissao`).
+
+### Política de desconto e aprovação do pai (F3)
+
+Limites de desconto por empresa (raiz `User.desconto_livre_perc`/`desconto_max_perc`, defaults **7%/15%**) com override por vendedor (mesmos campos no `User` do vendedor; `null` = herda). O `%` é calculado sobre a **venda bruta** (`venda_bruta_tot`) e o limite vale para o filho; **filhos não alteram margem** (`newMargem` ignorado no recalcular).
+
+- `Orca.desconto_aprovado` (bool) + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`). O `orcamento_recalcular` valida os limites e marca o estado; `orcamento_status` **bloqueia o avanço** quando `pendente` **ou `recusado`** (filho). Recusa (opção (a)): mantém o desconto, marca `recusado` e bloqueia até o filho reduzir/remover.
+- **Aprovação**: `orcamento_aprovar_desconto` (POST) aprova/reprova; banner no orçamento para o **dono filho** (aguardando) e para o **pai/ancestral** (botões aprovar/recusar, somente leitura). A fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`, exclui os próprios) permite aprovar em lote.
+- **Banners gated por `podeVerPendencia`** (`OrcamentosView.vue`): só aparecem se o viewer for **filho dono** ou **pai/ancestral** — admin sem filhos não vê nada.
+- `f_DuplicaOrcamento` copia `regime_id`/`uf_origem`/`uf_destino` e grava `desconto_aprovado=true`/`desconto_status='aprovado'` no duplicado (duplicata não nasce pendente).
+
+### Notificações (sino)
+
+Tabela **`Notificacao`** (`user_id`, `tipo` `desconto_pendente|desconto_aprovado|desconto_recusado`, `orca_id`, `lida`, `data_leitura`). `GET /notificacoes` + `POST /notificacoes_marcar_lida`; `GlobalHeader.vue` mostra o **sino** com badge de não lidas, popover (`carregarNotifs`/`marcarTodasLidas`) e navega para o orçamento (`irParaNotif`). O backend cria as notificações ao mudar o estado de desconto (pendente → pai; aprovado/recusado → filho).
 
 ### Troca de usuário (dev)
 
@@ -118,6 +133,14 @@ O **conteúdo** da combo de Nível não vem mais de `niveisFiltrados` (só por `
 
 - **Vinil Alto Tráfego Vulcanizado** sem Nível 3 → o produto com `ativo=false` some do `/produtos_all` (backend filtra `$db.Produto.ativo == true` em `fTodos_Produtos`/`Ret_Suc_Filtrado`/`Ret_TabMaeEFilhas_2`) e o dropdown só mostra níveis 1 e 2.
 - **Vinil+Liso** → nenhum produto ativo com nível para essa combinação → `niveis` vazio → dropdown some. **A exceção hardcoded foi removida** (`mostrarNivel` agora é `sucAtual.Nivel > 0 && niveis.length > 0`).
+
+### Restauração do item na edição (Nível)
+
+Ao clicar em ✏️ num item, `editarItem` (`OrcamentosView.vue`) remonta os seletores (material/linha/tipo/nível/borda/variação/dimensões). O Nível era o único que não vinha selecionado, por **dois motivos**:
+
+1. **Backend**: `orca_por_id`/`orca_detalhes` não devolviam as FKs do produto no `itemS`. Agora o `eval` inclui **`material_id`, `linha_id`, `tipo_id`, `nivel_id`** (do `Produto`) no output — o item carrega tudo o que a edição precisa (inclusive em duplicatas).
+2. **Front (identidade de referência)**: o `<select v-model="nivelSelecionado">` usa `:value="n"` (objeto) com `n in orcamentoStore.niveis`; como `niveis` era computed que **criava objetos novos**, o objeto setado na edição (vindo de `catalogo.allNiveis`) não casava com a opção → combo ficava vazia. Correção: `niveis` agora devolve **o próprio objeto de `catalogo.allNiveis`** (só sintetiza fallback se faltar).
+3. **Guard do watch**: `watch(mostrarNivel)` limpa `nivelSelecionado` quando o Nível some; durante a remontagem ele disparava e zerava o valor. Adicionada a flag **`restaurandoItem`** (store): `editarItem` liga a flag e desliga em `nextTick`; o watch só limpa quando `!restaurandoItem`. Há ainda fallback no `nextTick` que reaplica o Nível a partir de `orcamentoStore.niveis.find(id)` se tiver ficado nulo.
 
 ### Produtos inativos (flag `ativo`)
 
@@ -219,7 +242,7 @@ A coluna `item.qtd` (e o input `quantidade` dos endpoints/funções de cálculo)
 
 ### Duplicar orçamento
 
-- Backend: `POST /orcamento_duplicar` → `Orcamento/f_DuplicaOrcamento` copia a **Orca** (fretes, validade, margens, `markup_alvo/efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`, `condicoes_pagamento_params`) e os **itens** com todos os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc` — abrindo o duplicado **em modo edição** para ajustar itens/bordas/qtd/dimensões.
+- Backend: `POST /orcamento_duplicar` → `Orcamento/f_DuplicaOrcamento` copia a **Orca** (fretes, validade, margens, `markup_alvo/efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`, `condicoes_pagamento_params`, `regime_id`/`uf_origem`/`uf_destino`) e os **itens** com todos os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc` — abrindo o duplicado **em modo edição** para ajustar itens/bordas/qtd/dimensões. Grava `desconto_aprovado=true`/`desconto_status='aprovado'` (duplicata não nasce pendente de aprovação).
 - Front: `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ **CamelCase no path**, como `OrcamentoItem_Inserir` — Xano é case-sensitive na URL; `orcamento_duplicar` minúsculo dava 404). Botão "Duplicar" (ícone copy) na listagem de orçamentos (desktop + mobile) → navega para `/orcamentos/{novoCod}`.
 
 ### Condições de Pagamento (seletor avançado)
@@ -307,6 +330,8 @@ Botão **"＋ Novo cliente"** (sempre visível no cabeçalho da seção Cliente,
 - **`|default:<var.property>` no `value` de um `var`/`var.update` quebra com `Unable to locate func entry: default`**: em `Precificar`, `var $aliq_st { value = $input.aliq_st_interna |default:$estado_destino.aliquota_modal }` era parseado como chamada de função `default(...)` → erro só em regime ≠ MEI com produto com ST (`tem_st`). Correção: `value = $input.aliq_st_interna` + `conditional { if (!$aliq_st) { var.update $aliq_st { value = $estado_destino.aliquota_modal } } }`. Obs.: `|first_notnull`/`|first_notempty` com propriedade em `db.edit`/`db.add` **funcionam** — o problema é específico do `|default:` no `value` de variável.
 - **`xano function run` NÃO é teste válido para chamadas entre funções**: o CLI falha com "Function does not exist: function:<id>" mesmo quando a função chamada existe e o app funciona. Verificar sempre no **app** (ou no teste do próprio Xano no dashboard).
 - **Modais/Teleports usados por botões em visões condicionais precisam estar MONTADOS na visão onde o botão está.** A `OrcamentosView` tem duas visões mutuamente exclusivas (edição `<template v-if="!mostrarResumo">` e resumo `<template v-else>`). O `PagamentoModal` foi colocado dentro do bloco de edição, mas os botões "Faturar"/"💳 Financeiro" estão na visão resumo → clicavam, setavam o `modelValue` e nada abria (modal fora do DOM). Correção: mover o modal para a **raiz** de `.orcamento-page`, fora dos dois blocos (posição é irrelevante — Teleport → body). `SimulacaoModal`/`ClienteModal`, que só abrem na edição, podem permanecer dentro do bloco.
+- **`<select v-model>` com `:value` de objeto casa por REFERÊNCIA**: se a lista de opções é um `computed` que **cria objetos novos** a cada avaliação, um valor setado a partir de outra fonte (ex.: `catalogo.allNiveis`) nunca casa → a combo aparece **sem seleção** (o `✕` aparece mesmo com o dado preenchido). Sintoma clássico: "a listbox tem as opções mas não vem selecionada ao editar". Correção: fazer o `computed` devolver **a própria referência** do objeto de catálogo (`catalogo.allNiveis.find(...)`), em vez de `{ ...campos }` sintetizado; ou usar `:value="x.id"` + `v-model` no id. Vale para Nível (corrigido), e é o padrão a seguir em qualquer seletor desse tipo.
+- **Watches que limpam seleção durante remontagem de item**: ao remontar um formulário a partir de um registro (ex.: `editarItem`), um `watch` reativo (como `watch(mostrarNivel)` que zera `nivelSelecionado`) dispara no meio da montagem e apaga o valor. Usar uma flag de guarda (`restaurandoItem`) ligada durante a remontagem e desligada em `nextTick`, com fallback que reaplica o valor a partir da lista já estabilizada.
 
 ## Conventions
 

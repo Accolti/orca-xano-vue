@@ -248,8 +248,30 @@ Vendido por M²; composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e 
 
 ## Duplicar orçamento
 
-- Backend **`POST /orcamento_duplicar`** → `Orcamento/f_DuplicaOrcamento`: duplica a Orca (fretes, validade, margens, `markup_alvo`/`markup_efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`) e os itens com **todos** os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc`.
+- Backend **`POST /orcamento_duplicar`** → `Orcamento/f_DuplicaOrcamento`: duplica a Orca (fretes, validade, margens, `markup_alvo`/`markup_efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`, `condicoes_pagamento_params`, `regime_id`/`uf_origem`/`uf_destino`) e os itens com **todos** os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc`. O duplicado nasce com `desconto_aprovado=true` / `desconto_status='aprovado'` (não entra na fila de aprovação).
 - Front: botão **"Duplicar"** (ícone copy) na listagem de orçamentos (desktop + mobile) → `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ CamelCase no path, Xano é case-sensitive) → navega para o novo orçamento **em modo edição** (para ajustar itens/bordas/qtd/dimensões).
+
+## Edição de item (restauração dos seletores)
+
+Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/variação) são remontados a partir do próprio item:
+
+- `orca_por_id`/`orca_detalhes` devolvem no `itemS` as FKs do produto — **`material_id`, `linha_id`, `tipo_id`, `nivel_id`** (além de `produto_id`/`borda_id`/`variacao_id`/`tipo_fator_id`).
+- O **Nível** vem preselecionado: `orcamentoStore.niveis` devolve o **mesmo objeto** de `catalogo.allNiveis` (o `<select v-model>` casa por referência) e a flag `restaurandoItem` impede o `watch(mostrarNivel)` de limpar o valor durante a remontagem (fallback reaplica em `nextTick`).
+
+## Equipe, hierarquia e herança de perfil (F3)
+
+- **Roles**: `admin_geral`/`admin` (empresa) → `vendedor_master` → `vendedor` (ponta); legado sem role com `vendedor_pai_id` = vendedor, senão admin. `EquipeView.vue` (rota `/equipe`, menu 👥) cria vendedor/Master, vincula conta existente, edita `%`/`ativo` e promove a admin.
+- **Herança do pai**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime (`f_perfil_efetivo` + `GET /perfil_efetivo` → `empresaEfetiva`/`userEfetivo`/`ehFilho`). A UI oculta custo/lucro/margem/impostos/Frete B2B/Custo Kapazi e o `utils/perfil.ts` suprime pendências de perfil para filhos.
+
+## Desconto do filho e aprovação do pai (F3)
+
+- **Limites**: livre **7%** / máximo **15%** por empresa (raiz `User.desconto_livre_perc`/`desconto_max_perc`), com override por vendedor (`null` = herda). O `%` incide sobre a **venda bruta** (`venda_bruta_tot`) e vale para o filho; filhos **não alteram margem**.
+- **Estado no orçamento**: `Orca.desconto_aprovado` + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`), marcados pelo `orcamento_recalcular`. `orcamento_status` bloqueia o avanço quando `pendente` **ou `recusado`** (filho); recusa mantém o desconto e exige o filho reduzir/remover.
+- **Fluxo**: banner no orçamento para o filho dono (aguardando) e para o pai/ancestral (aprovar/recusar, somente leitura) via `orcamento_aprovar_desconto`; fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`) permite aprovar em lote. Banners só aparecem para **filho dono** ou **pai/ancestral** (`podeVerPendencia`).
+
+## Notificações (sino)
+
+Tabela **`Notificacao`** (`user_id`, `tipo` `desconto_pendente|desconto_aprovado|desconto_recusado`, `orca_id`, `lida`, `data_leitura`). O backend cria a notificação ao mudar o estado de desconto (pendente → pai; aprovado/recusado → filho). `GET /notificacoes` + `POST /notificacoes_marcar_lida`; o **sino** em `GlobalHeader.vue` mostra badge de não lidas, popover com as notificações e navega para o orçamento.
 
 ## Detalhes do cálculo ML (`detalhes_calculo.ml`)
 

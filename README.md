@@ -43,6 +43,11 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Dashboard com período** — Home vira painel (cards + funil de status) filtrável por mês de início e Mensal/Trimestral/Semestral/Anual (`/dashboard?periodo&mes_inicio`)
 - **Novo cliente dentro do orçamento** — botão "＋ Novo cliente" na seção Cliente cria o cliente e já o vincula ao orçamento aberto
 - **Relatórios** — página `/relatorios` com Financeiro de Pedidos (custo/desconto Kapazi, frete efetivo, lucro/margem real), Recebidos por período e Funil de status (`Orca_Status_Log`), com a mesma barra de período
+- **Multi-vendedor (F3)** — hierarquia admin_geral → admin → vendedor_master → vendedor, gestão de equipe (`/equipe`), comissões Fase A + faixas por markup (`/comissoes`, `/faixas`)
+- **Permissões do filho** — vendedores não veem custo/lucro/margem/impostos/Frete B2B; herdam a config fiscal/empresa do topo em runtime (`f_perfil_efetivo`)
+- **Desconto com aprovação** — limite livre/máximo por empresa (override por vendedor); acima do limite o orçamento fica `pendente`/`recusado` até o pai aprovar (banner + fila em `/orcamentos`)
+- **Notificações** — sino no header com badge de não lidas (tabela `Notificacao`)
+- **Edição de item** — seletores restaurados do próprio item (incl. Nível preselecionado)
 
 ## Rotas
 
@@ -54,6 +59,9 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 | `/pedidos` | PedidosView | Sim |
 | `/pagamentos` | PagamentosView (controle financeiro) | Sim |
 | `/relatorios` | RelatoriosView | Sim |
+| `/equipe` | EquipeView (multi-vendedor) | Sim (admin/master) |
+| `/comissoes` | ComissoesView | Sim |
+| `/faixas` | FaixasComissaoView | Sim (admin) |
 | `/orcamentos/novo` | OrcamentosView (criação) | Sim |
 | `/orcamentos/:codOrca` | OrcamentosView (edição) | Sim |
 | `/login` | LoginView | Não (redireciona se logado) |
@@ -96,6 +104,17 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `POST` | `/pagamento_excluir` | Excluir parcela |
 | `GET` | `/dashboard` | Resumo do dashboard (`mes_inicio` + `periodo`) |
 | `GET` | `/relatorio` | Relatório consolidado: Financeiro, Recebidos e Funil |
+| `GET` | `/perfil_efetivo` | Perfil efetivo do usuário (herança do pai p/ filhos) |
+| `GET` | `/equipe` | Listar equipe (filhos) |
+| `POST` | `/equipe_criar` `/equipe_vincular` `/equipe_editar` `/equipe_role` | Gestão de equipe (criar/vincular/editar/promover) |
+| `GET` | `/comissoes` | Listar comissões (escopo por role) |
+| `POST` | `/comissao_pagar` | Marcar comissão como paga |
+| `GET` | `/faixas_comissao` | Faixas de comissão por empresa |
+| `POST` | `/faixa_comissao_salvar` | Salvar faixas de comissão |
+| `POST` | `/orcamento_aprovar_desconto` | Aprovar/recusar desconto do filho |
+| `GET` | `/orcamentos_pendentes_aprovacao` | Fila de descontos pendentes |
+| `GET` | `/notificacoes` | Listar notificações do usuário |
+| `POST` | `/notificacoes_marcar_lida` | Marcar notificações como lidas |
 
 ## APIs externas
 
@@ -133,11 +152,11 @@ npm run format     # formatar src/ com Prettier
 ```
 src/
 ├── assets/           # CSS global (base.css, main.css)
-├── components/       # SidebarNav, ClienteModal, GlobalHeader, SimulacaoModal
+├── components/       # SidebarNav, ClienteModal, GlobalHeader, SimulacaoModal, PagamentoModal, PeriodoBar
 ├── data/             # mappings.ts (dropdowns Ramo/Mercado/Regime/Benefício)
 ├── router/           # Vue Router + navigation guard
 ├── services/         # XanoClient singleton
-├── stores/           # Pinia (auth, orcamento, catalogo, cliente)
+├── stores/           # Pinia (auth, orcamento, catalogo, cliente, pagamentos)
 ├── types/            # Interfaces (Cliente, Orcamento, etc.)
-└── views/            # Home, Login, Signup, Clientes, Orcamentos, OrcamentosList, About
+└── views/            # Home, Login, Signup, Clientes, Orcamentos, OrcamentosList, Pedidos, Pagamentos, Relatorios, Equipe, Comissoes, FaixasComissao
 ```
