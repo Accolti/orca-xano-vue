@@ -62,8 +62,7 @@ async function carregar() {
     const resp = await xano.get(`/api:-qqRIakp/comissoes?${params.toString()}`)
     const d = resp.getBody() ?? {}
     linhas.value = (d?.linhas as LinhaComissao[]) ?? []
-    totais.value =
-      d?.totais ?? { calculada: { qtd: 0, total: 0 }, paga: { qtd: 0, total: 0 } }
+    totais.value = d?.totais ?? { calculada: { qtd: 0, total: 0 }, paga: { qtd: 0, total: 0 } }
   } catch (err) {
     erro.value = getErrorMessage(err)
   } finally {
@@ -112,7 +111,8 @@ onMounted(carregar)
     <header class="com-head">
       <h1>Comissões</h1>
       <p class="subtitle">
-        Comissão lançada quando o pedido do vendedor é 100% pago (lucro real × % negociado).
+        Comissão lançada quando o pedido é 100% pago — base = venda (`vnd_tot`) na faixa do Master;
+        sem faixas, sobre o lucro real × % negociado.
       </p>
     </header>
 
@@ -135,9 +135,7 @@ onMounted(carregar)
         </div>
       </div>
 
-      <div v-if="!linhas.length && !loading" class="vazio">
-        Nenhuma comissão no período.
-      </div>
+      <div v-if="!linhas.length && !loading" class="vazio">Nenhuma comissão no período.</div>
 
       <div v-else-if="linhas.length" class="tabela-wrapper">
         <table class="tabela">

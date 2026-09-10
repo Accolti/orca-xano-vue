@@ -269,6 +269,15 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 - **Estado no orçamento**: `Orca.desconto_aprovado` + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`), marcados pelo `orcamento_recalcular`. `orcamento_status` bloqueia o avanço quando `pendente` **ou `recusado`** (filho); recusa mantém o desconto e exige o filho reduzir/remover.
 - **Fluxo**: banner no orçamento para o filho dono (aguardando) e para o pai/ancestral (aprovar/recusar, somente leitura) via `orcamento_aprovar_desconto`; fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`) permite aprovar em lote. Banners só aparecem para **filho dono** ou **pai/ancestral** (`podeVerPendencia`).
 
+## Comissões (Fase A / A.2)
+
+- **Gatilho**: quando o pedido (`eh_pedido`) de um vendedor-filho fica **100% pago** (`pagamento_baixa`), idempotente por `(orca_id, user_id, tipo)`.
+- **Fase A (fallback)**: `valor = lucro_real × percentual_comissao` do vendedor.
+- **A.2 (Master + faixas)**: com `Faixa_Comissao` da **empresa** (admin topo da cadeia) cadastrada e um `vendedor_master` na cadeia, calcula pelo **markup efetivo** da orça e lança **2 registros**: ponta (`%` do cadastro, base = **venda `vnd_tot`**) + `override` do Master (`total_faixa − ponta`).
+- **Escopo por empresa** (`GET /comissoes`): `admin` (inclui `role=""`) e `vendedor_master` veem a **própria árvore** (eles + descendentes); `vendedor` só as dele; `admin_geral` (sistema) vê todas. Cada "Pai"/admin é uma **empresa independente**.
+- **Pagamento** (`POST /comissao_pagar`): permitido à **empresa admin ancestral** do dono da comissão ou ao `admin_geral`; o `vendedor_master` **não** paga. No front, `podePagar = isAdmin || isAdminGeral`.
+- **Equipe**: `admin` cria vendedor/Master; o `vendedor_master` cria apenas `vendedor` (pai = o master).
+
 ## Notificações (sino)
 
 Tabela **`Notificacao`** (`user_id`, `tipo` `desconto_pendente|desconto_aprovado|desconto_recusado`, `orca_id`, `lida`, `data_leitura`). O backend cria a notificação ao mudar o estado de desconto (pendente → pai; aprovado/recusado → filho). `GET /notificacoes` + `POST /notificacoes_marcar_lida`; o **sino** em `GlobalHeader.vue` mostra badge de não lidas, popover com as notificações e navega para o orçamento.
