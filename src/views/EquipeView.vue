@@ -239,10 +239,15 @@ async function salvarEdicao(m: MembroEquipe) {
   }
   salvandoEdicao.value = true
   try {
-    const payload: Record<string, unknown> = { user_id: m.id }
-    // Master não usa comissão própria (vem das faixas) → não sobrescreve
-    if (m.role !== 'vendedor_master') {
-      payload.percentual_comissao = editPercentual.value == null ? 0 : Number(editPercentual.value)
+    const payload: Record<string, unknown> = {
+      user_id: m.id,
+      // Master não usa comissão própria (vem das faixas) → preserva o valor atual
+      percentual_comissao:
+        m.role === 'vendedor_master'
+          ? (m.percentual_comissao ?? 0)
+          : editPercentual.value == null
+            ? 0
+            : Number(editPercentual.value),
     }
     if (!usarPadraoDesc.value) {
       payload.desconto_livre_perc = editLivre.value == null ? 0 : Number(editLivre.value)
@@ -271,7 +276,7 @@ async function salvarEdicao(m: MembroEquipe) {
 
 async function alternarAtivo(m: MembroEquipe) {
   try {
-    await xano.post('/api:-qqRIakp/equipe_editar', {
+    await xano.post('/api:-qqRIakp/equipe_ativo', {
       user_id: m.id,
       ativo: !(m.ativo ?? true),
     })
