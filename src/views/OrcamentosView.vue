@@ -917,6 +917,10 @@ function editarItem(item: any) {
   }
   observacao.value = item.descricao ?? ''
   nextTick(() => {
+    if (!orcamentoStore.nivelSelecionado && nivel) {
+      const daLista = orcamentoStore.niveis.find((x) => x.id === nivel.id)
+      if (daLista) orcamentoStore.nivelSelecionado = daLista
+    }
     orcamentoStore.restaurandoItem = false
   })
   window.scrollTo({ top: 0, behavior: 'smooth' })

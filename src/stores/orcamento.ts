@@ -44,13 +44,18 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       ) {
         if (!vistos.has(p.nivel_id!)) {
           const completo = catalogo.allNiveis.find((n) => n.id === p.nivel_id)
-          vistos.set(p.nivel_id!, {
-            id: p.nivel_id!,
-            nome: p.nivel_nome ?? completo?.nome ?? `Nível ${p.nivel_id}`,
-            Descricao: completo?.Descricao ?? '',
-            material_id: m.id,
-            created_at: completo?.created_at ?? 0,
-          })
+          // Retorna o PRÓPRIO objeto do catálogo (mesma referência usada na restauração
+          // do item) para o <select v-model> casar a opção; sintetiza só se faltar.
+          vistos.set(
+            p.nivel_id!,
+            completo ?? {
+              id: p.nivel_id!,
+              nome: p.nivel_nome ?? `Nível ${p.nivel_id}`,
+              Descricao: '',
+              material_id: m.id,
+              created_at: 0,
+            },
+          )
         }
       }
     }
