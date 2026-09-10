@@ -45,6 +45,8 @@ const editandoId = ref<number | null>(null)
 const editPercentual = ref<number | null>(null)
 const editLivre = ref<number | null>(null)
 const editMax = ref<number | null>(null)
+const editPadraoLivre = ref(0)
+const editPadraoMax = ref(0)
 const usarPadraoDesc = ref(true)
 const salvandoEdicao = ref(false)
 
@@ -58,22 +60,46 @@ const padraoEmpresaMax = computed(() => {
   return !Number.isNaN(v) && v > 0 ? v : 0
 })
 
+// Padrão da empresa DONA do membro. Para admin_geral (vê várias empresas) sobe a
+// cadeia vendedor_pai_id até o topo; para admin/master usa a própria config efetiva.
+function padraoDoMembro(m: MembroEquipe): { livre: number; max: number } {
+  if (!authStore.isAdminGeral) {
+    return { livre: padraoEmpresaLivre.value, max: padraoEmpresaMax.value }
+  }
+  const byId = new Map(membros.value.map((x) => [x.id, x]))
+  let cur: MembroEquipe | undefined = m
+  let guard = 0
+  while (cur?.vendedor_pai_id && guard < 10) {
+    const pai = byId.get(Number(cur.vendedor_pai_id))
+    if (!pai) break
+    cur = pai
+    guard++
+  }
+  const l = Number(cur?.desconto_livre_perc)
+  const x = Number(cur?.desconto_max_perc)
+  return {
+    livre: !Number.isNaN(l) && l > 0 ? l : 0,
+    max: !Number.isNaN(x) && x > 0 ? x : 0,
+  }
+}
+
 function descontoEfetivo(m: MembroEquipe): { livre: number; max: number; herdado: boolean } {
   const l = Number(m.desconto_livre_perc)
   const x = Number(m.desconto_max_perc)
   const temL = !Number.isNaN(l) && l > 0
   const temX = !Number.isNaN(x) && x > 0
+  const padrao = padraoDoMembro(m)
   return {
-    livre: temL ? l : padraoEmpresaLivre.value,
-    max: temX ? x : padraoEmpresaMax.value,
+    livre: temL ? l : padrao.livre,
+    max: temX ? x : padrao.max,
     herdado: !temL && !temX,
   }
 }
 
 function alternarHerdar() {
   if (!usarPadraoDesc.value) {
-    if (editLivre.value == null) editLivre.value = padraoEmpresaLivre.value || null
-    if (editMax.value == null) editMax.value = padraoEmpresaMax.value || null
+    if (editLivre.value == null) editLivre.value = editPadraoLivre.value || null
+    if (editMax.value == null) editMax.value = editPadraoMax.value || null
   }
 }
 
@@ -183,6 +209,9 @@ function iniciarEdicao(m: MembroEquipe) {
   const temMax = Number(m.desconto_max_perc) > 0
   editLivre.value = temLivre ? Number(m.desconto_livre_perc) : null
   editMax.value = temMax ? Number(m.desconto_max_perc) : null
+  const padrao = padraoDoMembro(m)
+  editPadraoLivre.value = padrao.livre
+  editPadraoMax.value = padrao.max
   usarPadraoDesc.value = !temLivre && !temMax
   erro.value = null
 }
@@ -192,6 +221,8 @@ function cancelarEdicao() {
   editPercentual.value = null
   editLivre.value = null
   editMax.value = null
+  editPadraoLivre.value = 0
+  editPadraoMax.value = 0
   usarPadraoDesc.value = true
 }
 
@@ -208,22 +239,26 @@ async function salvarEdicao(m: MembroEquipe) {
   }
   salvandoEdicao.value = true
   try {
-    const payload: Record<string, unknown> = {
-      user_id: m.id,
-      percentual_comissao: editPercentual.value ?? undefined,
+    const payload: Record<string, unknown> = { user_id: m.id }
+    // Master não usa comissão própria (vem das faixas) → não sobrescreve
+    if (m.role !== 'vendedor_master') {
+      payload.percentual_comissao = editPercentual.value == null ? 0 : Number(editPercentual.value)
     }
     if (!usarPadraoDesc.value) {
-      payload.desconto_livre_perc = editLivre.value == null ? null : Number(editLivre.value)
-      payload.desconto_max_perc = editMax.value == null ? null : Number(editMax.value)
+      payload.desconto_livre_perc = editLivre.value == null ? 0 : Number(editLivre.value)
+      payload.desconto_max_perc = editMax.value == null ? 0 : Number(editMax.value)
     } else {
-      payload.desconto_livre_perc = null
-      payload.desconto_max_perc = null
+      // 0 = herda o padrão da empresa
+      payload.desconto_livre_perc = 0
+      payload.desconto_max_perc = 0
     }
     await xano.post('/api:-qqRIakp/equipe_editar', payload)
     editandoId.value = null
     editPercentual.value = null
     editLivre.value = null
     editMax.value = null
+    editPadraoLivre.value = 0
+    editPadraoMax.value = 0
     usarPadraoDesc.value = true
     avisarOk('Dados do vendedor atualizados.')
     await carregar()
@@ -429,7 +464,7 @@ onMounted(carregar)
                       Herdar da empresa
                     </label>
                     <div v-if="usarPadraoDesc" class="valor-herdado">
-                      {{ padraoEmpresaLivre }}% / {{ padraoEmpresaMax }}%
+                      {{ editPadraoLivre }}% / {{ editPadraoMax }}%
                       <small>(herdado)</small>
                     </div>
                     <div v-else class="edit-field">
