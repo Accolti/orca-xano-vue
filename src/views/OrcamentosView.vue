@@ -19,6 +19,7 @@ import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import PagamentoModal from '@/components/PagamentoModal.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
+import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
@@ -1588,6 +1589,7 @@ async function enviarWhatsApp() {
 <template>
   <div class="orcamento-page">
     <PendenciasPerfilBanner />
+    <ConfigComissoesBanner />
     <div v-if="descontoPendente && podeVerPendencia" class="desc-banner" :class="{ 'desc-pai': viewerPai }">
       <span v-if="souDonoOrcamento">
         Desconto acima do limite livre aguarda aprovação do pai — o envio/avanço de status fica

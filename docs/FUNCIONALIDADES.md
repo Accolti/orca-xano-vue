@@ -261,11 +261,12 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 ## Equipe, hierarquia e herança de perfil (F3)
 
 - **Roles**: `admin_geral`/`admin` (empresa) → `vendedor_master` → `vendedor` (ponta); legado sem role com `vendedor_pai_id` = vendedor, senão admin. `EquipeView.vue` (rota `/equipe`, menu 👥) cria vendedor/Master, vincula conta existente, edita `%`/`ativo` e promove a admin.
-- **Herança do pai**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime (`f_perfil_efetivo` + `GET /perfil_efetivo` → `empresaEfetiva`/`userEfetivo`/`ehFilho`). A UI oculta custo/lucro/margem/impostos/Frete B2B/Custo Kapazi e o `utils/perfil.ts` suprime pendências de perfil para filhos.
+- **Herança do pai**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime (`f_perfil_efetivo` + `GET /perfil_efetivo` → `empresaEfetiva`/`userEfetivo`/`ehFilho`), inclusive para o **cabeçalho da Orca** (`OrcamentoItem_Inserir` grava `regime_id`/`uf_origem`/`uf_destino` pela config efetiva). Filhos **não guardam** `organizacao_id`/`uf`/`regime_id`. A UI oculta custo/lucro/margem/impostos/Frete B2B/Custo Kapazi e o `utils/perfil.ts` suprime pendências de perfil para filhos.
 
 ## Desconto do filho e aprovação do pai (F3)
 
-- **Limites**: livre **7%** / máximo **15%** por empresa (raiz `User.desconto_livre_perc`/`desconto_max_perc`), com override por vendedor (`null` = herda). O `%` incide sobre a **venda bruta** (`venda_bruta_tot`) e vale para o filho; filhos **não alteram margem**.
+- **Limites por usuário** (`User.desconto_livre_perc`/`desconto_max_perc`) — **não herdam** da empresa. Sem cadastro (`null`/`0`) → **0** (bloqueia qualquer desconto). O admin define os limites de cada vendedor em `/equipe`; no `PerfilModal` os campos "Desconto livre/máx da equipe" são os do próprio admin. O `%` incide sobre a **venda bruta** (`venda_bruta_tot`); filhos **não alteram margem**.
+- **Banner de configuração** (`ConfigComissoesBanner.vue`): em Home, Orçamento, Comissões e `/faixas`, avisa admin/empresa e Master quando as **faixas de comissão** estão vazias e/ou os **limites de desconto** da equipe não estão cadastrados (ações "Configurar comissões" → `/faixas` e "Definir limites da equipe" → `/equipe`).
 - **Estado no orçamento**: `Orca.desconto_aprovado` + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`), marcados pelo `orcamento_recalcular`. `orcamento_status` bloqueia o avanço quando `pendente` **ou `recusado`** (filho); recusa mantém o desconto e exige o filho reduzir/remover.
 - **Fluxo**: banner no orçamento para o filho dono (aguardando) e para o pai/ancestral (aprovar/recusar, somente leitura) via `orcamento_aprovar_desconto`; fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`) permite aprovar em lote. Banners só aparecem para **filho dono** ou **pai/ancestral** (`podeVerPendencia`).
 

@@ -82,7 +82,7 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 
 `User` ganhou `role` (`admin_geral`/`admin`/`vendedor_master`/`vendedor`; legado sem role com `vendedor_pai_id` = vendedor, senão admin), `vendedor_pai_id` (FK User), `percentual_comissao`, `ativo`, `desconto_livre_perc`, `desconto_max_perc`. Cadeia: **admin/admin_geral (empresa) → vendedor_master → vendedor (ponta)**. **Cada "Pai"/admin é uma empresa independente** (`admin_geral` é só o administrador do sistema). Endpoints auth User: `equipe` (GET), `equipe_criar`/`equipe_vincular`/`equipe_editar`/`equipe_role` (POST). `EquipeView.vue` (rota `/equipe`, menu 👥 via `manager` = admin ou master) cria vendedor/Master com login/senha inicial (o **vendedor_master só cria `vendedor`**; a opção de papel só aparece para admin), vincula conta existente, edita %/ativo e promove a admin (admin_geral). `auth.ts` expõe `role`/`isAdminGeral`/`isAdmin`/`isVendedorMaster`/`isVendedor`/`ehFilho` + `empresaEfetiva`/`userEfetivo`.
 
-**Herança do perfil do pai (`perfil_efetivo`)**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime via `f_perfil_efetivo` + `GET /perfil_efetivo` (→ `authStore.empresaEfetiva`/`userEfetivo`/`ehFilho`). `f_Orcamento_Orquestrador`/`fCalculaFrete` usam a config efetiva; `utils/perfil.ts` suprime pendências de perfil p/ filhos; a UI oculta blocos sensíveis (custo/lucro/margem/impostos/Frete B2B/Custo Kapazi) quando `ehFilho`.
+**Herança do perfil do pai (`perfil_efetivo`)**: filhos (vendedor/Master) **não** editam config fiscal/empresa — herdam do topo em runtime via `f_perfil_efetivo` + `GET /perfil_efetivo` (→ `authStore.empresaEfetiva`/`userEfetivo`/`ehFilho`). `f_Orcamento_Orquestrador`/`fCalculaFrete` usam a config efetiva; `OrcamentoItem_Inserir` grava o cabeçalho da Orca (`regime_id`/`uf_origem`/`uf_destino`) também pela config efetiva (antes usava o usuário cru → filho gravava `regime_id=0`/`uf_destino=""`); `utils/perfil.ts` suprime pendências de perfil p/ filhos; a UI oculta blocos sensíveis (custo/lucro/margem/impostos/Frete B2B/Custo Kapazi) quando `ehFilho`. Filhos **não guardam** `organizacao_id`/`uf`/`regime_id` — herdam do topo.
 
 **Comissões (F3 Fase A)**: tabela `Comissao` (append-only; `user_id`/`orca_id`/`percentual`/`lucro_real_base`/`base_valor`/`tipo` vendedor|override/`valor`/`status` calculada|paga). Lançada no `pagamento_baixa` quando um pedido (`eh_pedido`) de vendedor-filho fica **100% pago** — `valor = lucro_real × percentual_comissao`, com lucro real da mesma fórmula do relatório (Desconto_Kapazi_Log + frete efetivo); idempotente por `orca_id`. Endpoints: `comissoes` (GET; escopo por **árvore/empresa** — `admin` (inclui `role=""`) e `vendedor_master` veem a própria árvore (descendentes) + eles mesmos; `vendedor` só as dele; `admin_geral` do sistema vê tudo), `comissao_pagar` (POST; **empresa admin ancestral** do dono ou `admin_geral` — o `vendedor_master` **não** paga). `ComissoesView.vue` (rota `/comissoes`, menu 💸); `podePagar = isAdmin || isAdminGeral`.
 
@@ -90,12 +90,20 @@ Fluxo OAuth no grupo `google-oauth` (URL canônica `8ebaG5ZN`), endpoints **`/ap
 
 ### Política de desconto e aprovação do pai (F3)
 
-Limites de desconto por empresa (raiz `User.desconto_livre_perc`/`desconto_max_perc`, defaults **7%/15%**) com override por vendedor (mesmos campos no `User` do vendedor; `null` = herda). O `%` é calculado sobre a **venda bruta** (`venda_bruta_tot`) e o limite vale para o filho; **filhos não alteram margem** (`newMargem` ignorado no recalcular).
+Limites de desconto **por usuário** (`User.desconto_livre_perc`/`desconto_max_perc`) — **NÃO herdam** da empresa. Sem cadastro (`null`/`0`) → **0**: qualquer desconto é **bloqueado** até o cadastro (o `ConfigComissoesBanner` sinaliza). O admin/empresa define os limites de cada vendedor em `/equipe` (`equipe_editar`); no `PerfilModal` os campos "Desconto livre/máx da equipe" são os do próprio admin. O `%` é calculado sobre a **venda bruta** (`venda_bruta_tot`) e o limite vale para o filho; **filhos não alteram margem** (`newMargem` ignorado no recalcular).
 
-- `Orca.desconto_aprovado` (bool) + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`). O `orcamento_recalcular` valida os limites e marca o estado; `orcamento_status` **bloqueia o avanço** quando `pendente` **ou `recusado`** (filho). Recusa (opção (a)): mantém o desconto, marca `recusado` e bloqueia até o filho reduzir/remover.
+- `Orca.desconto_aprovado` (bool) + `Orca.desconto_status` (`aprovado`|`pendente`|`recusado`). O `orcamento_recalcular` valida os limites (`perc > max` bloqueia; `perc > livre` → pendente) e marca o estado; `orcamento_status` **bloqueia o avanço** quando `pendente` **ou `recusado`** (filho). Recusa (opção (a)): mantém o desconto, marca `recusado` e bloqueia até o filho reduzir/remover.
 - **Aprovação**: `orcamento_aprovar_desconto` (POST) aprova/reprova; banner no orçamento para o **dono filho** (aguardando) e para o **pai/ancestral** (botões aprovar/recusar, somente leitura). A fila **"Pendentes de aprovação"** em `/orcamentos` (`orcamentos_pendentes_aprovacao`, exclui os próprios) permite aprovar em lote.
 - **Banners gated por `podeVerPendencia`** (`OrcamentosView.vue`): só aparecem se o viewer for **filho dono** ou **pai/ancestral** — admin sem filhos não vê nada.
 - `f_DuplicaOrcamento` copia `regime_id`/`uf_origem`/`uf_destino` e grava `desconto_aprovado=true`/`desconto_status='aprovado'` no duplicado (duplicata não nasce pendente).
+
+### Banner de configuração de comissões/limites
+
+`src/components/ConfigComissoesBanner.vue` (auto-suficiente) avisa quem configura — **admin/empresa** e **vendedor_master** (vendedor não vê) — quando:
+- **Faixas de comissão** vazias (`GET /faixas_comissao` → `faixas: []`): ação "Configurar comissões" (`/faixas`) para admin; texto "solicite ao administrador" para o master.
+- **Limites de desconto** ausentes nos **vendedores da equipe** (`GET /equipe`; o Master checa também os próprios): ação "Definir limites da equipe" (`/equipe`) para admin; texto "solicite ao administrador" para o master.
+
+Aparece em `HomeView`, `ComissoesView`, `FaixasComissaoView` (com `:apenas-limites="true"` — evita redundância) e `OrcamentosView`.
 
 ### Notificações (sino)
 

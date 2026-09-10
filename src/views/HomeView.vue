@@ -7,6 +7,7 @@ import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import DashboardGrafico from '@/components/DashboardGrafico.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
+import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 import PeriodoBar from '@/components/PeriodoBar.vue'
 
 const authStore = useAuthStore()
@@ -123,6 +124,7 @@ onMounted(carregar)
     </header>
 
     <PendenciasPerfilBanner />
+    <ConfigComissoesBanner />
 
     <PeriodoBar
       v-model:periodo="periodo"

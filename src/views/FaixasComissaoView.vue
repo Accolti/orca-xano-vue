@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
+import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 
 interface FaixaRow {
   id: number | null
@@ -157,6 +158,8 @@ onMounted(async () => {
         e o Master fica com o remanescente (override).
       </p>
     </header>
+
+    <ConfigComissoesBanner :apenas-limites="true" />
 
     <p v-if="!authStore.isAdmin && !authStore.isAdminGeral" class="restrito">
       Acesso restrito a administradores.

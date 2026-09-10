@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import PeriodoBar, { type PeriodoOpcao } from '@/components/PeriodoBar.vue'
+import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 
 const authStore = useAuthStore()
 
@@ -115,6 +116,8 @@ onMounted(carregar)
         sem faixas, sobre o lucro real × % negociado.
       </p>
     </header>
+
+    <ConfigComissoesBanner />
 
     <PeriodoBar v-model:periodo="periodo" v-model:mesInicio="mesInicio" @mudou="carregar" />
 
