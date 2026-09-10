@@ -12,20 +12,29 @@ const router = useRouter()
 const carregouFaixas = ref(false)
 const faixasVazias = ref(false)
 const membrosSemLimite = ref(false)
+const temEquipe = ref(false)
 
-// Mostra para quem configura (admin/empresa e Master) e também para o vendedor
+// admin_geral é administrador do SISTEMA (não é empresa) — não mostra o banner.
+const ehAdminEmpresa = computed(() => authStore.isAdmin && !authStore.isAdminGeral)
+
+// Mostra para quem configura (empresa e Master) e também para o vendedor
 // (informativo: sem limites de desconto ele não consegue aplicar desconto).
 const elegivel = computed(
   () =>
     !!authStore.user &&
-    (authStore.isAdmin || authStore.isVendedorMaster || authStore.isVendedor),
+    (ehAdminEmpresa.value || authStore.isVendedorMaster || authStore.isVendedor),
 )
 
-const podeConfigurar = computed(() => authStore.isAdmin || authStore.isVendedorMaster)
+const podeConfigurar = computed(() => ehAdminEmpresa.value || authStore.isVendedorMaster)
 
+// Faixas só fazem sentido quando o usuário tem equipe (vendedores atrelados).
 const semFaixas = computed(
   () =>
-    !props.apenasLimites && podeConfigurar.value && carregouFaixas.value && faixasVazias.value,
+    !props.apenasLimites &&
+    podeConfigurar.value &&
+    temEquipe.value &&
+    carregouFaixas.value &&
+    faixasVazias.value,
 )
 
 function faltaLimite(u: { desconto_livre_perc?: number | null; desconto_max_perc?: number | null }) {
@@ -64,6 +73,7 @@ async function carregar() {
 
   if (equipe.status === 'fulfilled') {
     const lista = ((equipe.value.getBody() as any[]) ?? []).filter((m) => m?.ativo !== false)
+    temEquipe.value = lista.length > 0
     membrosSemLimite.value = lista.some((m) => faltaLimite(m))
   }
 }

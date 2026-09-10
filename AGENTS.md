@@ -100,10 +100,12 @@ Limites de desconto **por usuário** (`User.desconto_livre_perc`/`desconto_max_p
 ### Banner de configuração de comissões/limites
 
 `src/components/ConfigComissoesBanner.vue` (auto-suficiente) avisa — **admin/empresa**, **vendedor_master** e **vendedor** (este só informativo) — quando:
-- **Faixas de comissão** vazias (`GET /faixas_comissao` → `faixas: []`): ação "Configurar comissões" (`/faixas`) para admin; texto "solicite ao administrador" para master/vendedor. (Só admin/master veem este aviso.)
+- **Faixas de comissão** vazias (`GET /faixas_comissao` → `faixas: []`) **e o usuário tem equipe** (≥1 vendedor ativo em `GET /equipe`): ação "Configurar comissões" (`/faixas`) para admin; texto "solicite ao administrador" para master/vendedor. (Só admin/master veem este aviso; sem equipe não aparece.)
 - **Limites de desconto** ausentes nos **vendedores da equipe** (`GET /equipe`; o Master checa também os próprios; o vendedor checa só os dele): ação "Definir limites da equipe" (`/equipe`) para admin; texto "solicite ao administrador" para master/vendedor.
 
-Aparece em `HomeView`, `ComissoesView`, `FaixasComissaoView` (com `:apenas-limites="true"` — evita redundância) e `OrcamentosView`.
+O **`admin_geral`** (administrador do sistema) **não vê** o banner. Aparece em `HomeView`, `ComissoesView`, `FaixasComissaoView` (com `:apenas-limites="true"` — evita redundância) e `OrcamentosView`.
+
+> **Futuro (planos/plus)**: o serviço de comissões deve ser gated por um `User.plano` (slug; futuros planos) — quem não tiver, entra normalmente mas vê "sem acesso a essa funcionalidade" nas telas de comissão. Recomendado validar também nos endpoints (`equipe`/`comissoes`/`faixas_*`), não só nos menus.
 
 ### Limites de desconto na tela (label + olho) e desconto Pix
 
