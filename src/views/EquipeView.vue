@@ -248,6 +248,8 @@ async function salvarEdicao(m: MembroEquipe) {
           : editPercentual.value == null
             ? 0
             : Number(editPercentual.value),
+      // Preserva o status atual (não deixa o Xano zerar por ausência)
+      ativo: m.ativo !== false,
     }
     if (!usarPadraoDesc.value) {
       payload.desconto_livre_perc = editLivre.value == null ? 0 : Number(editLivre.value)
@@ -257,7 +259,7 @@ async function salvarEdicao(m: MembroEquipe) {
       payload.desconto_livre_perc = 0
       payload.desconto_max_perc = 0
     }
-    await xano.post('/api:-qqRIakp/equipe_editar', payload)
+    await xano.post('/api:-qqRIakp/equipe_salvar', payload)
     editandoId.value = null
     editPercentual.value = null
     editLivre.value = null
@@ -276,9 +278,13 @@ async function salvarEdicao(m: MembroEquipe) {
 
 async function alternarAtivo(m: MembroEquipe) {
   try {
-    await xano.post('/api:-qqRIakp/equipe_ativo', {
+    // Snapshot completo: envia ativo + os demais campos atuais (não deixa o Xano zerar)
+    await xano.post('/api:-qqRIakp/equipe_salvar', {
       user_id: m.id,
       ativo: !(m.ativo ?? true),
+      percentual_comissao: m.percentual_comissao ?? 0,
+      desconto_livre_perc: m.desconto_livre_perc ?? 0,
+      desconto_max_perc: m.desconto_max_perc ?? 0,
     })
     await carregar()
   } catch (err) {
