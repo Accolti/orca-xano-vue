@@ -31,7 +31,7 @@
 - `src/stores/counter.ts` — scaffold example store (not used by any view)
 - `.env` contains `VITE_XANO_BASE_URL` (committed — override via `.env.local` for production)
 - `src/views/HomeView.vue` fetches from Xano endpoint `/api:-qqRIakp/cliente_user` on mount
-- `index.html` `<title>` is still "Vite App" — customize as needed
+- `index.html` `<title>` = "Orca Systems"; **ícones do app** em `public/` (`favicon-16/32.png`, `favicon.ico`, `apple-touch-icon.png` 180, `icon-192/512.png`, `manifest.webmanifest`) — gerados a partir de `src/assets/orca_system_1000x1000.png` (mesma imagem da Home).
 - `src/components/HelloWorld.vue`, `TheWelcome.vue`, `WelcomeItem.vue`, `icons/*` are unused scaffold boilerplate
 
 ## Catálogo de Produtos
