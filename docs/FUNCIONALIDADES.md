@@ -251,6 +251,12 @@ Vendido por M²; composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e 
 - Backend **`POST /orcamento_duplicar`** → `Orcamento/f_DuplicaOrcamento`: duplica a Orca (fretes, validade, margens, `markup_alvo`/`markup_efetivo`, custos/vendas totais, `desconto`, `mao_de_obra`, `observacao`, `condicoes_pagamento`, `condicoes_pagamento_params`, `regime_id`/`uf_origem`/`uf_destino`) e os itens com **todos** os campos fiscais + `detalhes_calculo` + `vlr_vnd_unit_bruto` + `fc`. O duplicado nasce com `desconto_aprovado=true` / `desconto_status='aprovado'` (não entra na fila de aprovação).
 - Front: botão **"Duplicar"** (ícone copy) na listagem de orçamentos (desktop + mobile) → `orcamentoStore.duplicarOrcamento(orcaId)` → `POST /Orcamento_Duplicar` (⚠️ CamelCase no path, Xano é case-sensitive) → navega para o novo orçamento **em modo edição** (para ajustar itens/bordas/qtd/dimensões).
 
+## Excluir orçamento
+
+- **Dono** (`DELETE /orcamento_deletar`): só enquanto é **orçamento** (`eh_pedido != true`); depois que vira pedido, é bloqueado. A exclusão é em **cascata** (sem órfãos).
+- **Cascata** (`Orcamento/f_excluir_orcamento`): apaga em transação `item`, `Boleto`, `Comissao`, `ControlePedido`, `Desconto_Kapazi_Log`, `Gerados`, `Notificacao`, `Orca_Status_Log`, o legado `Pedido`/`item_ped` e a `Orca`.
+- **Definitiva** (`POST /orcamento_excluir_definitivo`): **exceção administrativa** — só `User.super_admin = true`; cascata independente do status (pode apagar pedidos). Outros → `accessdenied`.
+
 ## Edição de item (restauração dos seletores)
 
 Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/variação) são remontados a partir do próprio item:

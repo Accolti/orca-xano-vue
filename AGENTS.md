@@ -120,6 +120,12 @@ O **`admin_geral`** (administrador do sistema) **não vê** o banner. Aparece em
 - **Reforço (bloqueia quem foi desativado já logado)**: `f_ativo_efetivo` no início do `stack` dos endpoints de escrita — `OrcamentoItem_Inserir`, `orcamento_recalcular`, `orcamento_status`, `orcamento_item_deletar`, `orcamento_deletar`, `orcamento_duplicar`, `orcamento_converter_pedido`, `orcamento_aprovar_desconto`, `orcamento_calcular`, `pagamento_salvar`, `pagamento_baixa`, `pagamento_excluir`, `equipe_salvar`, `equipe_criar`, `equipe_vincular`, `comissao_pagar`, `faixa_comissao_salvar`, `controle_pedido_salvar`.
 - **UI**: `GET /equipe` devolve `ativo_efetivo` por membro; `EquipeView` mostra **"Inativo pelo pai"** quando o membro está ativo mas o efetivo é `false`.
 
+### Exclusão de orçamento (definitiva / cascata)
+
+- **Dono** (`DELETE /orcamento_deletar`): só enquanto é **orçamento** (`eh_pedido != true`); depois de virar pedido, bloqueado (`badrequest`).
+- **`Orcamento/f_excluir_orcamento`**: apaga em **transação** tudo que referencia a Orca — `item`, `Boleto`, `Comissao`, `ControlePedido`, `Desconto_Kapazi_Log`, `Gerados`, `Notificacao`, `Orca_Status_Log`, o **legado** (`Pedido`/`item_ped` via `Orca.pedido_id`) e a própria `Orca`.
+- **`POST /orcamento_excluir_definitivo`**: **exceção administrativa** — só `User.super_admin = true` (qualquer outro → `accessdenied`). Cascata, independente do status (pode apagar pedidos).
+
 ### Notificações (sino)
 
 Tabela **`Notificacao`** (`user_id`, `tipo` `desconto_pendente|desconto_aprovado|desconto_recusado`, `orca_id`, `lida`, `data_leitura`). `GET /notificacoes` + `POST /notificacoes_marcar_lida`; `GlobalHeader.vue` mostra o **sino** com badge de não lidas, popover (`carregarNotifs`/`marcarTodasLidas`) e navega para o orçamento (`irParaNotif`). O backend cria as notificações ao mudar o estado de desconto (pendente → pai; aprovado/recusado → filho).

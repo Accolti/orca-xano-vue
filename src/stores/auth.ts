@@ -32,6 +32,7 @@ export interface User {
   desconto_livre_perc?: number | null
   desconto_max_perc?: number | null
   plano?: string | null
+  super_admin?: boolean
   ativo?: boolean
   ativo_efetivo?: boolean
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
