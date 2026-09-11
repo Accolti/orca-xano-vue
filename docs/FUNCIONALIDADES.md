@@ -255,7 +255,7 @@ Vendido por M²; composto de **Placas** (30×30cm), **Rampas** (macho/fêmea) e 
 
 - **Dono** (`DELETE /orcamento_deletar`): só enquanto é **orçamento** (`eh_pedido != true`); depois que vira pedido, é bloqueado. A exclusão é em **cascata** (sem órfãos).
 - **Cascata** (`Orcamento/f_excluir_orcamento`): apaga em transação `item`, `Boleto`, `Comissao`, `ControlePedido`, `Desconto_Kapazi_Log`, `Gerados`, `Notificacao`, `Orca_Status_Log`, o legado `Pedido`/`item_ped` e a `Orca`.
-- **Definitiva** (`POST /orcamento_excluir_definitivo`): **exceção administrativa** — só `User.super_admin = true`; cascata independente do status (pode apagar pedidos). Outros → `accessdenied`.
+- **Definitiva** (`POST /orcamento_excluir_definitivo`): **exceção administrativa** — só `User.super_admin = true` **ou** `admin_geral`; cascata independente do status (pode apagar pedidos). Outros → `accessdenied`.
 
 ## Edição de item (restauração dos seletores)
 

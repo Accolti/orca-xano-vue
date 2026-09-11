@@ -124,7 +124,7 @@ O **`admin_geral`** (administrador do sistema) **não vê** o banner. Aparece em
 
 - **Dono** (`DELETE /orcamento_deletar`): só enquanto é **orçamento** (`eh_pedido != true`); depois de virar pedido, bloqueado (`badrequest`).
 - **`Orcamento/f_excluir_orcamento`**: apaga em **transação** tudo que referencia a Orca — `item`, `Boleto`, `Comissao`, `ControlePedido`, `Desconto_Kapazi_Log`, `Gerados`, `Notificacao`, `Orca_Status_Log`, o **legado** (`Pedido`/`item_ped` via `Orca.pedido_id`) e a própria `Orca`.
-- **`POST /orcamento_excluir_definitivo`**: **exceção administrativa** — só `User.super_admin = true` (qualquer outro → `accessdenied`). Cascata, independente do status (pode apagar pedidos).
+- **`POST /orcamento_excluir_definitivo`**: **exceção administrativa** — só `User.super_admin = true` **ou** `role = "admin_geral"` (qualquer outro → `accessdenied`). Cascata, independente do status (pode apagar pedidos).
 
 ### Notificações (sino)
 
