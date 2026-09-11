@@ -64,14 +64,26 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   // suc do material considerando a seleção atual de linha/tipo.
   // Sem filtro (linha/tipo nulos) espelha o suc carregado no catálogo.
   const sucFiltrado = ref<SucFiltrado | null>(null)
+  // Chave da seleção (material|linha|tipo) a que o `sucFiltrado` corresponde.
+  // Evita usar um suc "antigo" enquanto o filtrarSuc da seleção atual não chega.
+  const sucFiltradoKey = ref<string | null>(null)
+  let sucReqId = 0
+
+  function chaveSuc(materialId: number, linhaId?: number, tipoId?: number) {
+    return `${materialId}|${linhaId ?? 0}|${tipoId ?? 0}`
+  }
 
   async function filtrarSuc(materialId: number, linhaId?: number, tipoId?: number) {
+    const reqId = ++sucReqId
+    const key = chaveSuc(materialId, linhaId, tipoId)
     try {
       const response = await xano.get('/api:-qqRIakp/produtos_suc_filtrado', {
         material_id: materialId,
         linha_id: linhaId ?? 0,
         tipo_id: tipoId ?? 0,
       })
+      // Resposta fora de ordem (seleção mudou de novo) → ignora
+      if (reqId !== sucReqId) return
       const body = response.getBody() as any
       const row = body?.Material_1?.[0]
       sucFiltrado.value = row
@@ -83,10 +95,18 @@ export const useCatalogoStore = defineStore('catalogo', () => {
             Variacao: row.Variacao ?? 0,
           }
         : null
+      sucFiltradoKey.value = key
     } catch (err: any) {
+      if (reqId !== sucReqId) return
       console.error('Erro ao filtrar suc:', err)
       sucFiltrado.value = null
+      sucFiltradoKey.value = key
     }
+  }
+
+  function limparSucFiltrado() {
+    sucFiltrado.value = null
+    sucFiltradoKey.value = null
   }
 
   const versaoLabel = computed(() => {
@@ -293,6 +313,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     versaoLabel,
     selectedMaterialId,
     sucFiltrado,
+    sucFiltradoKey,
     materiais,
     linhasFiltradas,
     tiposFiltrados,
@@ -302,6 +323,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     fetchCatalogo,
     fetchTaxasBanco,
     filtrarSuc,
+    limparSucFiltrado,
     resetarSessao,
   }
 })

@@ -290,48 +290,6 @@ onMounted(() => {
   carregarFaixasComissao()
 })
 
-const formValido = computed(() => {
-  if (!clienteSelecionado.value) return false
-  if (!orcamentoStore.materialSelecionado) return false
-  if (orcamentoStore.unidadeSelecionada === 'UND') {
-    if (!orcamentoStore.quantidade || orcamentoStore.quantidade < 1) return false
-  } else if (orcamentoStore.ehML) {
-    if (areaMLEfetiva.value <= 0) return false
-  } else if (orcamentoStore.ehComposto) {
-    if (orcamentoStore.modoEntradaComposto === 'area') {
-      if (!orcamentoStore.areaML || orcamentoStore.areaML <= 0) return false
-    } else {
-      if (!orcamentoStore.largura || orcamentoStore.largura <= 0) return false
-      if (!orcamentoStore.comprimento || orcamentoStore.comprimento <= 0) return false
-    }
-  } else {
-    if (!orcamentoStore.largura || orcamentoStore.largura <= 0) return false
-    if (!orcamentoStore.comprimento || orcamentoStore.comprimento <= 0) return false
-  }
-  if (
-    orcamentoStore.mostrarLinha &&
-    orcamentoStore.linhas.length &&
-    !orcamentoStore.linhaSelecionada
-  )
-    return false
-  if (orcamentoStore.mostrarTipo && orcamentoStore.tipos.length && !orcamentoStore.tipoSelecionado)
-    return false
-  if (
-    orcamentoStore.mostrarNivel &&
-    orcamentoStore.niveis.length &&
-    !orcamentoStore.nivelSelecionado
-  )
-    return false
-  if (
-    orcamentoStore.mostrarBorda &&
-    orcamentoStore.bordas.length &&
-    !orcamentoStore.bordaSelecionada
-  )
-    return false
-  if (orcamentoStore.mostrarVariacao && !orcamentoStore.variacaoSelecionada) return false
-  return true
-})
-
 const fcArray = computed<number[]>(() => {
   const novo = orcamentoStore.resultadoNovo?.fc
   if (novo?.length) return novo
@@ -425,12 +383,23 @@ function toggleCustosHeader() {
   mostrarCustosHeader.value = !mostrarCustosHeader.value
 }
 
+function avisarCamposFaltando(): boolean {
+  const faltando = orcamentoStore.camposFaltando
+  if (faltando.length) {
+    mostrarToast(`Selecione: ${faltando.join(', ')}`)
+    return true
+  }
+  return false
+}
+
 async function handleCalcular() {
+  if (avisarCamposFaltando()) return
   simulacaoSelecionada.value = null
   await orcamentoStore.calcularOrquestrador(modoEntradaML.value)
 }
 
 async function handleSimular() {
+  if (avisarCamposFaltando()) return
   simulacaoSelecionada.value = null
   await orcamentoStore.calcularOrquestrador(modoEntradaML.value)
   if (simulacaoLista.value.length) {
@@ -461,6 +430,7 @@ const validadeCalculada = computed(() => {
 
 async function handleInserir() {
   if (!clienteSelecionado.value) return
+  if (avisarCamposFaltando()) return
   inserirOk.value = false
   try {
     if (editandoItemId.value) {
@@ -2106,14 +2076,14 @@ async function enviarWhatsApp() {
           <div class="btn-row">
             <button
               class="btn btn-secondary"
-              :disabled="orcamentoStore.loading || !formValido"
+              :disabled="orcamentoStore.loading"
               @click="handleCalcular"
             >
               {{ orcamentoStore.loading ? 'Calculando...' : 'Calcular' }}
             </button>
             <button
               class="btn btn-primary"
-              :disabled="orcamentoStore.loading || !formValido"
+              :disabled="orcamentoStore.loading"
               @click="handleSimular"
             >
               Simular
@@ -2325,7 +2295,7 @@ async function enviarWhatsApp() {
           <div class="btn-row">
             <button
               class="btn btn-primary btn-lg"
-              :disabled="orcamentoStore.loading || !formValido"
+              :disabled="orcamentoStore.loading"
               @click="handleCalcular"
             >
               Calcular

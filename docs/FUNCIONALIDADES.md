@@ -15,6 +15,7 @@ Documento vivo com o **comportamento vigente** do sistema (orçamentos/pedidos, 
 - Campo "Observações do Orçamento" no card "Ajustar Orçamento" (abaixo do botão Aplicar); botão Aplicar na cor primária.
 - Margem (alvo) na parte oculta (só com o olho 👁); "Diferença Total c/ B2C" (preview simulado − total atual) no preview da negociação (oculto).
 - **Coerência da tela de Valores**: seção "Valores" mostra **apenas "Valor Venda Total"** (o que o cliente paga, com frete B2B embutido) — sem linhas redundantes (Unit/Unit B2B/Tot B2B exibiam o mesmo valor). **Detalhamento Financeiro** na **ordem do cálculo** (Cst Mat Prima → Cst Borda → IPI → Cst Nota → ST → DIFAL → Crédito ICMS → Cst Fiscal → Frete B2B → Cst Entrada → Margem → Margem Real → Alíq Inter/Interna → % DIFAL → Metros Lineares se ML → Custo Unit/Total → Venda Unit/Total (c/ Frete B2B) → Lucro Unit/Total) com campos de valor 0 **sempre visíveis** (R$ 0,00) para conferência. `vlr_vnd_unit`/`vlr_vnd_unit_b2b` continuam iguais (mesmo preço com frete embutido) — decisão: **não separar** Unit/B2B no cálculo.
+- **Aviso de seleção faltando**: ao clicar Calcular/Simular/Adicionar Item, `camposFaltando` (Material/Linha/Tipo/Nível/Borda/Variação) dispara `mostrarToast('Selecione: …')` e não calcula. O **Nível** é exigido por `nivelNecessario` (existe produto **ativo** da combinação com nível), mesmo se o dropdown estiver momentaneamente vazio logo após trocar o Tipo.
 
 ### Recálculo dinâmico (resumo tela verde)
 

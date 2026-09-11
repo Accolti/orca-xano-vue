@@ -151,18 +151,22 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   const func1 = computed<Func1 | null>(() => resultado.value?.func_1 ?? null)
 
-  // suc efetivo: usa o sucFiltrado (seleção linha/tipo) quando disponível,
-  // senão o suc carregado no catálogo
+  // suc efetivo: usa o sucFiltrado SÓ quando ele corresponde à seleção atual
+  // (material|linha|tipo); senão cai no suc do material. Evita o "suc antigo"
+  // enquanto o filtrarSuc da nova seleção não chega (race).
   const sucAtual = computed(() => {
-    if (catalogo.sucFiltrado) return catalogo.sucFiltrado
-    return materialSelecionado.value?.suc ?? null
+    const m = materialSelecionado.value
+    if (!m) return null
+    const key = `${m.id}|${linhaSelecionada.value?.id ?? 0}|${tipoSelecionado.value?.id ?? 0}`
+    if (catalogo.sucFiltrado && catalogo.sucFiltradoKey === key) return catalogo.sucFiltrado
+    return m.suc ?? null
   })
 
   // Quando a seleção de linha/tipo muda, refina o suc no servidor
   watch([linhaSelecionada, tipoSelecionado], ([linha, tipo]) => {
     const m = materialSelecionado.value
     if (!m) {
-      catalogo.sucFiltrado = null
+      catalogo.limparSucFiltrado()
       return
     }
     catalogo.filtrarSuc(m.id, linha?.id, tipo?.id)
@@ -237,6 +241,39 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   })
 
+  // Nível é OBRIGATÓRIO quando existe produto ATIVO da combinação com nivel_id > 0.
+  // Independe de mostrarNivel/niveis (que podem estar defasados pelo filtrarSuc async).
+  const nivelNecessario = computed(() => {
+    const m = materialSelecionado.value
+    if (!m) return false
+    const linhaId = linhaSelecionada.value?.id ?? 0
+    const tipoId = tipoSelecionado.value?.id ?? 0
+    return catalogo.allProdutos.some(
+      (p) =>
+        p.material_id === m.id &&
+        p.ativo !== false &&
+        (p.nivel_id ?? 0) > 0 &&
+        (linhaId === 0 || p.linha_id === linhaId) &&
+        (tipoId === 0 || p.tipo_id === tipoId),
+    )
+  })
+
+  // Campos obrigatórios ainda não selecionados (para avisar antes de calcular)
+  const camposFaltando = computed<string[]>(() => {
+    const faltando: string[] = []
+    if (!materialSelecionado.value) faltando.push('Material')
+    if (mostrarLinha.value && linhas.value.length && !linhaSelecionada.value) faltando.push('Linha')
+    if (mostrarTipo.value && tipos.value.length && !tipoSelecionado.value) faltando.push('Tipo')
+    if (
+      (nivelNecessario.value || (mostrarNivel.value && niveis.value.length)) &&
+      !nivelSelecionado.value
+    )
+      faltando.push('Nível')
+    if (mostrarBorda.value && bordas.value.length && !bordaSelecionada.value) faltando.push('Borda')
+    if (mostrarVariacao.value && !variacaoSelecionada.value) faltando.push('Variação')
+    return faltando
+  })
+
   // Produto encontrado pelas FKs da seleção atual (material/linha/tipo/nivel).
   // Usado para descobrir a Unidade de venda (M2/ML/KIT/UND) e definir os inputs.
   // FK com valor 0 significa "qualquer" — aceita produto que não tenha a FK preenchida
@@ -252,6 +289,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     const candidatos = catalogo.allProdutos.filter(
       (p) =>
         p.material_id === m.id &&
+        p.ativo !== false &&
         matchFk(p.linha_id, linhaId) &&
         matchFk(p.tipo_id, tipoId) &&
         matchFk(p.nivel_id, nivelId),
@@ -319,7 +357,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     nivelSelecionado.value = null
     bordaSelecionada.value = null
     variacaoSelecionada.value = null
-    catalogo.sucFiltrado = null
+    catalogo.limparSucFiltrado()
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
@@ -339,7 +377,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     nivelSelecionado.value = null
     bordaSelecionada.value = null
     variacaoSelecionada.value = null
-    catalogo.sucFiltrado = null
+    catalogo.limparSucFiltrado()
     resultado.value = null
     resultadoNovo.value = null
     areaML.value = 0
@@ -397,7 +435,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       error.value = 'Selecione o tipo'
       return
     }
-    if (mostrarNivel.value && niveis.value.length && !nivelSelecionado.value) {
+    if (
+      (nivelNecessario.value || (mostrarNivel.value && niveis.value.length)) &&
+      !nivelSelecionado.value
+    ) {
       error.value = 'Selecione o nível'
       return
     }
@@ -457,7 +498,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       error.value = 'Selecione o tipo'
       return
     }
-    if (mostrarNivel.value && niveis.value.length && !nivelSelecionado.value) {
+    if (
+      (nivelNecessario.value || (mostrarNivel.value && niveis.value.length)) &&
+      !nivelSelecionado.value
+    ) {
       error.value = 'Selecione o nível'
       return
     }
@@ -865,7 +909,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     nivelSelecionado.value = null
     bordaSelecionada.value = null
     variacaoSelecionada.value = null
-    catalogo.sucFiltrado = null
+    catalogo.limparSucFiltrado()
     largura.value = 0
     comprimento.value = 0
     quantidade.value = 1
@@ -1202,6 +1246,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     mostrarLinha,
     mostrarTipo,
     mostrarNivel,
+    nivelNecessario,
+    camposFaltando,
     mostrarBorda,
     mostrarVariacao,
     carregarMateriais,

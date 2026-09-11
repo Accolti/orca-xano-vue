@@ -153,8 +153,8 @@ O `suc` de cada material (Linha/Tipo/Nivel/Borda/Variacao contagens) é usado pa
 
 Solução: nova função **`Ret_Suc_Filtrado`** + endpoint **`GET /produtos_suc_filtrado?material_id&linha_id&tipo_id`** que repete o aggregate com raiz em `Produto` e filtros condicionais (`==?`) por `linha_id`/`tipo_id`. Sem filtro → mesmas contagens totais; com filtro → contagens restritas à seleção.
 
-- `catalogo.ts`: `sucFiltrado` ref + action `filtrarSuc(materialId, linhaId?, tipoId?)` que chama o endpoint e guarda a resposta.
-- `orcamento.ts`: computed `sucAtual` (usa `catalogo.sucFiltrado` se houver, senão `material.suc`) alimenta `mostrarLinha/Tipo/Nivel/Borda`. `watch([linhaSelecionada, tipoSelecionado])` dispara `filtrarSuc`. Limpa `sucFiltrado` em `selecionarMaterial`/`limparMaterial`/`limparFormItem`.
+- `catalogo.ts`: `sucFiltrado` ref + `sucFiltradoKey` (chave `material|linha|tipo`) + contador `sucReqId`; action `filtrarSuc(materialId, linhaId?, tipoId?)` que chama o endpoint e guarda a resposta (ignorando respostas fora de ordem) e `limparSucFiltrado()`.
+- `orcamento.ts`: computed `sucAtual` — usa `catalogo.sucFiltrado` **somente quando `sucFiltradoKey` casa com a seleção atual** (`material|linha|tipo`); senão cai no `material.suc`. Isso evita usar o "suc antigo" durante o `filtrarSuc` assíncrono (**race** ao trocar Tipo/Linha). Alimenta `mostrarLinha/Tipo/Nivel/Borda`. `watch([linhaSelecionada, tipoSelecionado])` dispara `filtrarSuc`. Limpa (`limparSucFiltrado`) em `selecionarMaterial`/`limparMaterial`/`limparFormItem`.
 
 ### Nível derivado dos produtos reais (sem exceção hardcoded)
 
@@ -162,6 +162,8 @@ O **conteúdo** da combo de Nível não vem mais de `niveisFiltrados` (só por `
 
 - **Vinil Alto Tráfego Vulcanizado** sem Nível 3 → o produto com `ativo=false` some do `/produtos_all` (backend filtra `$db.Produto.ativo == true` em `fTodos_Produtos`/`Ret_Suc_Filtrado`/`Ret_TabMaeEFilhas_2`) e o dropdown só mostra níveis 1 e 2.
 - **Vinil+Liso** → nenhum produto ativo com nível para essa combinação → `niveis` vazio → dropdown some. **A exceção hardcoded foi removida** (`mostrarNivel` agora é `sucAtual.Nivel > 0 && niveis.length > 0`).
+
+**Validação antes de calcular (`camposFaltando`)**: `orcamentoStore.camposFaltando` lista os selects obrigatórios não escolhidos. O **Nível** usa `nivelNecessario` (existe produto **ativo** da combinação com `nivel_id > 0`) — **independente** de `mostrarNivel`/`niveis`, que podem estar defasados pelo `filtrarSuc` **assíncrono** logo após trocar o Tipo. `handleCalcular`/`handleSimular`/`handleInserir` chamam `avisarCamposFaltando()` e mostram `mostrarToast('Selecione: …')` em vez de deixar calcular e dar erro. Os botões Calcular/Simular ficam **habilitados** (só `loading`) para o clique disparar o aviso. `produtoSelecionado` também filtra `ativo !== false` (consistente com `niveis`).
 
 ### Restauração do item na edição (Nível)
 
