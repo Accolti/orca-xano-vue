@@ -16,6 +16,7 @@ interface MembroEquipe {
   desconto_livre_perc?: number | null
   desconto_max_perc?: number | null
   ativo?: boolean
+  ativo_efetivo?: boolean
   created_at?: number | string
 }
 
@@ -491,9 +492,15 @@ onMounted(carregar)
                   </template>
                 </td>
                 <td>
-                  <span :class="['badge-status', m.ativo !== false ? 'badge-aprovado' : 'badge-recusado']">
-                    {{ m.ativo !== false ? 'Ativo' : 'Inativo' }}
+                  <span v-if="m.ativo === false" class="badge-status badge-recusado">Inativo</span>
+                  <span
+                    v-else-if="m.ativo_efetivo === false"
+                    class="badge-status badge-alerta"
+                    title="Um 'pai' na hierarquia está desativado"
+                  >
+                    Inativo pelo pai
                   </span>
+                  <span v-else class="badge-status badge-aprovado">Ativo</span>
                 </td>
                 <td class="cell-acoes">
                   <template v-if="editandoId === m.id">
@@ -557,6 +564,30 @@ onMounted(carregar)
 
 .restrito {
   color: var(--danger);
+}
+
+.badge-status {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-aprovado {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-recusado {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.badge-alerta {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .status {

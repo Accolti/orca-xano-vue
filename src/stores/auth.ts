@@ -33,6 +33,7 @@ export interface User {
   desconto_max_perc?: number | null
   plano?: string | null
   ativo?: boolean
+  ativo_efetivo?: boolean
   _telefones?: Array<{ id: number; telefone: string; tipo_telefone?: string }>
   _endereco_user?: {
     id?: number
@@ -172,9 +173,9 @@ export const useAuthStore = defineStore('auth', () => {
       logout()
       throw new Error('Sessão expirada. Faça login novamente.')
     }
-    // Conta desativada pela empresa não pode operar (barreira extra no front;
-    // o backend também recusa no login).
-    if (user.value && user.value.ativo === false) {
+    // Conta desativada pela empresa (ou um "pai" desativado) não pode operar.
+    const u = user.value
+    if (u && (u.ativo === false || u.ativo_efetivo === false)) {
       logout()
       throw new Error('Conta inativa. Fale com o administrador.')
     }

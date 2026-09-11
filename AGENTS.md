@@ -112,9 +112,13 @@ O **`admin_geral`** (administrador do sistema) **não vê** o banner. Aparece em
 - Na área de desconto (`OrcamentosView`), um **label** mostra os limites do usuário (`Desconto livre até X% · até Y% com aprovação.`) com um **olho** para ocultar/mostrar (começa **oculto**). Aparece no **Desconto (R$)** (card de negociação do filho e Ajustar Orçamento) e no **Desconto Pix (%)**.
 - **Desconto Pix entra na mesma política**: o backend (`orcamento_recalcular`) lê `condicoes_pagamento_params.descontoPixPercentual` e usa `perc = max(desconto%, pix%)` — acima do máximo bloqueia; acima do livre fica `pendente`. O front sinaliza ("Acima do máximo…" / "exigirá aprovação").
 
-### Usuário inativo
+### Usuário inativo (ativo EFETIVO)
 
-`User.ativo=false` não loga: `auth/login` e o Google `oauth/google/continue` têm precondition de `ativo`; o front (`auth.ts` `fetchMe`) também faz `logout()` + "Conta inativa" se `ativo === false`.
+`f_ativo_efetivo(user_id)` sobe a cadeia `vendedor_pai_id` e retorna `false` se o **próprio** ou **qualquer ancestral** estiver `ativo=false` — **desativar um "pai" bloqueia toda a árvore**; reativar restaura (não mexe nos flags individuais, então quem foi desativado por conta própria continua inativo). Enforcement:
+- **`auth/login`** e **`oauth/google/continue`**: usam `f_ativo_efetivo` (filho de pai inativo não loga).
+- **`auth/me`**: devolve `ativo_efetivo`; o front (`auth.ts` `fetchMe`) faz `logout()` + "Conta inativa" se `ativo_efetivo === false` (fallback `ativo`).
+- **Reforço (bloqueia quem foi desativado já logado)**: `f_ativo_efetivo` no início do `stack` dos endpoints de escrita — `OrcamentoItem_Inserir`, `orcamento_recalcular`, `orcamento_status`, `orcamento_item_deletar`, `orcamento_deletar`, `orcamento_duplicar`, `orcamento_converter_pedido`, `orcamento_aprovar_desconto`, `orcamento_calcular`, `pagamento_salvar`, `pagamento_baixa`, `pagamento_excluir`, `equipe_salvar`, `equipe_criar`, `equipe_vincular`, `comissao_pagar`, `faixa_comissao_salvar`, `controle_pedido_salvar`.
+- **UI**: `GET /equipe` devolve `ativo_efetivo` por membro; `EquipeView` mostra **"Inativo pelo pai"** quando o membro está ativo mas o efetivo é `false`.
 
 ### Notificações (sino)
 
