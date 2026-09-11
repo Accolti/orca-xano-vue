@@ -165,6 +165,8 @@ O **conteúdo** da combo de Nível não vem mais de `niveisFiltrados` (só por `
 
 **Validação antes de calcular (`camposFaltando`)**: `orcamentoStore.camposFaltando` lista os selects obrigatórios não escolhidos. O **Nível** usa `nivelNecessario` (existe produto **ativo** da combinação com `nivel_id > 0`) — **independente** de `mostrarNivel`/`niveis`, que podem estar defasados pelo `filtrarSuc` **assíncrono** logo após trocar o Tipo. `handleCalcular`/`handleSimular`/`handleInserir` chamam `avisarCamposFaltando()` e mostram `mostrarToast('Selecione: …')` em vez de deixar calcular e dar erro. Os botões Calcular/Simular ficam **habilitados** (só `loading`) para o clique disparar o aviso. `produtoSelecionado` também filtra `ativo !== false` (consistente com `niveis`).
 
+**Limpeza por ID ao trocar a seleção**: a tabela `Nivel` tem `material_id`/`linha_id`/`tipo_id`, então o "Nível 1" do Printado pode ter **`nivel_id` diferente** do "Nível 1" do Vulcanizado. `watch(niveis)` e `watch(bordas)` limpam a seleção quando o **`id`** dela **não existe** na nova lista (compara por id, não por nome; guarda `restaurandoItem`). `watch(mostrarBorda)` limpa a borda quando o campo some. Sem isso, a seleção antiga fica "presa" (select em branco mas ref preenchida) e o cálculo cai em "Combinação não encontrada — revise Nível/Borda."
+
 ### Restauração do item na edição (Nível)
 
 Ao clicar em ✏️ num item, `editarItem` (`OrcamentosView.vue`) remonta os seletores (material/linha/tipo/nível/borda/variação/dimensões). O Nível era o único que não vinha selecionado, por **dois motivos**:
@@ -188,6 +190,7 @@ O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, fret
 **Simulação de margens (front JS)**: `src/utils/simulacao.ts` — `gerarSimulacaoFront(custo, qtd)` gera a lista (faixa padrão **50–100 passo 10**, rótulos **`c5..c10`** = margem ÷ 10) sem depender do backend (o orquestrador novo não gera `simulacao`; a modal antes nunca abria). `handleSimular` e o botão "Simulação" no Ajustar Orçamento abrem a `SimulacaoModal`; escolher uma linha aplica a margem no resumo (`simularPorMargem`). A modal tem **olho 👁** (`btn-eye`) para mostrar/ocultar custo e lucro (oculto por padrão) e clique na linha mostra condições de pagamento.
 
 **Ajustar Orçamento** (tela verde, `.card-totais` `#f0fdf4`):
+- **Sincronização**: `sincronizarSimulacao()` repõe os campos (Nova Margem/Vlr Venda/Lucro/Margem Real/Desconto/Frete B2C/Mão de Obra) a partir do header/totais. Roda no `onMounted`, num `watch` do **objeto do header** (`() => orcamentoStore.orcamentoHeader`) + `itensInseridos.length` (dispara em **qualquer** save/recálculo, inclusive editar item) e ao **abrir o olho** (`watch(mostrarCustosHeader)`). Antes, o watch só olhava `header.id`/qtd de itens → editar um item não re-sincronizava (valores velhos).
 - **Nova Margem (%)** → `POST /orcamento_recalcular { newMargem }` (markup **efetivo** — Opção B)
 - **Novo Vlr de Venda Total B2B** → `GET /Calc_new_Valor_Venda` → `new_margem` → recalc
 - **Novo Lucro Total** → `GET /Calc_new_Valor_Lucro` → `new_margem` → recalc

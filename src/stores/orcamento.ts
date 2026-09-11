@@ -241,6 +241,28 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
   })
 
+  // Limpa a seleção quando o id (código interno) NÃO existe mais na nova lista —
+  // compara por id, não por nome. Ex.: trocar o Tipo muda o `nivel_id` do "Nível 1".
+  watch(niveis, (lista) => {
+    if (restaurandoItem.value) return
+    const sel = nivelSelecionado.value
+    if (sel && !lista.some((n) => n.id === sel.id)) {
+      nivelSelecionado.value = null
+    }
+  })
+
+  watch(bordas, (lista) => {
+    if (restaurandoItem.value) return
+    const sel = bordaSelecionada.value
+    if (sel && !lista.some((b) => b.id === sel.id)) {
+      bordaSelecionada.value = null
+    }
+  })
+
+  watch(mostrarBorda, (val) => {
+    if (!val) bordaSelecionada.value = null
+  })
+
   // Nível é OBRIGATÓRIO quando existe produto ATIVO da combinação com nivel_id > 0.
   // Independe de mostrarNivel/niveis (que podem estar defasados pelo filtrarSuc async).
   const nivelNecessario = computed(() => {
@@ -514,7 +536,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       return
     }
     if (!produtoSelecionado.value?.produto_id) {
-      error.value = 'Produto não identificado'
+      error.value = 'Combinação não encontrada — revise Nível/Borda.'
       return
     }
     if (unidadeSelecionada.value === 'UND') {

@@ -386,7 +386,7 @@ function toggleCustosHeader() {
 function avisarCamposFaltando(): boolean {
   const faltando = orcamentoStore.camposFaltando
   if (faltando.length) {
-    mostrarToast(`Selecione: ${faltando.join(', ')}`)
+    mostrarToast(`Selecione: ${faltando.join(', ')}`, 'alerta')
     return true
   }
   return false
@@ -626,11 +626,16 @@ function sincronizarSimulacao() {
 }
 
 watch(
-  [() => orcamentoStore.orcamentoHeader?.id, () => orcamentoStore.itensInseridos.length],
+  [() => orcamentoStore.orcamentoHeader, () => orcamentoStore.itensInseridos.length],
   () => {
     if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
   },
 )
+
+// Ao abrir a seção de custos (olho), reflete os valores atuais do cabeçalho
+watch(mostrarCustosHeader, (val) => {
+  if (val && orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
+})
 
 // Reaplica o estado salvo do seletor quando as taxas de cartão terminam de carregar
 // (na abertura, o header chega antes do /taxas_banco — a validação do cartão depende delas).
@@ -1339,9 +1344,11 @@ const enviandoWhatsApp = ref(false)
 
 // Toast temporário (rodapé) para avisos de clipboard/WhatsApp
 const toastMsg = ref('')
+const toastTipo = ref<'info' | 'alerta'>('info')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
-function mostrarToast(msg: string) {
+function mostrarToast(msg: string, tipo: 'info' | 'alerta' = 'info') {
   toastMsg.value = msg
+  toastTipo.value = tipo
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toastMsg.value = ''
@@ -3619,7 +3626,13 @@ async function enviarWhatsApp() {
     </template>
 
     <Transition name="toast-fade">
-      <div v-if="toastMsg" class="app-toast">{{ toastMsg }}</div>
+      <div
+        v-if="toastMsg"
+        class="app-toast"
+        :class="{ 'app-toast-alerta': toastTipo === 'alerta' }"
+      >
+        {{ toastMsg }}
+      </div>
     </Transition>
 
     <Teleport to="body">
@@ -5589,6 +5602,14 @@ async function enviarWhatsApp() {
   font-size: 0.9rem;
   text-align: center;
   z-index: 1200;
+}
+
+.app-toast-alerta {
+  background: #f97316;
+  color: #fff;
+  font-weight: 700;
+  border: 2px solid #ea580c;
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.55);
 }
 
 .toast-fade-enter-active,
