@@ -182,7 +182,7 @@ onMounted(carregar)
             <span class="tot-valor">{{ fmtMoeda(financeiroTotais.frete_efetivo) }}</span>
           </div>
           <div class="tot-item">
-            <span class="tot-label">Impostos (DIFAL − crédito)</span>
+            <span class="tot-label">Imp. (Difal - crédito)</span>
             <span class="tot-valor">{{ fmtMoeda(financeiroTotais.impostos) }}</span>
           </div>
           <div class="tot-item">
