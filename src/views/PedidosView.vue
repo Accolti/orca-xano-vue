@@ -428,6 +428,7 @@ function verPedido(row: OrcamentoRow) {
   border-radius: 6px;
   font-size: 0.9rem;
   color: var(--text-primary);
+  background: var(--table-hover);
   outline: none;
   transition: border-color 0.15s;
 }

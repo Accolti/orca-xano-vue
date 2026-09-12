@@ -209,6 +209,8 @@ vnd_B2B_B2C_tot = vnd_tot + frtB2C
 
 O **frete B2B não é editável** (Kapazi automático sobre o somatório). Remover item usa `DELETE /orcamento_item_deletar { item_id }` → recalc.
 
+**Dados para Kapazi (Fábrica) — defaults de frete real**: os campos "Frete B2B real"/"Frete B2C real" são pré-preenchidos com `Orca.frtB2B`/`Orca.frtB2C` quando o `ControlePedido` ainda não tem valor (`kapaziParaForm` usa o header como fallback; watch de `controlePedido` + `orcamentoHeader.id`); se já houver valor salvo, é mantido. Editável antes de "Salvar Dados da Fábrica".
+
 **Tabela de itens (resumo)**: cada linha mostra **Valor Unit B2B** e **Total B2B** (venda, não custo) — ex.: qtd 20m × `vlr_vnd_unit_b2b` 200.32 = 4006.38. O `itemS` retornado vem do `Orcamento_Recalcular_Totais` (com `Descricao` concatenada Material+Linha+Tipo+Nivel+Borda), **não** do `Orcamento_Detalhes_Function` legado. Cabeçalho = somatório dos totais B2B + custos + `markup_efetivo = (V/C − 1) × 100`.
 
 **M2 (fator de corte)**: o orquestrador chama a função **`f_retorna_fc(comp, larg, fc)`** → `new_comp`/`new_larg` → área real com FC → custo. A lógica inline antiga foi removida.

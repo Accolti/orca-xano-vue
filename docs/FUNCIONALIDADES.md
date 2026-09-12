@@ -155,6 +155,7 @@ Botão **"＋ Novo cliente"** **sempre visível** no cabeçalho da seção Clien
 - Tabela `ControlePedido` com FK **`orca_id`** (mantém `pedido_id` legado) + campos do fluxo da fábrica: `data_envio_fabrica`, `num_pedido_fabrica`, `data_aprovacao_layout`, `num_pedido_venda`, `num_nf`, `forma_pagamento_fabrica` (boleto/acerto CC/Pix), `cod_rastreio` (+ reusa `transportadoraB2B/B2C`, `dataPrevisao`, `dataChegada`, `freteB2BReal/B2CReal`).
 - Endpoints: **`controle_pedido_por_orca`** GET e **`controle_pedido_salvar`** POST (upsert por `orca_id` — fora da trava de edição, então pedido pode editar esses campos). `orcamento_converter_pedido` **exige `num_pedido_fabrica` preenchido** (badrequest) antes de virar pedido.
 - Tela finalizada/APROVADO tem a seção **"Dados para Kapazi (Fábrica)"**.
+- **Frete B2B real / Frete B2C real com default do sistema**: ao abrir a seção, se o `ControlePedido` ainda não tiver valor, os campos são pré-preenchidos com `Orca.frtB2B` e `Orca.frtB2C` (via `kapaziParaForm` + watch de `controlePedido`/`orcamentoHeader.id`) — o usuário pode editar antes de "Salvar Dados da Fábrica". Se já houver valor salvo, ele é mantido.
 
 ### Fluxo de status (Kapazi)
 
@@ -173,6 +174,7 @@ RASCUNHO → AGUARDANDO_RETORNO → APROVADO (cliente aprova) → vendedor envia
 - `index.html` tem script anti-flash (lê `localStorage('orca_theme')`, fallback `prefers-color-scheme`); `stores/ui.ts` tem `tema`/`alternarTema`; botão sol/lua no `GlobalHeader`; header/sidebar navy (`--header-bg`/`--sidebar-bg`).
 - `section-title` é barra lateral gradiente azul→laranja; `card-totais` usa `--primary-soft`; badges de status usam tokens soft (`--success-soft` etc.).
 - Componentes migrados: `ClienteModal`, `PerfilModal`, `SimulacaoModal`, `ClientesView`, `LoginView`, `SignupView`, `OAuthCallbackView` (CTA laranja nos botões primários de ação). Headers de tabela das 3 listas (Clientes/Orçamentos/Pedidos) em `--primary` com texto branco; CTA "+ Novo Orçamento" em laranja.
+- **Correções de dark mode**: campos de busca de **Orçamentos** e **Pedidos** usam `background: var(--table-hover)` (mesma cor do campo de busca do cliente — antes ficavam com fundo branco padrão do browser e texto branco, ilegível); os **valores** do card "Ajustar Orçamento" (`.preview-value`) ficam brancos no dark via `:root[data-theme='dark'] .preview-value:not(.preview-total):not(.preview-pos):not(.preview-neg)` (preserva Total Geral e Diferença em verde/vermelho).
 
 ## Docs de referência
 

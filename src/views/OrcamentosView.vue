@@ -1499,28 +1499,28 @@ const kapaziForm = ref({
 const salvandoKapazi = ref(false)
 
 function kapaziParaForm(c: any) {
-  if (!c) return
+  const h = orcamentoStore.orcamentoHeader
   kapaziForm.value = {
-    data_envio_fabrica: c.data_envio_fabrica ?? '',
-    num_pedido_fabrica: c.num_pedido_fabrica ?? '',
-    data_aprovacao_layout: c.data_aprovacao_layout ?? '',
-    num_pedido_venda: c.num_pedido_venda ?? '',
-    num_nf: c.num_nf ?? '',
-    forma_pagamento_fabrica: c.forma_pagamento_fabrica ?? '',
-    desconto_kapazi_perc: c.desconto_kapazi_perc ?? '',
-    cod_rastreio: c.cod_rastreio ?? '',
-    transportadoraB2B: c.transportadoraB2B ?? '',
-    transportadoraB2C: c.transportadoraB2C ?? '',
-    dataPrevisao: c.dataPrevisao ?? '',
-    dataChegada: c.dataChegada ?? '',
-    freteB2BReal: c.freteB2BReal ?? '',
-    freteB2CReal: c.freteB2CReal ?? '',
+    data_envio_fabrica: c?.data_envio_fabrica ?? '',
+    num_pedido_fabrica: c?.num_pedido_fabrica ?? '',
+    data_aprovacao_layout: c?.data_aprovacao_layout ?? '',
+    num_pedido_venda: c?.num_pedido_venda ?? '',
+    num_nf: c?.num_nf ?? '',
+    forma_pagamento_fabrica: c?.forma_pagamento_fabrica ?? '',
+    desconto_kapazi_perc: c?.desconto_kapazi_perc ?? '',
+    cod_rastreio: c?.cod_rastreio ?? '',
+    transportadoraB2B: c?.transportadoraB2B ?? '',
+    transportadoraB2C: c?.transportadoraB2C ?? '',
+    dataPrevisao: c?.dataPrevisao ?? '',
+    dataChegada: c?.dataChegada ?? '',
+    freteB2BReal: c?.freteB2BReal ?? (h?.frtB2B != null ? String(h.frtB2B) : ''),
+    freteB2CReal: c?.freteB2CReal ?? (h?.frtB2C != null ? String(h.frtB2C) : ''),
   }
 }
 
 watch(
-  () => orcamentoStore.controlePedido,
-  (c) => kapaziParaForm(c),
+  [() => orcamentoStore.controlePedido, () => orcamentoStore.orcamentoHeader?.id],
+  ([c]) => kapaziParaForm(c),
   { immediate: true },
 )
 
@@ -4311,6 +4311,10 @@ async function enviarWhatsApp() {
   font-size: 0.95rem;
   font-weight: 700;
   color: #166534;
+}
+
+:root[data-theme='dark'] .preview-value:not(.preview-total):not(.preview-pos):not(.preview-neg) {
+  color: #f8fafc;
 }
 
 .field-hint {
