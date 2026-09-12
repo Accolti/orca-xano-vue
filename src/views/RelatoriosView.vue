@@ -16,6 +16,7 @@ interface LinhaFinanceiro {
   perc_desconto: number
   desconto_kapazi: number
   frete_efetivo: number
+  impostos: number
   venda: number
   lucro_real: number
   margem_real: number
@@ -25,9 +26,30 @@ interface TotaisFinanceiro {
   custo_kapazi: number
   desconto_kapazi: number
   frete_efetivo: number
+  impostos: number
   venda: number
   lucro_real: number
   margem_real: number
+}
+
+interface LinhaParcela {
+  orca_id: number
+  cod_orca: string
+  cliente: string
+  venda: number
+  total_parcelas: number
+  pagas: number
+  valor_total: number
+  valor_pago: number
+  a_receber: number
+}
+
+interface TotaisParcelas {
+  valor_total: number
+  valor_pago: number
+  a_receber: number
+  total_parcelas: number
+  pagas: number
 }
 
 interface LinhaRecebido {
@@ -62,6 +84,8 @@ const financeiroTotais = ref<TotaisFinanceiro | null>(null)
 const recebidos = ref<LinhaRecebido[]>([])
 const recebidosTotal = ref(0)
 const recebidosQtde = ref(0)
+const parcelas = ref<LinhaParcela[]>([])
+const parcelasTotais = ref<TotaisParcelas | null>(null)
 const transicoes = ref<Transicao[]>([])
 const aprovacoes = ref(0)
 const mediaDiasAprov = ref(0)
@@ -82,6 +106,9 @@ async function carregar() {
     recebidos.value = d?.recebidos?.linhas ?? []
     recebidosTotal.value = Number(d?.recebidos?.totais?.total) || 0
     recebidosQtde.value = Number(d?.recebidos?.totais?.qtde) || 0
+
+    parcelas.value = d?.parcelas?.linhas ?? []
+    parcelasTotais.value = d?.parcelas?.totais ?? null
 
     transicoes.value = d?.funil?.transicoes ?? []
     aprovacoes.value = Number(d?.funil?.aprovacoes) || 0
@@ -155,6 +182,10 @@ onMounted(carregar)
             <span class="tot-valor">{{ fmtMoeda(financeiroTotais.frete_efetivo) }}</span>
           </div>
           <div class="tot-item">
+            <span class="tot-label">Impostos (DIFAL − crédito)</span>
+            <span class="tot-valor">{{ fmtMoeda(financeiroTotais.impostos) }}</span>
+          </div>
+          <div class="tot-item">
             <span class="tot-label">Vendas</span>
             <span class="tot-valor">{{ fmtMoeda(financeiroTotais.venda) }}</span>
           </div>
@@ -178,6 +209,7 @@ onMounted(carregar)
                 <th class="td-dir">Custo Kapazi</th>
                 <th class="td-dir">Desconto</th>
                 <th class="td-dir">Frete efetivo</th>
+                <th class="td-dir">Impostos</th>
                 <th class="td-dir">Venda</th>
                 <th class="td-dir">Lucro Real</th>
                 <th class="td-dir">Margem</th>
@@ -194,6 +226,7 @@ onMounted(carregar)
                   <span v-if="p.perc_desconto" class="td-sub">({{ p.perc_desconto }}%)</span>
                 </td>
                 <td class="td-dir">{{ fmtMoeda(p.frete_efetivo) }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.impostos) }}</td>
                 <td class="td-dir">{{ fmtMoeda(p.venda) }}</td>
                 <td class="td-dir td-valor">{{ fmtMoeda(p.lucro_real) }}</td>
                 <td class="td-dir">{{ fmtPct(p.margem_real) }}</td>
@@ -240,6 +273,54 @@ onMounted(carregar)
           </table>
         </div>
         <p v-else class="vazio">Nenhum recebimento no período.</p>
+      </section>
+
+      <section class="sec">
+        <h2>Parcelas por orçamento</h2>
+        <div v-if="parcelasTotais" class="totais-grid">
+          <div class="tot-item">
+            <span class="tot-label">Parcelas pagas</span>
+            <span class="tot-valor"
+              >{{ parcelasTotais.pagas }} de {{ parcelasTotais.total_parcelas }}</span
+            >
+          </div>
+          <div class="tot-item">
+            <span class="tot-label">Recebido</span>
+            <span class="tot-valor tot-ok">{{ fmtMoeda(parcelasTotais.valor_pago) }}</span>
+          </div>
+          <div class="tot-item">
+            <span class="tot-label">A receber (em aberto)</span>
+            <span class="tot-valor tot-alerta">{{ fmtMoeda(parcelasTotais.a_receber) }}</span>
+          </div>
+        </div>
+
+        <div v-if="parcelas.length" class="tabela-wrapper">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th>Orçamento</th>
+                <th>Cliente</th>
+                <th class="td-dir">Venda</th>
+                <th class="td-dir">Parcelas</th>
+                <th class="td-dir">Recebido</th>
+                <th class="td-dir">A receber</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in parcelas" :key="p.orca_id">
+                <td>{{ p.cod_orca }}</td>
+                <td>{{ p.cliente || '—' }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.venda) }}</td>
+                <td class="td-dir">{{ p.pagas }} de {{ p.total_parcelas }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.valor_pago) }}</td>
+                <td class="td-dir" :class="{ 'td-alerta': p.a_receber > 0 }">
+                  {{ fmtMoeda(p.a_receber) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="vazio">Nenhum orçamento com parcelas no período.</p>
       </section>
 
       <section class="sec">
@@ -448,6 +529,15 @@ onMounted(carregar)
 
 .tot-ok {
   color: #16a34a;
+}
+
+.tot-alerta {
+  color: #d97706;
+}
+
+.td-alerta {
+  color: #d97706;
+  font-weight: 600;
 }
 
 .tabela-wrapper {
