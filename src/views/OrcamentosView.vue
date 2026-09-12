@@ -429,7 +429,10 @@ const validadeCalculada = computed(() => {
 })
 
 async function handleInserir() {
-  if (!clienteSelecionado.value) return
+  if (!clienteSelecionado.value) {
+    mostrarToast('Selecione um cliente para adicionar o item.', 'alerta')
+    return
+  }
   if (avisarCamposFaltando()) return
   inserirOk.value = false
   try {
