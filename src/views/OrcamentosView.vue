@@ -953,6 +953,13 @@ function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function formatarQtdColuna(item: any): string {
+  if (item?.base_calculo === 'ML' || item?.und_produto === 'ML') {
+    return `${item.comp_fc || item.quantidade || item.qtd} ML`
+  }
+  return `${item.quantidade || item.qtd} ${item.und_produto === 'KIT' ? 'KIT' : 'UND'}`
+}
+
 function formatarDataHora(ts: number | string | null | undefined): string {
   if (!ts) return ''
   const d = new Date(ts)
@@ -2742,7 +2749,7 @@ async function enviarWhatsApp() {
                     montarItemDisplay(item).dimensoes
                   }}</span>
                   <span class="itens-col-qtd" data-label="Qtd">{{
-                    montarItemDisplay(item).quantidade
+                    formatarQtdColuna(item)
                   }}</span>
                   <span class="itens-col-vlr" data-label="Valor Unit">{{
                     formatarMoeda(montarItemDisplay(item).valorUnit)
@@ -3004,7 +3011,7 @@ async function enviarWhatsApp() {
                 montarItemDisplay(item).dimensoes
               }}</span>
               <span class="itens-col-qtd" data-label="Qtd">{{
-                montarItemDisplay(item).quantidade
+                formatarQtdColuna(item)
               }}</span>
               <span class="itens-col-vlr" data-label="Valor Unit">{{
                 formatarMoeda(montarItemDisplay(item).valorUnit)
