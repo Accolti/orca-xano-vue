@@ -20,9 +20,6 @@ export interface ItemDisplay {
   valorTotal: number
 }
 
-// Unidades de venda reconhecidas (Base_de_Calculo). "COMPOSTO"/vazio não vira sufixo.
-const UNIDADES_VENDA = ['M2', 'ML', 'UND', 'KIT']
-
 // Número pt-BR com casas fixas (default 2). Ex.: 7.37 → "7,37".
 export function numBR(valor: any, casas = 2): string {
   return (Number(valor) || 0).toLocaleString('pt-BR', {
@@ -124,11 +121,12 @@ export function montarItemDisplay(item: any): ItemDisplay {
     dimensoes = `${numBR(larg)} x ${numBR(comp)} m`
   }
 
-  // Quantidade com unidade (ML sempre "ML"; demais usam a unidade de venda quando conhecida).
+  // Quantidade com unidade: ML usa metros lineares faturados (comp_fc); demais usam UND/KIT.
   const qtd = Number(item?.qtd) || 1
-  const unidade = isML ? 'ML' : UNIDADES_VENDA.includes(und) ? und : ''
   const qtdBase = isML ? Number(item?.comp_fc) || qtd : qtd
-  const quantidade = unidade ? `${numCompacto(qtdBase)} ${unidade}` : numCompacto(qtdBase)
+  const quantidade = isML
+    ? `${numCompacto(qtdBase)} ML`
+    : `${numCompacto(qtd)} ${und === 'KIT' ? 'KIT' : 'UND'}`
 
   let titulo = descricao
   let subtitulo = ''
