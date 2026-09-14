@@ -54,7 +54,7 @@ O **frete B2B não é editável** (Kapazi automático sobre o somatório). Remov
 - PDF/WhatsApp — totais: **Subtotal = Σ (bruto × qtd) da tabela**; **Total Geral = Subtotal − Desconto + Frete B2C + Mão de Obra**. Medidas sanitizadas sem `$` (`valorNumericoLimpo`). Endereço do rodapé no padrão "Rua, nº X - Bairro - Cidade/UF - CEP: XXXXX-XXX".
 - WhatsApp: botão na tela finalizada e na listagem; mensagem montada no frontend (`montarTextoWhatsApp`) com emojis (📋📌↳💳📝📎), negrito nativo `*...*`, condições de pagamento (campo salvo ou fallback), "Frete: R$ X"/"Frete: Grátis" (sem B2C), linhas de Desconto/Frete/Mão de Obra só quando > 0 (Frete sempre presente); telefone do cliente com `tipo_telefone_id == 1` (addon `Telefone_Cliente_of_Cliente` no `orca_detalhes`).
 - WhatsApp **copiar + colar** (`copiarEabrirWhatsApp` em `pdf.ts`): o `wa.me?text=` perde emojis de 4 bytes (📋📌💳📝📎 → ``) em alguns clientes (o ↳, 3 bytes, renderiza). Solução: **Web Share API SÓ em mobile** (`ehDispositivoMovel()` + `navigator.share`, texto nativo); **desktop**: copia a mensagem (`navigator.clipboard` com fallback `execCommand('copy')`) e abre `wa.me/<numero>` **sem** texto — o `navigator.share` no desktop abriria a caixa do SO sem WhatsApp; toast temporário avisa "cole na conversa (Ctrl+V)". Fallback: se não copiar, abre com o texto na URL. Retorno: `'shared' | 'copied' | 'failed'`.
-- WhatsApp itens: `descricao.trim()` (o `concat` do backend deixa espaços finais que quebram o negrito `*...*` do WhatsApp a partir do item 4); item em até 3 linhas (📌 nome (medidas) / **observação do vendedor** (ex.: "Porta Principal", quando `item.descricao` preenchida e a `Descricao` concatenada existe) / • métricas) com **linha em branco entre itens**. A composição PLAYKAP/ML (`composicaoItem`) entra após o nome (`nome — composição`).
+- WhatsApp itens: `descricao.trim()` (o `concat` do backend deixa espaços finais que quebram o negrito `*...*` do WhatsApp a partir do item 4); item em até 3 linhas (📌 nome (medidas) / **observação do vendedor** (ex.: "Porta Principal", quando `item.descricao` preenchida e a `Descricao` concatenada existe) / • métricas) com **linha em branco entre itens**. O texto do item vem de `montarItemDisplay` (`itemDisplay.ts`): PLAYKAP/ML entram como subtítulo (`nome — composição`) e a Qtd leva a unidade.
 
 ### Garantia (por material)
 
@@ -298,12 +298,15 @@ Ao editar um item (✏️), os seletores (material/linha/tipo/nível/borda/varia
 
 Tabela **`Notificacao`** (`user_id`, `tipo` `desconto_pendente|desconto_aprovado|desconto_recusado`, `orca_id`, `lida`, `data_leitura`). O backend cria a notificação ao mudar o estado de desconto (pendente → pai; aprovado/recusado → filho). `GET /notificacoes` + `POST /notificacoes_marcar_lida`; o **sino** em `GlobalHeader.vue` mostra badge de não lidas, popover com as notificações e navega para o orçamento.
 
-## Detalhes do cálculo ML (`detalhes_calculo.ml`)
+## Detalhes do cálculo ML (`detalhes_calculo.ml`) e exibição dos itens
 
-- `f_valor_custo_ml` agora retorna **`detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }`** (antes `null`) → persiste no item via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`.
-- Front (`pdf.ts` `composicaoML`/`composicaoItem` + cópia em `OrcamentosView`): exibe na tabela de itens, WhatsApp e PDFs.
-  - Sem rolos: `5 m fracionado — Passar a faixa no sentido do comprimento (3 m)` (total omitido).
-  - Com rolos: `32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>` (total na frente).
+- `f_valor_custo_ml` retorna **`detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }`** → persiste no item via `post_item`/`OrcamentoItem_Inserir`/`Atualizar`.
+- **Exibição unificada** por `src/utils/itemDisplay.ts` → `montarItemDisplay(item)` (DTO: `titulo`, `subtitulo`, `dimensoes`, `quantidade`, `valorUnit`, `valorTotal`), consumido pela **tabela de itens** (edição e resumo), **WhatsApp** e **PDFs** (orçamento e pedido de venda). Números em **pt-BR (vírgula)**; o financeiro dos PDFs/WhatsApp continua no **preço bruto** (`vlr_vnd_unit_bruto`) para preservar o desconto no subtotal.
+- **Título**: `{Descricao} (Rolo {largura_fixa} x {tam_rolo} m)` — especificação do rolo padrão da variação (fallback `larg_fc` em itens antigos).
+- **Modo Medidas** (`item.larg > 0`): subtexto `Consumo: N rolo(s) fechado(s) (1,30 x 15 m) + 3 m fracionados • Sentido: <orientação>`; dimensões `largura x comprimento m`.
+- **Modo Área** (`item.larg = 0`, `item.comp` = área solicitada): subtexto `Fornecido: 6 ML (12 m²) — Atende à área solicitada de 10,00 m²`; dimensões `10,00 m²`.
+- **Qtd**: `{comp_fc} {unidade}` para ML (ex.: `18 ML`) e `{qtd} {und_produto}` (M2/UND/KIT) para os demais; `COMPOSTO`/vazio sem sufixo.
+- **Edição**: `editarItem` restaura o modo ML por `item.larg` (não por `area_calc`, que para ML guarda metros lineares) — modo Área usa `areaML = item.comp`.
 
 ## Condições de Pagamento (seletor avançado)
 

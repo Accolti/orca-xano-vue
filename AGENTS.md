@@ -270,7 +270,17 @@ O endpoint **`POST /orcamento_calcular`** (auth User) encapsula o `Orcamento_Orq
 - **ML usa `f_fator_corte_variacao`**: para ML, o orquestrador chama a função `f_fator_corte_variacao(variacao_id)` que cruza `Variacao` com `Fator_de_Corte` (via `fator_de_corte_id`) e devolve `larg_base` (→ `largura_fixa`), `comp_corte` (→ `fator_corte`), `tam_rolo_total` (→ `tam_rolo`). Se a variação estiver inativa (`ativo=false`) ou sem FC, lança `Variação desativada.`
 - **Lógica ML exata = `f_Valor_Custo_ML`**: paginação inteligente (2 sentidos), conversão M2→ML, fator de corte, rolos/metros fracionados — incorporada no lambda do orquestrador.
 - **`inserirOrcamento()`** envia `vlr_cst_nota`/`vlr_cst_entrada` (do `resultadoNovo.itens[0]`) → `post_item` grava na tabela `item`.
-- **ML grava `detalhes_calculo.ml`**: `f_valor_custo_ml` retorna `detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }` (antes `null`) → o orquestrador expõe (`f_orcamento_orquestrador.xs:409`) e o front envia em `inserirOrcamento` → `post_item` persiste. `composicaoML()`/`composicaoItem()` no `pdf.ts` e cópia na view exibem **rolos/metros fracionados/orientação** na tabela de itens, WhatsApp e PDFs. Ex.: `5 m fracionado — Passar a faixa no sentido do comprimento (3 m)`; com rolos, o total entra na frente (`32,5 m — 3 rolo(s) — 2,5 m fracionado`). **Atenção (lição)**: ML também retorna `detalhes_calculo` no `$mod1` — manter os outros ramos do switch (M2/UND/KIT) com `null`.
+- **ML grava `detalhes_calculo.ml`**: `f_valor_custo_ml` retorna `detalhes_calculo: { ml: { totalMetrosLineares, rolosFechados, metrosFracionados, orientacaoIdeal, valor_ml, largura_fixa, tam_rolo, fator_corte, resumoTexto } }` (antes `null`) → o orquestrador expõe (`f_orcamento_orquestrador.xs:409`) e o front envia em `inserirOrcamento` → `post_item` persiste. **Atenção (lição)**: ML também retorna `detalhes_calculo` no `$mod1` — manter os outros ramos do switch (M2/UND/KIT) com `null`.
+
+### Exibição padronizada dos itens (ML / rolos)
+
+`src/utils/itemDisplay.ts` → **`montarItemDisplay(item)`** (DTO `{ isML, titulo, subtitulo, dimensoes, quantidade, valorUnit, valorTotal }`) é a **única** fonte do texto do item, usada pela tabela (edição e resumo) em `OrcamentosView.vue` e por WhatsApp/PDFs em `pdf.ts` (antes `composicaoML`/`composicaoItem` eram duplicados nos dois arquivos). Números em **pt-BR (vírgula)**; o financeiro de PDF/WhatsApp segue no **preço bruto** (`vlr_vnd_unit_bruto`) para não duplicar o desconto no subtotal.
+
+- **Título**: `{Descricao} (Rolo {largura_fixa} x {tam_rolo} m)` (fallback `larg_fc` em itens antigos).
+- **Modo Medidas** (`item.larg > 0`): subtexto `Consumo: N rolo(s) fechado(s) (1,30 x 15 m) + 3 m fracionados • Sentido: <orientacaoIdeal>`; dimensões `largura x comprimento m`.
+- **Modo Área** (`item.larg = 0`; `item.comp` = **área solicitada**, pois o payload manda `comprimento_ou_area = areaML`): subtexto `Fornecido: {comp_fc} ML ({comp_fc × largura_fixa} m²) — Atende à área solicitada de {numBR(comp)} m²`; dimensões `{comp} m²`.
+- **Qtd**: ML → `{comp_fc} ML`; demais → `{qtd} {und_produto}` (M2/UND/KIT); `COMPOSTO`/vazio sem sufixo.
+- **Edição**: `editarItem` restaura o modo ML por `item.larg` (não por `area_calc` — para ML ele guarda **metros lineares**): modo Área → `areaML = item.comp`; modo Medidas → `areaML = larg × comp`.
 
 ### Quantidade decimal (`qtd`)
 

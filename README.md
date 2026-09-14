@@ -36,7 +36,7 @@ Sistema de gestão de tapetes personalizados (Orca Systems) com autenticação, 
 - **Nível inteligente** — a combo de Nível é derivada dos produtos reais ativos (`ativo` na tabela `Produto`) cruzando a seleção Material+Linha+Tipo; sem exceções hardcoded (Vinil+Liso some sozinho; Vinil Alto Tráfego Vulcanizado sem Nível 3)
 - **Duplicar orçamento** — botão na listagem (`POST /Orcamento_Duplicar`, case-sensitive) que abre o duplicado em modo edição
 - **Condições de pagamento** — seletor avançado (instituição + mais vantajosa ⭐, checkboxes Pix/Boleto/Cartão, desconto Pix com impacto em lucro/margem, mesclagem de métodos)
-- **Detalhes ML** — `detalhes_calculo.ml` gravado (rolos/metros/orientação) e exibido na tabela, WhatsApp e PDFs
+- **Detalhes ML** — `detalhes_calculo.ml` gravado (rolos/metros/orientação) e exibido na tabela, WhatsApp e PDFs via `montarItemDisplay` (`src/utils/itemDisplay.ts`): título com o rolo padrão, subtexto de consumo/sentido (Medidas) ou área fornecida/solicitada (Área) e Qtd com unidade (`18 ML`)
 - **Quantidade decimal** — `item.qtd` aceita frações (ex.: metros lineares), input com `step="0.01"`
 - **Controle Financeiro** — página `/pagamentos`: parcelas por orçamento com abas de status (Em aberto = não pagas / A vencer / Vencidos / Pagos) + baixa/estorno manual; barra **"Período a partir de"** (Mensal/Trimestral/Semestral/Anual)
 - **Faturar** — em `AGUARDANDO_FATURAMENTO`, salva as parcelas via `PagamentoModal` e avança para `FATURADO`; status pós-conversão: FATURADO/ENTREGUE/CANCELADO

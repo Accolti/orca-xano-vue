@@ -1,0 +1,15 @@
+# Bloquear apenas pastas e assets pesados de mídia/build
+node_modules/
+dist/
+dist-ssr/
+.git/
+.vscode/
+public/
+docs/
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
+*.webp
+*.pdf

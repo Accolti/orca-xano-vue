@@ -5,6 +5,7 @@ import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import { montarLinhasGarantia } from '@/utils/garantia'
+import { montarItemDisplay } from '@/utils/itemDisplay'
 import { useCatalogoStore } from '@/stores/catalogo'
 import logoOrca from '@/assets/logo.png?inline'
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
@@ -32,41 +33,6 @@ function linhasGarantia(itens: any[]): string[] {
 
 export function formatarMoeda(valor: number): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// Composição do produto composto PLAYKAP (a partir do detalhes_calculo gravado no item).
-// Ex.: "578 placas + 102 rampas (51 M / 51 F) + 4 cantoneiras"
-export function composicaoPlaykap(item: any): string {
-  const p = item?.detalhes_calculo?.playkap
-  if (!p) return ''
-  const partes: string[] = []
-  if (p.placas) partes.push(`${p.placas} placas`)
-  if (p.rampas_total)
-    partes.push(`${p.rampas_total} rampas (${p.rampas_macho} M / ${p.rampas_femea} F)`)
-  if (p.cantoneiras) partes.push(`${p.cantoneiras} cantoneiras`)
-  return partes.join(' + ')
-}
-
-// Composição de venda por ML (detalhes_calculo.ml) — rolos/metros/orientação.
-// Ex.: "3 rolo(s) — 2,5 m fracionado — <orientação>"; com rolos, o total entra na frente:
-// "32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>". Sem rolos, só o fracionado.
-export function composicaoML(item: any): string {
-  const m = item?.detalhes_calculo?.ml
-  if (!m) return ''
-  const partes: string[] = []
-  const total = Number(m.totalMetrosLineares) || 0
-  const rolos = Number(m.rolosFechados) || 0
-  const frac = Number(m.metrosFracionados) || 0
-  if (rolos > 0 && total > 0) partes.push(`${total} m`)
-  if (rolos > 0) partes.push(`${rolos} rolo(s)`)
-  if (frac > 0) partes.push(`${frac} m fracionado`)
-  if (m.orientacaoIdeal) partes.push(m.orientacaoIdeal)
-  return partes.join(' — ')
-}
-
-// Composição combinada: PLAYKAP ou ML (a que existir no detalhes_calculo do item)
-export function composicaoItem(item: any): string {
-  return composicaoPlaykap(item) || composicaoML(item)
 }
 
 export function formatarDataHora(ts: number | string | undefined): string {
@@ -202,27 +168,6 @@ function formatarCondicaoWhatsApp(linha: string): string {
   return `• ${l}`
 }
 
-// Converte um valor possivelmente com $/moeda/sujeira para número limpo (preserva decimais)
-function valorNumericoLimpo(valor: any): number {
-  if (valor == null) return 0
-  let str = String(valor).replace(/[R$]/gi, '').trim()
-  if (str.includes(',') && !str.includes('.')) {
-    str = str.replace(',', '.')
-  }
-  const n = Number(str)
-  return isNaN(n) ? 0 : n
-}
-
-// Medidas do item: "(2,50 x 1,20 m)" ou "Tamanho Padrão" quando zeradas (sem $)
-function formatarMedidas(item: any): string {
-  const larg = valorNumericoLimpo(item.larg)
-  const comp = valorNumericoLimpo(item.comp)
-  if (larg <= 0 && comp <= 0) return 'Tamanho Padrão'
-  const fmt = (v: number) =>
-    v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `(${fmt(larg)} x ${fmt(comp)} m)`
-}
-
 // Observações organizadas em tópicos numerados
 function organizarObservacoes(texto: string): string[] {
   return (texto || '')
@@ -243,7 +188,9 @@ export function obterWhatsapp(user?: User | null): string {
 // Telefone do cliente com tipo_telefone_id 1 (Whatsapp Com) ou 6 (Whatsapp Res)
 export function obterWhatsappCliente(cliente?: Cliente | null): string {
   const telefones = cliente?._telefone_cliente_of_cliente ?? []
-  const tel = telefones.find((t) => Number(t.tipo_telefone_id) === 1 || Number(t.tipo_telefone_id) === 6)
+  const tel = telefones.find(
+    (t) => Number(t.tipo_telefone_id) === 1 || Number(t.tipo_telefone_id) === 6,
+  )
   return tel?.telefone || ''
 }
 
@@ -269,17 +216,15 @@ export function montarTextoWhatsApp({
 
   const linhasItens = (itens || []).map((item, i) => {
     const temDescricaoCapital = Boolean((item.Descricao || '').trim())
-    const descricao = (item.Descricao || item.descricao || '').trim()
-    const comp = composicaoItem(item)
-    const nome = comp ? `${descricao} — ${comp}` : descricao
-    const medidas = formatarMedidas(item)
+    const dto = montarItemDisplay(item)
+    const nome = dto.subtitulo ? `${dto.titulo} — ${dto.subtitulo}` : dto.titulo
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
     // Observação do vendedor (ex.: "porta da frete") entra como linha extra,
     // igual ao PDF. Só quando a Descricao concatenada existe (senão é o fallback).
     const obsItem = temDescricaoCapital ? (item.descricao || '').trim() : ''
     const obsLinha = obsItem ? `\n${obsItem}` : ''
-    return `📌 *Item ${i + 1}: ${nome}* ${medidas}${obsLinha}\n• Qtd: ${qtd} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
+    return `📌 *Item ${i + 1}: ${nome}* ${dto.dimensoes}${obsLinha}\n• Qtd: ${dto.quantidade} | Unitário: ${formatarMoeda(unit)} | Total: ${formatarMoeda(unit * qtd)}`
   })
 
   const linhas: string[] = []
@@ -568,16 +513,15 @@ export async function gerarPdfOrcamento({
     ],
   ]
   ;(itens || []).forEach((item, i) => {
-    const descricao = item.Descricao || item.descricao || ''
+    const dto = montarItemDisplay(item)
     const obsItem = item.descricao || ''
-    const comp = composicaoItem(item)
     const qtd = Number(item.qtd) || 1
     const unit = brutoUnitarioItem(item, header)
     const zebra = i % 2 === 1 ? '#f7f9fb' : '#ffffff'
-    const linhasDesc: any[] = [{ text: descricao, ...td, fillColor: zebra }]
-    if (comp) {
+    const linhasDesc: any[] = [{ text: dto.titulo, ...td, fillColor: zebra }]
+    if (dto.subtitulo) {
       linhasDesc.push({
-        text: comp,
+        text: dto.subtitulo,
         fontSize: 8,
         color: '#1f4e79',
         fillColor: zebra,
@@ -601,8 +545,8 @@ export async function gerarPdfOrcamento({
         fillColor: zebra,
         margin: [4, 5, 4, 5] as any,
       },
-      { text: formatarMedidas(item), ...td, fillColor: zebra },
-      { text: String(qtd), ...td, fillColor: zebra, alignment: 'center' },
+      { text: dto.dimensoes, ...td, fillColor: zebra },
+      { text: dto.quantidade, ...td, fillColor: zebra, alignment: 'center' },
       { text: formatarMoeda(unit), ...td, fillColor: zebra, alignment: 'right' },
       { text: formatarMoeda(unit * qtd), ...td, fillColor: zebra, alignment: 'right' },
     ])
@@ -1000,6 +944,7 @@ export async function gerarPdfPedidoVenda({
 
   let subtotalItens = 0
   ;(itens || []).forEach((item) => {
+    const dto = montarItemDisplay(item)
     const qtd = Number(item.qtd) || 1
     const precoUnit = Number(item.vlr_vnd_unit) || 0
     const subtotal = precoUnit * qtd
@@ -1007,13 +952,11 @@ export async function gerarPdfPedidoVenda({
     body.push([
       { text: String(item.produto_id ?? ''), ...td },
       {
-        text: [item.Descricao || item.descricao || '', composicaoItem(item)]
-          .filter(Boolean)
-          .join('  ·  '),
+        text: [dto.titulo, dto.subtitulo].filter(Boolean).join('  ·  '),
         ...td,
       },
-      { text: formatarMedidas(item), ...td },
-      { text: String(qtd), ...td, alignment: 'center' },
+      { text: dto.dimensoes, ...td },
+      { text: dto.quantidade, ...td, alignment: 'center' },
       { text: formatarMoeda(precoUnit), ...td, alignment: 'right' },
       { text: formatarMoeda(subtotal), ...td, alignment: 'right' },
     ])

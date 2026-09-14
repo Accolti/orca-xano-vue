@@ -21,6 +21,7 @@ import PagamentoModal from '@/components/PagamentoModal.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
+import { montarItemDisplay } from '@/utils/itemDisplay'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 import type { TaxaBanco } from '@/types/orcamento'
@@ -235,7 +236,9 @@ const margemPadrao = computed(() => {
 const fretePadrao = computed(() => (authStore.userEfetivo ?? authStore.user)?.frtB2B ?? 52)
 
 // ---- Projeção de comissão (visão do vendedor/Master) ----
-const faixasComissao = ref<Array<{ faixa_min: number; faixa_max: number | null; comissao_total_perc: number }>>([])
+const faixasComissao = ref<
+  Array<{ faixa_min: number; faixa_max: number | null; comissao_total_perc: number }>
+>([])
 const percentualComissaoProprio = ref<number | null>(null)
 
 async function carregarFaixasComissao() {
@@ -279,12 +282,9 @@ const projecaoComissao = computed(() => {
   return `Faixa de markup ${fmtMarkup}: comissão total liberada de ${total.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% ao Master.`
 })
 
-watch(
-  [() => authStore.user?.id, () => orcamentoStore.orcamentoHeader?.id],
-  () => {
-    carregarFaixasComissao()
-  },
-)
+watch([() => authStore.user?.id, () => orcamentoStore.orcamentoHeader?.id], () => {
+  carregarFaixasComissao()
+})
 
 onMounted(() => {
   carregarFaixasComissao()
@@ -628,12 +628,9 @@ function sincronizarSimulacao() {
     (vendaFinal > 0 && cst > 0 ? round2(((vendaFinal - cst) / vendaFinal) * 100) : 0)
 }
 
-watch(
-  [() => orcamentoStore.orcamentoHeader, () => orcamentoStore.itensInseridos.length],
-  () => {
-    if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
-  },
-)
+watch([() => orcamentoStore.orcamentoHeader, () => orcamentoStore.itensInseridos.length], () => {
+  if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
+})
 
 // Ao abrir a seção de custos (olho), reflete os valores atuais do cabeçalho
 watch(mostrarCustosHeader, (val) => {
@@ -912,8 +909,11 @@ function editarItem(item: any) {
   orcamentoStore.quantidade = item.qtd ?? 1
   orcamentoStore.medidaExata = item.com_medida_exata === true
   if (orcamentoStore.ehML) {
-    orcamentoStore.areaML = item.area_calc ?? 0
-    modoEntradaML.value = item.area_calc ? 'area' : 'dimensoes'
+    // No modo Área o item grava a área solicitada em `comp` (larg = 0); no modo Medidas
+    // grava larg × comp. `area_calc` NÃO serve aqui: para ML ele guarda os metros lineares.
+    const modoDimensoes = (item.larg ?? 0) > 0
+    modoEntradaML.value = modoDimensoes ? 'dimensoes' : 'area'
+    orcamentoStore.areaML = modoDimensoes ? (item.larg ?? 0) * (item.comp ?? 0) : (item.comp ?? 0)
   }
   if (orcamentoStore.ehComposto && item.detalhes_calculo?.playkap) {
     const p = item.detalhes_calculo.playkap
@@ -951,49 +951,6 @@ async function removerItem(item: any, idx: number) {
 
 function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// Composição do produto composto PLAYKAP (a partir do detalhes_calculo gravado no item).
-// Ex.: "578 placas + 102 rampas (51 M / 51 F) + 4 cantoneiras"
-function composicaoPlaykap(item: any): string {
-  const p = item?.detalhes_calculo?.playkap
-  if (!p) return ''
-  const partes: string[] = []
-  if (p.placas) partes.push(`${p.placas} placas`)
-  if (p.rampas_total)
-    partes.push(`${p.rampas_total} rampas (${p.rampas_macho} M / ${p.rampas_femea} F)`)
-  if (p.cantoneiras) partes.push(`${p.cantoneiras} cantoneiras`)
-  return partes.join(' + ')
-}
-
-// Composição de venda por ML (detalhes_calculo.ml) — rolos/metros/orientação.
-// Ex.: "3 rolo(s) — 2,5 m fracionado — <orientação>"; com rolos, o total entra na frente:
-// "32,5 m — 3 rolo(s) — 2,5 m fracionado — <orientação>". Sem rolos, só o fracionado.
-function composicaoML(item: any): string {
-  const m = item?.detalhes_calculo?.ml
-  if (!m) return ''
-  const partes: string[] = []
-  const total = Number(m.totalMetrosLineares) || 0
-  const rolos = Number(m.rolosFechados) || 0
-  const frac = Number(m.metrosFracionados) || 0
-  if (rolos > 0 && total > 0) partes.push(`${total} m`)
-  if (rolos > 0) partes.push(`${rolos} rolo(s)`)
-  if (frac > 0) partes.push(`${frac} m fracionado`)
-  if (m.orientacaoIdeal) partes.push(m.orientacaoIdeal)
-  return partes.join(' — ')
-}
-
-// Composição combinada: PLAYKAP ou ML (a que existir no detalhes_calculo do item)
-function composicaoItemView(item: any): string {
-  return composicaoPlaykap(item) || composicaoML(item)
-}
-
-// Dimensão exibida na lista de itens — sempre 2 casas decimais (itens antigos podem ter
-// valores brutos, ex.: sqrt de área = 7.0710678118654755).
-function formatarDimensaoItem(item: any): string {
-  const larg = Number(item?.larg ?? 0)
-  const comp = Number(item?.comp ?? 0)
-  return `${larg.toFixed(2)} x ${comp.toFixed(2)} m`
 }
 
 function formatarDataHora(ts: number | string | null | undefined): string {
@@ -1604,7 +1561,11 @@ async function enviarWhatsApp() {
   <div class="orcamento-page">
     <PendenciasPerfilBanner />
     <ConfigComissoesBanner />
-    <div v-if="descontoPendente && podeVerPendencia" class="desc-banner" :class="{ 'desc-pai': viewerPai }">
+    <div
+      v-if="descontoPendente && podeVerPendencia"
+      class="desc-banner"
+      :class="{ 'desc-pai': viewerPai }"
+    >
       <span v-if="souDonoOrcamento">
         Desconto acima do limite livre aguarda aprovação do pai — o envio/avanço de status fica
         bloqueado até a aprovação.
@@ -1612,7 +1573,9 @@ async function enviarWhatsApp() {
       <template v-else>
         <span>
           Desconto de
-          <strong>{{ formatarMoeda(Number(orcamentoStore.orcamentoHeader?.desconto) || 0) }}</strong>
+          <strong>{{
+            formatarMoeda(Number(orcamentoStore.orcamentoHeader?.desconto) || 0)
+          }}</strong>
           aguarda sua aprovação.
         </span>
         <div class="desc-banner-acoes">
@@ -2554,7 +2517,9 @@ async function enviarWhatsApp() {
                   </div>
                 </div>
                 <div class="recalc-item recalc-item-action">
-                  <button class="btn btn-primary btn-sm" @click="aplicarDescontoFilho">Aplicar</button>
+                  <button class="btn btn-primary btn-sm" @click="aplicarDescontoFilho">
+                    Aplicar
+                  </button>
                 </div>
               </div>
               <p v-if="recaleError" class="cond-linha erro-msg-min">{{ recaleError }}</p>
@@ -2771,19 +2736,19 @@ async function enviarWhatsApp() {
                 <div class="itens-row">
                   <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
                   <span class="itens-col-desc" data-label="Descrição">{{
-                    item.Descricao || item.descricao
+                    montarItemDisplay(item).titulo
                   }}</span>
                   <span class="itens-col-dim" data-label="Dimensões">{{
-                    formatarDimensaoItem(item)
+                    montarItemDisplay(item).dimensoes
                   }}</span>
-                  <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
+                  <span class="itens-col-qtd" data-label="Qtd">{{
+                    montarItemDisplay(item).quantidade
+                  }}</span>
                   <span class="itens-col-vlr" data-label="Valor Unit">{{
-                    formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
+                    formatarMoeda(montarItemDisplay(item).valorUnit)
                   }}</span>
                   <span class="itens-col-total" data-label="Total">{{
-                    formatarMoeda(
-                      (item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1),
-                    )
+                    formatarMoeda(montarItemDisplay(item).valorTotal)
                   }}</span>
                   <span class="itens-col-actions">
                     <button class="btn-icon" title="Editar item" @click="editarItem(item)">
@@ -2827,10 +2792,10 @@ async function enviarWhatsApp() {
                 </div>
                 <div v-if="item.descricao" class="itens-obs">{{ item.descricao }}</div>
                 <div
-                  v-if="composicaoPlaykap(item) || composicaoML(item)"
+                  v-if="montarItemDisplay(item).subtitulo"
                   class="itens-obs itens-obs-composicao"
                 >
-                  {{ composicaoItemView(item) }}
+                  {{ montarItemDisplay(item).subtitulo }}
                 </div>
               </div>
             </div>
@@ -3027,23 +2992,25 @@ async function enviarWhatsApp() {
             >
               <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
               <span class="itens-col-desc" data-label="Descrição">
-                {{ item.Descricao || item.descricao }}
+                {{ montarItemDisplay(item).titulo }}
                 <span
-                  v-if="composicaoPlaykap(item) || composicaoML(item)"
+                  v-if="montarItemDisplay(item).subtitulo"
                   class="itens-obs itens-obs-composicao"
                 >
-                  {{ composicaoItemView(item) }}
+                  {{ montarItemDisplay(item).subtitulo }}
                 </span>
               </span>
               <span class="itens-col-dim" data-label="Dimensões">{{
-                formatarDimensaoItem(item)
+                montarItemDisplay(item).dimensoes
               }}</span>
-              <span class="itens-col-qtd" data-label="Qtd">{{ item.qtd }}</span>
+              <span class="itens-col-qtd" data-label="Qtd">{{
+                montarItemDisplay(item).quantidade
+              }}</span>
               <span class="itens-col-vlr" data-label="Valor Unit">{{
-                formatarMoeda(item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0)
+                formatarMoeda(montarItemDisplay(item).valorUnit)
               }}</span>
               <span class="itens-col-total" data-label="Total">{{
-                formatarMoeda((item.vlr_vnd_unit_b2b ?? item.vlr_vnd_unit ?? 0) * (item.qtd ?? 1))
+                formatarMoeda(montarItemDisplay(item).valorTotal)
               }}</span>
             </div>
           </div>
@@ -3177,7 +3144,10 @@ async function enviarWhatsApp() {
                 <p v-if="pixLimiteStatus === 'acima'" class="cond-badge limite-aviso-erro">
                   Acima do máximo permitido ({{ limitesDesconto?.max }}%) — ajuste para salvar.
                 </p>
-                <p v-else-if="pixLimiteStatus === 'pendente'" class="cond-badge limite-aviso-alerta">
+                <p
+                  v-else-if="pixLimiteStatus === 'pendente'"
+                  class="cond-badge limite-aviso-alerta"
+                >
                   Acima do desconto livre — exigirá aprovação.
                 </p>
                 <p v-if="descontoPixPercentual > 0" class="cond-badge badge-ok cond-pix-impacto">
@@ -3194,7 +3164,9 @@ async function enviarWhatsApp() {
                     :value="parcelasPix ?? 2"
                     @change="alterarParcelasPix"
                   >
-                    <option :value="1">1x de {{ formatarValorParcelaPix(1) }} (pagamento em até 5 dias)</option>
+                    <option :value="1">
+                      1x de {{ formatarValorParcelaPix(1) }} (pagamento em até 5 dias)
+                    </option>
                     <option :value="2">2x de {{ formatarValorParcelaPix(2) }}</option>
                   </select>
                 </div>
@@ -3202,8 +3174,9 @@ async function enviarWhatsApp() {
                   {{ condicoesCalculadas.boleto }}
                 </p>
                 <div v-if="metodosPagamento.boleto" class="cond-boleto-parcelas">
-                  <label for="cond-parcelas-boleto">Parcelas do Boleto (máx.
-                    {{ maxParcelasBoleto }}x)</label>
+                  <label for="cond-parcelas-boleto"
+                    >Parcelas do Boleto (máx. {{ maxParcelasBoleto }}x)</label
+                  >
                   <select
                     id="cond-parcelas-boleto"
                     :value="parcelasBoleto ?? maxParcelasBoleto"
