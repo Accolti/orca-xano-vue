@@ -1470,7 +1470,7 @@ function kapaziParaForm(c: any) {
     transportadoraB2C: c?.transportadoraB2C ?? '',
     dataPrevisao: c?.dataPrevisao ?? '',
     dataChegada: c?.dataChegada ?? '',
-    freteB2BReal: c?.freteB2BReal ?? (h?.frtB2B != null ? String(h.frtB2B) : ''),
+    freteB2BReal: c?.freteB2BReal ?? '',
     freteB2CReal: c?.freteB2CReal ?? (h?.frtB2C != null ? String(h.frtB2C) : ''),
   }
 }
@@ -1500,7 +1500,7 @@ async function salvarDadosKapazi() {
       transportadoraB2C: f.transportadoraB2C || null,
       dataPrevisao: f.dataPrevisao || null,
       dataChegada: f.dataChegada || null,
-      freteB2BReal: f.freteB2BReal !== '' ? Number(f.freteB2BReal) : null,
+      freteB2BReal: Number(f.freteB2BReal) > 0 ? Number(f.freteB2BReal) : null,
       freteB2CReal: f.freteB2CReal !== '' ? Number(f.freteB2CReal) : null,
     })
     mostrarToast('Dados da fábrica salvos.')
@@ -2097,10 +2097,15 @@ async function enviarWhatsApp() {
               </div>
             </div>
 
-            <div v-if="!orcamentoStore.ehML" class="field area-fc-wrap">
-              <label>Área Faturada (m²)</label>
+            <div class="field area-fc-wrap">
+              <label v-if="!orcamentoStore.ehML">Área Faturada (m²)</label>
               <div class="area-fc-input">
-                <input :value="areaFaturada.toFixed(2)" readonly class="input-readonly input-big" />
+                <input
+                  v-if="!orcamentoStore.ehML"
+                  :value="areaFaturada.toFixed(2)"
+                  readonly
+                  class="input-readonly input-big"
+                />
                 <button
                   v-if="!authStore.ehFilho"
                   class="btn-eye"
@@ -3995,6 +4000,7 @@ async function enviarWhatsApp() {
 .area-fc-input {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
