@@ -37,7 +37,7 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F4B0}', label: 'Comissões', path: '/comissoes', comissoes: true },
   { icon: '\u{2699}\u{FE0F}', label: 'Config. Comissões', path: '/faixas', adminOnly: true, comissoes: true },
   { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
-  { icon: '\u{1F4B3}', label: 'Boletos', path: '/pagamentos' },
+  { icon: '\u{1F4B3}', label: 'Financeiro', path: '/pagamentos' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios' },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true },
 ]
