@@ -2068,7 +2068,7 @@ async function enviarWhatsApp() {
         <template v-if="orcamentoStore.resultado || orcamentoStore.resultadoNovo">
           <!-- D. FC e Dimensões Faturadas -->
           <section class="card">
-            <h3 class="section-title">Fator de Conversão</h3>
+            <h3 class="section-title">Fator de Corte</h3>
 
             <p class="fc-display">
               <strong>FC:</strong>
