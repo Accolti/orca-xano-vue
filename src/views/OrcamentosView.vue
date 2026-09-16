@@ -395,13 +395,13 @@ function avisarCamposFaltando(): boolean {
 async function handleCalcular() {
   if (avisarCamposFaltando()) return
   simulacaoSelecionada.value = null
-  await orcamentoStore.calcularOrquestrador(modoEntradaML.value)
+  await orcamentoStore.calcularOrquestrador(modoEntradaML.value, editandoItemId.value)
 }
 
 async function handleSimular() {
   if (avisarCamposFaltando()) return
   simulacaoSelecionada.value = null
-  await orcamentoStore.calcularOrquestrador(modoEntradaML.value)
+  await orcamentoStore.calcularOrquestrador(modoEntradaML.value, editandoItemId.value)
   if (simulacaoLista.value.length) {
     simulacaoModalOpen.value = true
   }

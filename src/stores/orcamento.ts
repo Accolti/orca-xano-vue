@@ -488,8 +488,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         nmLinha: getNomeLinha(),
         nmNivel: getNomeNivel(),
         nmBorda: getNomeBorda(),
-        margem: String(margemPersonalizada.value ?? (authIns.userEfetivo ?? authIns.user)?.margem ?? 0),
-        frete_b2b: String(fretePersonalizado.value ?? (authIns.userEfetivo ?? authIns.user)?.frtB2B ?? 0),
+        margem: String(
+          margemPersonalizada.value ?? (authIns.userEfetivo ?? authIns.user)?.margem ?? 0,
+        ),
+        frete_b2b: String(
+          fretePersonalizado.value ?? (authIns.userEfetivo ?? authIns.user)?.frtB2B ?? 0,
+        ),
         quantidade: quantidade.value,
         IPI: String(material.ipi || 0),
         IMP: String(material.imp || 0),
@@ -506,7 +510,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   // Calcula a precificação via Orcamento_Orquestrador (M2/ML/KIT/UND por IDs).
   // Usado no novo fluxo — substitui o calcular() legado por nomes.
-  async function calcularOrquestrador(modoEntrada: 'area' | 'dimensoes' = 'dimensoes') {
+  async function calcularOrquestrador(
+    modoEntrada: 'area' | 'dimensoes' = 'dimensoes',
+    itemId?: number | null,
+  ) {
     const material = materialSelecionado.value
     if (!material) {
       error.value = 'Selecione um material'
@@ -594,6 +601,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       variacao_id: variacaoSelecionada.value?.id ?? 0,
       markup,
       orca_id: orcamentoHeader.value?.id ?? 0,
+      // Item em edição (0 = item novo) — o backend exclui esse item do somatório do frete
+      item_id: itemId ?? 0,
       // Regime/UF do próprio orçamento quando existir (consistência: mudança de perfil
       // só vale para novos orçamentos); senão usa o perfil atual do vendedor.
       uf_destino: orcamentoHeader.value?.uf_destino ?? user?.uf ?? 'SP',

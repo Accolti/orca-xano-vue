@@ -31,7 +31,8 @@ O orçamento é **dinâmico**: toda mudança (inserir/remover item, margem, fret
 
 Fórmulas-chave:
 ```
-cst_tot      = Σ custo_entrada (por item: custo_nota + difal − credito + frete_rateado)
+cst_tot      = Σ custo_entrada (por item: custo_fiscal + frete_rateado)
+custo_fiscal = Lucro Real/Presumido: custo_nota − credito + st | MEI/Simples: custo_nota + difal + st
 venda_bruta  = Σ [custo_entrada × (1 + markup/100)]
 vnd_tot      = venda_bruta − desconto
 markup_efetivo = (vnd_tot / cst_tot − 1) × 100   ← exibido no cabeçalho
@@ -116,7 +117,7 @@ Parcelas financeiras na tabela **`Boleto`**, vinculadas no **Orçamento/Orca** v
 `RelatoriosView.vue` (rota `/relatorios`, menu **"Relatórios"** habilitado) usa a mesma barra **"Período a partir de"** (mês + chips Mensal/Trimestral/Semestral/Anual/Todos) e chama **`GET /relatorio?mes_inicio&periodo`** (auth User). Agregação em `api.lambda` sobre Orca/item/ControlePedido/Boleto/`Orca_Status_Log`; janela igual ao dashboard (`todos` = sem limite). Substitui o legado `f_relatorio_recebidos` (que join-ava `Pedido`). Três seções:
 
 - **Financeiro (Pedidos)** — pedidos convertidos (`eh_pedido`) por `created_at` no período:
-  `custo_kapazi` = Σ `item.vlr_cst_nota_unit` × `qtd` (mercadoria pura, sem frete) · `desconto_kapazi` = `perc` × `custo_kapazi/100` · `frete_efetivo` = `ControlePedido.freteB2BReal` quando preenchido, senão `Orca.frtB2B` · **`impostos`** = `Orca.valor_difal_tot − Orca.vlr_credito_icms_tot` · `lucro_real = luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)` · `margem_real = lucro_real/vnd_tot × 100`. O **perc de desconto** vem do `Desconto_Kapazi_Log` mais recente da orça; sem log, usa `ControlePedido.desconto_kapazi_perc`. Totais por coluna no topo + tabela por pedido (Orçamento/Cliente/Data/Custo/Desconto/Frete/**Impostos**/Venda/Lucro/Margem). **A conta fecha visualmente**: `Venda − Custo Kapazi + Desconto − Frete − Impostos = Lucro Real`.
+  `custo_kapazi` = Σ `item.vlr_cst_nota_unit` × `qtd` (mercadoria pura, sem frete) · `desconto_kapazi` = `perc` × `custo_kapazi/100` · `frete_efetivo` = `ControlePedido.freteB2BReal` quando preenchido, senão `Orca.frtB2B` · **`impostos`** = `Orca.vlr_st_tot + difal_efetivo − Orca.vlr_credito_icms_tot` (com `difal_efetivo = credito > 0 ? 0 : difal` — Lucro Real/Presumido não soma DIFAL ao custo) · `lucro_real = luc_tot + desconto_kapazi + (frtB2B − frete_efetivo)` · `margem_real = lucro_real/vnd_tot × 100`. O **perc de desconto** vem do `Desconto_Kapazi_Log` mais recente da orça; sem log, usa `ControlePedido.desconto_kapazi_perc`. Totais por coluna no topo + tabela por pedido (Orçamento/Cliente/Data/Custo/Desconto/Frete/**Impostos**/Venda/Lucro/Margem). **A conta fecha visualmente**: `Venda − Custo Kapazi + Desconto − Frete − Impostos = Lucro Real`.
 - **Recebidos no período** — parcelas de `Boleto` **pagas** cujo mês do `pagamento` cai na janela: orçamento, vencimento, data do pagamento, valor, forma; totais (R$ recebido + nº de parcelas).
 - **Parcelas por orçamento** — por orçamento da janela (`created_at`) que tenha `Boleto`: **"X de Y parcelas"** (pagas de total), **Recebido** e **A receber (em aberto)**; totais com "pagas de total" e o em aberto do período.
 - **Funil de status** — transições de `Orca_Status_Log` na janela (join Orca do usuário): contagem por transição `anterior → destino`, nº de **aprovações**, **conversão → APROVADO** (aprovados ÷ orçamentos criados na janela) e **tempo médio até APROVAÇÃO** (dias entre `Orca.created_at` e a 1ª transição p/ APROVADO).
