@@ -7,8 +7,17 @@ import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/util
 import { montarLinhasGarantia } from '@/utils/garantia'
 import { montarItemDisplay } from '@/utils/itemDisplay'
 import { useCatalogoStore } from '@/stores/catalogo'
+import { useAuthStore } from '@/stores/auth'
 import logoOrca from '@/assets/logo.png?inline'
 ;(pdfMake as any).vfs = (pdfFonts as any).vfs
+
+// Conta logada que mantém a logo da Orca no PDF (piloto). Qualquer outra conta
+// imprime o nome da própria empresa (fantasia/razão social) no lugar da logo.
+const USUARIO_LOGO_ORCA = 4
+
+function usarLogoOrca(): boolean {
+  return useAuthStore().user?.id === USUARIO_LOGO_ORCA
+}
 
 interface PdfOrcamentoInput {
   header: any
@@ -415,7 +424,21 @@ export async function gerarPdfOrcamento({
 
   const condicoes = obterCondicoes(header, faturar, condicoesPagamento)
 
-  // Cabeçalho duplo: esquerda = logo + emissora; direita = card ORÇAMENTO DE VENDA
+  // Cabeçalho duplo: esquerda = logo (conta Orca) ou nome da empresa; direita = card ORÇAMENTO DE VENDA
+  const empresaHeaderOrcamento = usarLogoOrca()
+    ? {
+        image: logoOrca,
+        width: 150,
+        alignment: 'left',
+        margin: [0, 0, 0, 8] as any,
+      }
+    : {
+        text: nomeEmpresa,
+        bold: true,
+        fontSize: 18,
+        color: '#1f4e79',
+        margin: [0, 0, 0, 8] as any,
+      }
   const cabecalho = {
     table: {
       widths: ['*', 190],
@@ -423,12 +446,7 @@ export async function gerarPdfOrcamento({
         [
           {
             stack: [
-              {
-                image: logoOrca,
-                width: 150,
-                alignment: 'left',
-                margin: [0, 0, 0, 8] as any,
-              },
+              empresaHeaderOrcamento,
               {
                 text: [
                   { text: 'Empresa Emissora: ', bold: true },
@@ -772,15 +790,28 @@ export async function gerarPdfPedidoVenda({
   const freteB2C = Number(header?.frtB2C) || 0
   const totalGeral = Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0
 
-  // Cabeçalho: esquerda = logo + identificação; direita = bloco de dados (Data, Pedido nº, Vendedor, Compra Nº)
+  // Cabeçalho: esquerda = logo (conta Orca) ou nome da empresa; direita = bloco de dados (Data, Pedido nº, Vendedor, Compra Nº)
+  const empresaHeaderPdV: any[] = usarLogoOrca()
+    ? [
+        { image: logoOrca, width: 150, margin: [0, 0, 0, 6] },
+        { text: 'Comércio e Representação', fontSize: 10, bold: true, color: '#1f2937' },
+        { text: 'DISTRIBUIDOR AUTORIZADO', fontSize: 8, color: '#6b7280', margin: [0, 2, 0, 8] },
+      ]
+    : [
+        {
+          text: nomeEmpresa,
+          bold: true,
+          fontSize: 18,
+          color: '#1f4e79',
+          margin: [0, 0, 0, 8] as any,
+        },
+      ]
   const cabecalho = {
     columns: [
       {
         width: '*',
         stack: [
-          { image: logoOrca, width: 150, margin: [0, 0, 0, 6] },
-          { text: 'Comércio e Representação', fontSize: 10, bold: true, color: '#1f2937' },
-          { text: 'DISTRIBUIDOR AUTORIZADO', fontSize: 8, color: '#6b7280', margin: [0, 2, 0, 8] },
+          ...empresaHeaderPdV,
           {
             text: `Nome: ${nomeEmpresa} CNPJ ${cnpjEmpresa}${ieEmpresa ? ` IE: ${ieEmpresa}` : ''}`,
             fontSize: 8,
