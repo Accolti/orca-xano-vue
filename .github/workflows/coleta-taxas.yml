@@ -1,0 +1,23 @@
+name: Coleta de taxas
+
+# A cada ~15 dias (dias 1 e 16 às 06:00 UTC) + execução manual pela aba Actions.
+on:
+  schedule:
+    - cron: '0 6 1,16 * *'
+  workflow_dispatch:
+
+jobs:
+  coleta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Rodar coleta de taxas
+        env:
+          XANO_BASE_URL: ${{ secrets.XANO_BASE_URL }}
+          COLETA_SECRET: ${{ secrets.COLETA_SECRET }}
+        run: node scripts/coleta-taxas/index.mjs

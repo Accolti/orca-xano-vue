@@ -317,6 +317,17 @@ As taxas **não são mais globais**: cada **empresa (admin)** tem as suas, e `ve
 - **Tela `/taxas`** (`MinhasTaxasView.vue`, menu "Minhas taxas", admin): abas dos 3 canais + **"Genérico (todos)"** (esta só aparece se existir alguma taxa genérica, empresa ou global); CRUD provedor × parcelas × taxa; cadastro de provedores; `admin_geral` escolhe a empresa. `GET /taxas_banco_gerenciar` também devolve as **taxas globais** (`taxas_globais`), exibidas em modo **somente leitura** com selo "padrão" (fallback do canal) e botão **"Importar taxas padrão"** (copia as globais do canal para a empresa via `taxa_banco_salvar`, tornando-as editáveis e com precedência). Após salvar/importar, limpa o cache e `recarregarTaxas()`.
 - **Workspace Xano versionado** em `xano/` (pull do workspace `OrcaKap` ID 36888, branch `v1` live). Push sempre **por arquivo** (`-i`), nunca `--sync` — o round-trip do CLI normaliza vários docs e o `--sync` geraria churn/risco.
 
+### Coleta automática de taxas (cron)
+
+Infra para buscar as taxas dos bancos periodicamente (fontes ainda a definir). Roda **fora do Xano**, em Node, e grava no Xano.
+
+- **Agendador**: `.github/workflows/coleta-taxas.yml` — GitHub Actions, cron **`0 6 1,16 * *`** (dias 1 e 16, 06:00 UTC = ~15 dias) + `workflow_dispatch` (manual).
+- **Script**: `scripts/coleta-taxas/` — `index.mjs` (orquestra), `lib/xano.mjs` (cliente com token), `adapters/` (`index.mjs` + `<banco>.mjs`; `template.mjs` é o modelo). `npm run coleta:taxas`.
+- **Endpoints Xano** (públicos + token `$env.workspace.coleta_secret`): `GET /taxas_coleta_provedores` (provedores ativos com `metodo != 'manual'`) e `POST /taxas_coleta_importar` (`{token, provedor_id, canal, taxas:[{parcelas,cc_taxa}], sucesso, mensagem}`). Tabela `Taxa_Coleta_Log` (auditoria). **O endpoint público é declarado omitindo `auth`** (não `auth = false`, que é inválido em `query`).
+- **Regras**: grava **global** (`user_id = 0`), `origem = 'scrape'`; substitui **apenas** as linhas `scrape` do par provedor+canal e **nunca** toca nas `manual`; atualiza `Provedor.ultima_coleta`.
+- **Segredos**: Xano env var `coleta_secret`; GitHub Secret `COLETA_SECRET` (mesmo valor) e, opcional, `XANO_BASE_URL`. `.env.example` em `scripts/coleta-taxas/`.
+- **Fontes por banco**: enquanto o `Provedor` não tiver `url_taxas`/adapter, o script reporta "sem fonte" e não altera taxas. Páginas renderizadas por JS exigem Playwright (não roda no Xano).
+
 ### Garantia (por material)
 
 A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de Venda** vem da tabela **`Material.garantia`** (meses) — **não** é mais um texto fixo. O campo é baixado no catálogo via `f_material_todos` (output de `/produtos_para_selecao`) e precisa de **bump de `versao_materiais`** (dev tool `/dev/configuracoes`) para o cache antigo pegar o campo.
