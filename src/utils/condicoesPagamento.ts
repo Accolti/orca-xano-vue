@@ -1,5 +1,9 @@
 import type { TaxaBanco } from '@/types/orcamento'
-import { calcularTabelaParcelamento, opcoesMaisVantajosas } from '@/utils/taxasBanco'
+import {
+  calcularTabelaParcelamento,
+  labelCanalCurto,
+  opcoesMaisVantajosas,
+} from '@/utils/taxasBanco'
 
 export const TEXTO_FATURAR = 'Faturamos com até 20 dias da entrega do produto'
 
@@ -52,6 +56,8 @@ export interface CalcularCondicoesInput {
   repassarTaxasCartao?: boolean
   descontoPixPercentual?: number
   provedorSelecionado?: string | number | null
+  // Canal de cobrança do cartão (cartao_link | cartao_celular | cartao_pos)
+  canalCartao?: string | null
   metodos?: MetodosSelecionados
   // Mesclar métodos na saída; quando true + cartão com uma parcela escolhida,
   // entra só a parcela selecionada (a menos de trazerTodasParcelas).
@@ -75,6 +81,7 @@ export function calcularCondicoesPagamento({
   repassarTaxasCartao = true,
   descontoPixPercentual = 0,
   provedorSelecionado = null,
+  canalCartao = null,
   metodos,
   mesclar = false,
   parcelaCartao = null,
@@ -167,6 +174,10 @@ export function calcularCondicoesPagamento({
   // Linhas finais conforme métodos selecionados + mesclagem
   const linhas: string[] = []
 
+  // Rótulo do canal (ex.: "Link") para diferenciar as condições de cartão
+  const canalLabel = labelCanalCurto(canalCartao)
+  const prefixoCartao = canalLabel ? `Cartão de Crédito — ${canalLabel}` : 'Cartão de Crédito'
+
   // Cartão: mesclado → só a parcela escolhida (ou todas se trazerTodasParcelas);
   // não mesclado e aba cartão → todas as parcelas.
   let cartaoLinhas: string[] = []
@@ -177,14 +188,14 @@ export function calcularCondicoesPagamento({
         : cartao.filter((o) => o.parcelas === parcelaCartao)
     cartaoFiltrado.forEach((o) => {
       cartaoLinhas.push(
-        `Cartão de Crédito (${o.parcelas}x de ${formatarMoeda(o.parcela)}): total de ${formatarMoeda(o.total)}.`,
+        `${prefixoCartao} (${o.parcelas}x de ${formatarMoeda(o.parcela)}): total de ${formatarMoeda(o.total)}.`,
       )
     })
     if (!cartaoLinhas.length && parcelaCartao) {
       const op = cartao.find((o) => o.parcelas === parcelaCartao)
       if (op) {
         cartaoLinhas.push(
-          `Cartão de Crédito (${op.parcelas}x de ${formatarMoeda(op.parcela)}): total de ${formatarMoeda(op.total)}.`,
+          `${prefixoCartao} (${op.parcelas}x de ${formatarMoeda(op.parcela)}): total de ${formatarMoeda(op.total)}.`,
         )
       }
     }

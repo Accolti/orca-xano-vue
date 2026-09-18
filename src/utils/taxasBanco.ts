@@ -1,5 +1,50 @@
 import type { TaxaBanco } from '@/types/orcamento'
 
+export type CanalCartao = 'cartao_link' | 'cartao_celular' | 'cartao_pos'
+
+export interface CanalCartaoOpcao {
+  id: CanalCartao
+  label: string
+  curto: string
+}
+
+// Canais de cobrança do cartão (taxas diferentes por canal).
+export const CANAIS_CARTAO: CanalCartaoOpcao[] = [
+  { id: 'cartao_link', label: 'Link de pagamento', curto: 'Link' },
+  { id: 'cartao_celular', label: 'Cartão pelo celular', curto: 'Celular' },
+  { id: 'cartao_pos', label: 'Maquininha (POS)', curto: 'Maquininha' },
+]
+
+export function labelCanal(canal?: string | null): string {
+  if (!canal) return ''
+  return CANAIS_CARTAO.find((c) => c.id === canal)?.label ?? ''
+}
+
+export function labelCanalCurto(canal?: string | null): string {
+  if (!canal) return ''
+  return CANAIS_CARTAO.find((c) => c.id === canal)?.curto ?? ''
+}
+
+// Resolve a tabela efetiva de um canal. O backend devolve as linhas da empresa
+// (user_id preenchido) + as globais (user_id nulo/0). Precedência por canal:
+// empresa específico → empresa genérico → global específico → global genérico.
+// Obs.: linhas antigas podem ter user_id = 0 e canal = "" (defaults do Xano).
+export function filtrarPorCanal(tabela: TaxaBanco[], canal?: string | null): TaxaBanco[] {
+  if (!canal) return tabela
+  const ehGlobal = (t: TaxaBanco) => t.user_id == null || Number(t.user_id) === 0
+  const canalDe = (t: TaxaBanco) => (t.canal ? String(t.canal) : null)
+  const empresa = tabela.filter((t) => !ehGlobal(t))
+  const global = tabela.filter((t) => ehGlobal(t))
+  const escolher = (linhas: TaxaBanco[]) => {
+    const especificas = linhas.filter((t) => canalDe(t) === canal)
+    if (especificas.length) return especificas
+    return linhas.filter((t) => canalDe(t) == null)
+  }
+  const daEmpresa = escolher(empresa)
+  if (daEmpresa.length) return daEmpresa
+  return escolher(global)
+}
+
 export interface ParcelaCalculada {
   parcelas: number
   taxaPercentual: string

@@ -349,4 +349,7 @@ export interface TaxaBanco {
   cc_taxa: number
   provedor?: string | null
   ativo?: boolean
+  user_id?: number | null
+  canal?: string | null
+  origem?: string | null
 }

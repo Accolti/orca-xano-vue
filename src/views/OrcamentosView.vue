@@ -14,7 +14,7 @@ import {
 } from '@/services/pdf'
 import { xano } from '@/services/xano'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
-import { provedoresDisponiveis } from '@/utils/taxasBanco'
+import { CANAIS_CARTAO, provedoresDisponiveis, labelCanalCurto } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import PagamentoModal from '@/components/PagamentoModal.vue'
@@ -150,6 +150,10 @@ const parcelasBoleto = ref<number | null>(null)
 // Nº de parcelas do Pix escolhido (null = 2x)
 const parcelasPix = ref<number | null>(null)
 const provedorSelecionado = ref<string | number | null>(null)
+// Canal de cobrança do cartão (cartao_link | cartao_celular | cartao_pos)
+const canalCartao = ref<string>('cartao_link')
+// true quando o canal veio do JSON salvo — não sobrescrever com o padrão automático
+const canalRestaurado = ref(false)
 // Estado salvo do seletor (condicoes_pagamento_params) — para reaplicar ao carregar
 const condicoesParamsSalvos = ref<string | null>(null)
 
@@ -606,6 +610,14 @@ function round6(n: number) {
   return Math.round(n * 1_000_000) / 1_000_000
 }
 
+// Escolhe o primeiro canal (Link → Celular → Maquininha) que tenha taxas para o
+// usuário. Só se aplica quando o orçamento não tem canal salvo (canalRestaurado).
+function aplicarCanalPadrao() {
+  if (canalRestaurado.value) return
+  const comTaxas = CANAIS_CARTAO.find((c) => catalogo.taxasPorCanal(c.id).length > 0)
+  canalCartao.value = comTaxas?.id ?? 'cartao_link'
+}
+
 // Sincroniza a simulação com os valores oficiais (base do header/totais)
 function sincronizarSimulacao() {
   const header = orcamentoStore.orcamentoHeader
@@ -621,6 +633,7 @@ function sincronizarSimulacao() {
   condicoesPagamento.value = (header?.condicoes_pagamento || '').trim()
   condicoesParamsSalvos.value = header?.condicoes_pagamento_params || null
   restaurarCondicoesParams(condicoesParamsSalvos.value)
+  aplicarCanalPadrao()
   const vendaFinal = novoValorVendaResumo.value
   const cst = custoTotalBase.value
   margemRealResumo.value =
@@ -643,6 +656,7 @@ watch(
   () => catalogo.taxasBanco,
   () => {
     if (condicoesParamsSalvos.value) restaurarCondicoesParams(condicoesParamsSalvos.value)
+    aplicarCanalPadrao()
   },
 )
 
@@ -674,6 +688,7 @@ function serializarCondicoesParams(): string {
     provedorId,
     provedor,
     parcelas,
+    canal: canalCartao.value,
     repassarTaxas: repassarTaxasCartao.value,
     aba: abaPagamento.value,
   })
@@ -709,11 +724,20 @@ function restaurarCondicoesParams(paramsStr?: string | null) {
     parcelasPix.value = p.parcelas_pix
   }
   repassarTaxasCartao.value = typeof p.repassarTaxas === 'boolean' ? p.repassarTaxas : true
+  if (typeof p.canal === 'string' && CANAIS_CARTAO.some((c) => c.id === p.canal)) {
+    canalCartao.value = p.canal
+    canalRestaurado.value = true
+  } else {
+    canalRestaurado.value = false
+  }
   if (p.aba === 'pix' || p.aba === 'cartao') abaPagamento.value = p.aba
 
   const pId = p.provedorId != null ? Number(p.provedorId) : null
   const provedorExiste =
-    pId != null && provedoresDisponiveis(catalogo.taxasBanco).some((x) => Number(x.id) === pId)
+    pId != null &&
+    provedoresDisponiveis(catalogo.taxasPorCanal(canalCartao.value)).some(
+      (x) => Number(x.id) === pId,
+    )
   provedorSelecionado.value = provedorExiste ? pId : null
 
   const chave = provedorExiste && p.parcelas != null ? `${pId}|${p.parcelas}` : null
@@ -734,7 +758,10 @@ function resetarCondicoesUi() {
   parcelasBoleto.value = null
   parcelasPix.value = null
   provedorSelecionado.value = null
+  canalCartao.value = 'cartao_link'
+  canalRestaurado.value = false
   condicoesParamsSalvos.value = null
+  aplicarCanalPadrao()
 }
 
 // 1. Simulação em memória (sem chamada de API por tecla)
@@ -1006,10 +1033,11 @@ function calcularCondicoesPadrao(): string {
     valorVenda: Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
     valorCusto: Number(header?.cst_tot) || 0,
     faturar: faturarCliente.value,
-    tabelaTaxasCartao: catalogo.taxasBanco,
+    tabelaTaxasCartao: catalogo.taxasPorCanal(canalCartao.value),
     repassarTaxasCartao: repassarTaxasCartao.value,
     descontoPixPercentual: descontoPixPercentual.value,
     provedorSelecionado: provedorSelecionado.value,
+    canalCartao: canalCartao.value,
     metodos: metodosPagamento.value,
     mesclar: true,
     parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
@@ -1026,10 +1054,11 @@ const condicoesCalculadas = computed(() => {
     valorVenda: Number(header?.vnd_B2B_B2C_tot) || Number(header?.vnd_tot) || 0,
     valorCusto: Number(header?.cst_tot) || 0,
     faturar: faturarCliente.value,
-    tabelaTaxasCartao: catalogo.taxasBanco,
+    tabelaTaxasCartao: catalogo.taxasPorCanal(canalCartao.value),
     repassarTaxasCartao: repassarTaxasCartao.value,
     descontoPixPercentual: descontoPixPercentual.value,
     provedorSelecionado: provedorSelecionado.value,
+    canalCartao: canalCartao.value,
     metodos: metodosPagamento.value,
     mesclar: mesclarMetodos.value,
     parcelaCartao: cartaoSelecionado.value ? Number(cartaoSelecionado.value.split('|')[1]) : null,
@@ -1042,8 +1071,8 @@ const condicoesCalculadas = computed(() => {
 // Máximo de parcelas do boleto (segue o cálculo padrão: venda ÷ metade do custo)
 const maxParcelasBoleto = computed(() => Math.max(1, condicoesCalculadas.value.boletoMax ?? 1))
 
-// Instituições disponíveis na tabela de taxas (seletor aparece quando > 1)
-const provedores = computed(() => provedoresDisponiveis(catalogo.taxasBanco))
+// Instituições disponíveis na tabela de taxas do canal atual (seletor aparece quando > 1)
+const provedores = computed(() => provedoresDisponiveis(catalogo.taxasPorCanal(canalCartao.value)))
 
 // ---- Controle financeiro (gerar parcelas a partir das condições negociadas) ----
 const pagamentoModalOpen = ref(false)
@@ -1156,8 +1185,10 @@ function selecionarPagamento(tipo: 'pix' | 'cartao', chave?: string | null) {
       ? c.cartao.find((o) => chaveCartao(o) === cartaoSelecionado.value)
       : null
     if (op) {
+      const canalLabel = labelCanalCurto(canalCartao.value)
+      const prefixo = canalLabel ? `Cartão de Crédito — ${canalLabel}` : 'Cartão de Crédito'
       const linhas = [
-        `Cartão de Crédito (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
+        `${prefixo} (${op.parcelas}x de R$ ${op.parcela.toFixed(2).replace('.', ',')}): total de R$ ${op.total.toFixed(2).replace('.', ',')}.`,
       ]
       if (faturarCliente.value) linhas.push('Faturamos com até 20 dias da entrega do produto')
       condicoesPagamento.value = linhas.join('\n')
@@ -1238,6 +1269,16 @@ function selecionarProvedor() {
     }
   }
   selecionarPagamento('cartao')
+}
+
+// Troca o canal de cobrança do cartão: a tabela/parcelas mudam; limpa seleções órfãs.
+// Marca como escolhido pelo usuário para o padrão automático não sobrescrever.
+function selecionarCanal(canal: string) {
+  canalCartao.value = canal
+  canalRestaurado.value = true
+  cartaoSelecionado.value = null
+  provedorSelecionado.value = null
+  if (abaPagamento.value === 'cartao') selecionarPagamento('cartao', null)
 }
 
 // Gera as condições padrão no textarea (pergunta antes de sobrescrever conteúdo existente)
@@ -3215,6 +3256,22 @@ async function enviarWhatsApp() {
                   </button>
                 </div>
 
+                <div class="cond-cartao-row">
+                  <label>Canal</label>
+                  <div class="cond-canais">
+                    <button
+                      v-for="c in CANAIS_CARTAO"
+                      :key="c.id"
+                      type="button"
+                      class="cond-canal-btn"
+                      :class="{ active: canalCartao === c.id }"
+                      @click="selecionarCanal(c.id)"
+                    >
+                      {{ c.label }}
+                    </button>
+                  </div>
+                </div>
+
                 <div v-if="provedores.length > 1" class="cond-cartao-row">
                   <label>Instituição</label>
                   <select v-model="provedorSelecionado" @change="selecionarProvedor()">
@@ -5089,6 +5146,35 @@ async function enviarWhatsApp() {
 .cond-toggle-btn.active {
   background: var(--success, #16a34a);
   border-color: var(--success, #16a34a);
+  color: #fff;
+}
+.cond-canais {
+  display: flex;
+  gap: 0.35rem;
+  flex: 1;
+}
+.cond-canal-btn {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.cond-canal-btn:hover {
+  border-color: var(--border-strong);
+}
+.cond-canal-btn.active {
+  background: var(--primary, #3b82f6);
+  border-color: var(--primary, #3b82f6);
   color: #fff;
 }
 .cond-hint {

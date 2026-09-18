@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
+import { useAuthStore } from './auth'
+import { filtrarPorCanal } from '@/utils/taxasBanco'
 import type {
   Material,
   Linha,
@@ -14,6 +16,12 @@ import type {
 const CACHE_MATERIAIS_KEY = 'orca_catalogo_materiais_cache'
 const CACHE_PRODUTOS_KEY = 'orca_catalogo_produtos_cache'
 const CACHE_TAXAS_KEY = 'orca_taxas_banco_cache'
+
+// As taxas são por empresa: a chave de cache inclui o usuário logado.
+function cacheTaxasKey(): string {
+  const uid = useAuthStore().user?.id ?? 0
+  return `${CACHE_TAXAS_KEY}_${uid}`
+}
 
 interface CatalogoMateriaisCache {
   versao: number
@@ -156,7 +164,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   }
 
   function lerCacheTaxas(): TaxasBancoCache | null {
-    return lerCache(CACHE_TAXAS_KEY) as TaxasBancoCache | null
+    return lerCache(cacheTaxasKey()) as TaxasBancoCache | null
   }
 
   function salvarCacheMateriais(versao: number) {
@@ -193,7 +201,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
         versao,
         taxas: taxasBanco.value,
       }
-      localStorage.setItem(CACHE_TAXAS_KEY, JSON.stringify(cache))
+      localStorage.setItem(cacheTaxasKey(), JSON.stringify(cache))
     } catch {
       /* localStorage cheio ou desabilitado — ignorar */
     }
@@ -203,6 +211,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     loaded.value = false
     taxasLoaded.value = false
     selectedMaterialId.value = null
+    taxasBanco.value = []
   }
 
   async function carregarConfiguracoes() {
@@ -234,6 +243,22 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     }
 
     taxasLoaded.value = true
+  }
+
+  // Tabela efetiva de um canal de cartão (empresa → global).
+  function taxasPorCanal(canal?: string | null): TaxaBanco[] {
+    return filtrarPorCanal(taxasBanco.value, canal)
+  }
+
+  // Força nova descida das taxas (após salvar na tela Minhas taxas).
+  async function recarregarTaxas() {
+    taxasLoaded.value = false
+    try {
+      localStorage.removeItem(cacheTaxasKey())
+    } catch {
+      /* localStorage indisponível — ignorar */
+    }
+    await fetchTaxasBanco()
   }
 
   async function fetchCatalogo() {
@@ -322,6 +347,8 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     carregarConfiguracoes,
     fetchCatalogo,
     fetchTaxasBanco,
+    taxasPorCanal,
+    recarregarTaxas,
     filtrarSuc,
     limparSucFiltrado,
     resetarSessao,

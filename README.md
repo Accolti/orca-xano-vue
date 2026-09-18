@@ -84,7 +84,9 @@ Todos usam o prefixo de API group `/api:-qqRIakp`:
 | `GET` | `/configuracoes` | Versões atuais do catálogo (`versao_materiais` + `versao_produtos` + `versao_taxas_banco`, ~200 bytes) |
 | `GET` | `/produtos_para_selecao` | Catálogo para dropdowns (Material, Linha, Tipo, Nivel, Borda) |
 | `GET` | `/produtos_all` | Produtos mães, filhos e variações (`_variacao[]`) |
-| `GET` | `/taxas_banco` | Taxas de cartão por instituição (`provedor`, `parcelas`, `cc_taxa`) |
+| `GET` | `/taxas_banco` | Taxas de cartão efetivas do usuário (empresa + global, por `canal`) |
+| `GET` | `/taxas_banco_gerenciar` | Taxas da empresa para a tela `/taxas` (admin) |
+| `POST` | `/taxa_banco_salvar` · `/taxa_banco_excluir` · `/provedor_salvar` | CRUD de taxas/provedores (admin) |
 | `POST` | `/orcamento_calcular` | Cálculo pelo orquestrador (novo fluxo) |
 | `POST` | `/Orcamento_Duplicar` | Duplicar orçamento (case-sensitive) |
 | `GET` | `/CalculoValorVenda_IDs` | Cálculo de preços do item (legado) |
