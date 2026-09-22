@@ -16,6 +16,9 @@ query taxas_coleta_importar verb=POST {
     json taxas?
     bool sucesso?=true
     text mensagem? filters=trim
+  
+    // true = substitui TAMBÉM as taxas manuais do par provedor+canal (uso pontual/admin)
+    bool substituir_manual?=false
   }
 
   stack {
@@ -34,9 +37,11 @@ query taxas_coleta_importar verb=POST {
       error = "Canal inválido (use cartao_link, cartao_celular ou cartao_pos)."
     }
   
-    // Remove as taxas coletadas anteriormente (somente origem = scrape)
+    // Remove as taxas anteriores do par provedor+canal.
+    // Padrão: somente origem = "scrape" (nunca toca nas manuais).
+    // Com substituir_manual = true: remove todas (scrape + manual).
     db.query Taxa_Banco {
-      where = $db.Taxa_Banco.provedor_id == $input.provedor_id && $db.Taxa_Banco.origem == "scrape" && $db.Taxa_Banco.canal == $input.canal
+      where = $db.Taxa_Banco.provedor_id == $input.provedor_id && $db.Taxa_Banco.canal == $input.canal && ($input.substituir_manual || $db.Taxa_Banco.origem == "scrape")
       return = {type: "list"}
       output = ["id"]
     } as $antigas

@@ -1,14 +1,32 @@
 // Coleta automática de taxas de cartão (cron a cada ~15 dias).
 //
-// Fluxo: lista os provedores no Xano -> roda o adapter de cada um -> envia as
-// taxas coletadas de volta (substitui apenas as de origem "scrape").
+// Fluxo: lista os provedores no Xano -> roda o adapter de cada um (que devolve as
+// taxas por canal) -> envia de volta (substitui apenas as de origem "scrape").
 //
-// Uso local:  XANO_BASE_URL=... COLETA_SECRET=... node scripts/coleta-taxas/index.mjs
+// Uso local:
+//   XANO_BASE_URL=... COLETA_SECRET=... node scripts/coleta-taxas/index.mjs
+//   DRY_RUN=1 ... node scripts/coleta-taxas/index.mjs   (coleta e imprime, sem gravar)
 import { listarProvedores, importarTaxas } from './lib/xano.mjs'
 import { coletar } from './adapters/index.mjs'
 
-function canalDoProvedor(provedor) {
-  return provedor?.canal_default || 'cartao_link'
+const DRY_RUN =
+  process.env.DRY_RUN === '1' ||
+  process.env.DRY_RUN === 'true' ||
+  process.argv.includes('--dry-run')
+
+// Normaliza o retorno do adapter para [{ canal, taxas }].
+function normalizarResultado(bruto, canalPadrao) {
+  if (!bruto) return []
+  if (Array.isArray(bruto)) {
+    if (bruto.length && typeof bruto[0] === 'object' && 'canal' in bruto[0]) {
+      return bruto.map((r) => ({ canal: r.canal || canalPadrao, taxas: r.taxas || [] }))
+    }
+    return [{ canal: canalPadrao, taxas: bruto }]
+  }
+  return Object.entries(bruto).map(([canal, taxas]) => ({
+    canal: canal || canalPadrao,
+    taxas: taxas || [],
+  }))
 }
 
 async function registrarFalha(provedor, canal, mensagem) {
@@ -31,34 +49,48 @@ async function main() {
     process.exit(1)
   }
 
+  if (DRY_RUN) console.log('*** DRY_RUN ativo — nada será gravado no Xano ***')
+
   const provedores = await listarProvedores()
   console.log(`Provedores para coletar: ${provedores.length}`)
 
   let falhas = 0
 
   for (const provedor of provedores) {
-    const canal = canalDoProvedor(provedor)
+    const canalPadrao = provedor?.canal_default || 'cartao_link'
     try {
-      const taxas = await coletar(provedor)
-      if (!taxas || taxas.length === 0) {
-        console.log(`- ${provedor.nome} (${canal}): sem taxas/fonte — ignorado`)
-        await registrarFalha(provedor, canal, 'Sem fonte/taxas configuradas')
+      const bruto = await coletar(provedor)
+      const porCanal = normalizarResultado(bruto, canalPadrao).filter(
+        (r) => r.taxas && r.taxas.length,
+      )
+
+      if (!porCanal.length) {
+        console.log(`- ${provedor.nome}: sem taxas/fonte — ignorado`)
+        if (!DRY_RUN) await registrarFalha(provedor, canalPadrao, 'Sem fonte/taxas configuradas')
         continue
       }
-      const r = await importarTaxas({
-        provedor_id: provedor.id,
-        canal,
-        taxas,
-        sucesso: true,
-        mensagem: 'ok',
-      })
-      console.log(
-        `- ${provedor.nome} (${canal}): ${r?.inseridas ?? '?'} inseridas, ${r?.removidas ?? '?'} removidas`,
-      )
+
+      for (const { canal, taxas } of porCanal) {
+        if (DRY_RUN) {
+          console.log(`- ${provedor.nome} (${canal}) [DRY_RUN]: ${taxas.length} taxas`)
+          for (const t of taxas) console.log(`    ${t.parcelas}x -> ${t.cc_taxa}%`)
+          continue
+        }
+        const r = await importarTaxas({
+          provedor_id: provedor.id,
+          canal,
+          taxas,
+          sucesso: true,
+          mensagem: 'ok',
+        })
+        console.log(
+          `- ${provedor.nome} (${canal}): ${r?.inseridas ?? '?'} inseridas, ${r?.removidas ?? '?'} removidas`,
+        )
+      }
     } catch (err) {
       falhas += 1
-      console.error(`- ${provedor.nome} (${canal}): ERRO — ${err.message}`)
-      await registrarFalha(provedor, canal, err.message)
+      console.error(`- ${provedor.nome}: ERRO — ${err.message}`)
+      if (!DRY_RUN) await registrarFalha(provedor, canalPadrao, err.message)
     }
   }
 

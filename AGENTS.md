@@ -319,14 +319,16 @@ As taxas **não são mais globais**: cada **empresa (admin)** tem as suas, e `ve
 
 ### Coleta automática de taxas (cron)
 
-Infra para buscar as taxas dos bancos periodicamente (fontes ainda a definir). Roda **fora do Xano**, em Node, e grava no Xano.
+Busca as taxas dos bancos periodicamente. Roda **fora do Xano**, em Node, e grava no Xano. **Nubank já ativo**.
 
-- **Agendador**: `.github/workflows/coleta-taxas.yml` — GitHub Actions, cron **`0 6 1,16 * *`** (dias 1 e 16, 06:00 UTC = ~15 dias) + `workflow_dispatch` (manual).
-- **Script**: `scripts/coleta-taxas/` — `index.mjs` (orquestra), `lib/xano.mjs` (cliente com token), `adapters/` (`index.mjs` + `<banco>.mjs`; `template.mjs` é o modelo). `npm run coleta:taxas`.
-- **Endpoints Xano** (públicos + token `$env.workspace.coleta_secret`): `GET /taxas_coleta_provedores` (provedores ativos com `metodo != 'manual'`) e `POST /taxas_coleta_importar` (`{token, provedor_id, canal, taxas:[{parcelas,cc_taxa}], sucesso, mensagem}`). Tabela `Taxa_Coleta_Log` (auditoria). **O endpoint público é declarado omitindo `auth`** (não `auth = false`, que é inválido em `query`).
-- **Regras**: grava **global** (`user_id = 0`), `origem = 'scrape'`; substitui **apenas** as linhas `scrape` do par provedor+canal e **nunca** toca nas `manual`; atualiza `Provedor.ultima_coleta`.
+- **Agendador**: `.github/workflows/coleta-taxas.yml` — GitHub Actions, cron **`0 6 1,16 * *`** (dias 1 e 16, 06:00 UTC = ~15 dias) + `workflow_dispatch` com input **`dry_run`** (coleta e mostra, sem gravar).
+- **Script**: `scripts/coleta-taxas/` — `index.mjs` (orquestra), `lib/xano.mjs` (cliente com token), `adapters/` (`index.mjs` + `<banco>.mjs`; `template.mjs` é o modelo). `npm run coleta:taxas`. `DRY_RUN=1` (ou `--dry-run`) não grava.
+- **Contrato do adapter**: `coletar(provedor)` devolve **por canal** `{ cartao_link: [{parcelas, cc_taxa}], cartao_celular: [...], cartao_pos: [...] }`; o `index.mjs` importa **uma vez por canal**.
+- **Adapter Nubank** (`adapters/nubank.mjs`, **sem browser**): a página da calculadora é SSR e traz as taxas em `__NEXT_DATA__` → `props.pageProps.data.calculadora_infos.produtos_nu_empresas_taxas`. Mapeia **crédito 1x–12x**: `Link de pagamento` → **`cartao_link`**, `Tap to Pay` → **`cartao_celular`**. (Débito/Pix/NuPay fora — o `Taxa_Banco` não tem campo `forma`.) O "repassar taxa" não muda a taxa (só os valores calculados), então 1 taxa por `parcelas` basta.
+- **Endpoints Xano** (públicos + token `$env.workspace.coleta_secret`): `GET /taxas_coleta_provedores` (provedores ativos com `metodo != 'manual'`) e `POST /taxas_coleta_importar` (`{token, provedor_id, canal, taxas:[{parcelas,cc_taxa}], sucesso, mensagem, substituir_manual?}`). Tabela `Taxa_Coleta_Log` (auditoria). **O endpoint público é declarado omitindo `auth`** (não `auth = false`, que é inválido em `query`).
+- **Regras**: grava **global** (`user_id = 0`), `origem = 'scrape'`; substitui **apenas** as linhas `scrape` do par provedor+canal e **nunca** toca nas `manual`; atualiza `Provedor.ultima_coleta`. Exceção pontual: `substituir_manual = true` remove **também** as manuais do par (usado uma vez para migrar as 12 do Nubank).
 - **Segredos**: Xano env var `coleta_secret`; GitHub Secret `COLETA_SECRET` (mesmo valor) e, opcional, `XANO_BASE_URL`. `.env.example` em `scripts/coleta-taxas/`.
-- **Fontes por banco**: enquanto o `Provedor` não tiver `url_taxas`/adapter, o script reporta "sem fonte" e não altera taxas. Páginas renderizadas por JS exigem Playwright (não roda no Xano).
+- **Outros bancos**: enquanto o `Provedor` não tiver `url_taxas`/adapter, o script reporta "sem fonte" e não altera taxas. Páginas renderizadas 100% por JS exigiriam Playwright (não roda no Xano).
 
 ### Garantia (por material)
 
