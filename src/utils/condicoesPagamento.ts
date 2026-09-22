@@ -113,7 +113,7 @@ export function calcularCondicoesPagamento({
     pixParcelas === 1
       ? `paga em até ${entradaPrazo} dias do pedido`
       : `1ª parcela em ${entradaPrazo} dias do pedido; 2ª parcela em ${entradaPrazo + intervaloParcelas} dias`
-  const pixString = `Pix (${pixParcelas}x de ${formatarMoeda(valorParcelaPix)})${descontoPixTexto}: ${prazoPix} : total de R$ ${formatarMoeda(valorVendaPix)}.`
+  const pixString = `Pix (${pixParcelas}x de ${formatarMoeda(valorParcelaPix)})${descontoPixTexto}: ${prazoPix} : total de ${formatarMoeda(valorVendaPix)}.`
 
   // Impacto do desconto no Pix (lucro e margem sobre a venda SEM desconto, para comparação)
   const pixImpacto: PixImpacto = {
@@ -146,7 +146,7 @@ export function calcularCondicoesPagamento({
   if (numeroParcelasBoleto > 1) {
     prazoBoleto += `, demais em ${juntarPrazos(prazosRestantesNum)} dias`
   }
-  const boletoString = `Boleto (${numeroParcelasBoleto}x de ${formatarMoeda(valorParcelasBoleto)}): ${prazoBoleto} : total de R$ ${formatarMoeda(venda)}.`
+  const boletoString = `Boleto (${numeroParcelasBoleto}x de ${formatarMoeda(valorParcelasBoleto)}): ${prazoBoleto} : total de ${formatarMoeda(venda)}.`
 
   // ---- CARTÃO (com instituição e marcação de mais vantajosa) ----
   const parcelasCalculadas = calcularTabelaParcelamento(

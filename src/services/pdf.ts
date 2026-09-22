@@ -934,7 +934,7 @@ export async function gerarPdfPedidoVenda({
         [
           { text: 'Observações:', bold: true, fontSize: 9 },
           {
-            text: freteB2C > 0 ? `frete R$ ${formatarMoeda(freteB2C)} incluído acima` : '',
+            text: freteB2C > 0 ? `frete ${formatarMoeda(freteB2C)} incluído acima` : '',
             fontSize: 9,
           },
         ],
