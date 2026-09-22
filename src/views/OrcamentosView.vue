@@ -2100,7 +2100,7 @@ async function enviarWhatsApp() {
               :disabled="orcamentoStore.loading"
               @click="handleSimular"
             >
-              Simular
+              {{ orcamentoStore.loading ? 'Simulando…' : 'Simular' }}
             </button>
           </div>
         </section>
@@ -2317,7 +2317,7 @@ async function enviarWhatsApp() {
               :disabled="orcamentoStore.loading"
               @click="handleCalcular"
             >
-              Calcular
+              {{ orcamentoStore.loading ? 'Calculando…' : 'Calcular' }}
             </button>
             <button
               class="btn btn-primary btn-lg"
@@ -2563,8 +2563,12 @@ async function enviarWhatsApp() {
                   </div>
                 </div>
                 <div class="recalc-item recalc-item-action">
-                  <button class="btn btn-primary btn-sm" @click="aplicarDescontoFilho">
-                    Aplicar
+                  <button
+                    class="btn btn-primary btn-sm"
+                    :disabled="orcamentoStore.carregandoOrcamento"
+                    @click="aplicarDescontoFilho"
+                  >
+                    {{ orcamentoStore.carregandoOrcamento ? 'Aplicando…' : 'Aplicar' }}
                   </button>
                 </div>
               </div>
@@ -2699,7 +2703,13 @@ async function enviarWhatsApp() {
                 </div>
 
                 <div class="recalc-item recalc-item-action">
-                  <button class="btn btn-primary btn-sm" @click="aplicarNegociacao">Aplicar</button>
+                  <button
+                    class="btn btn-primary btn-sm"
+                    :disabled="orcamentoStore.carregandoOrcamento"
+                    @click="aplicarNegociacao"
+                  >
+                    {{ orcamentoStore.carregandoOrcamento ? 'Aplicando…' : 'Aplicar' }}
+                  </button>
                   <button
                     class="btn btn-outline btn-sm"
                     :disabled="!simulacaoLista.length"
@@ -2815,9 +2825,12 @@ async function enviarWhatsApp() {
                     <button
                       class="btn-icon btn-icon-danger"
                       title="Remover item"
+                      :disabled="orcamentoStore.removendoItemId === item.id"
                       @click="removerItem(item, idx)"
                     >
+                      <span v-if="orcamentoStore.removendoItemId === item.id">…</span>
                       <svg
+                        v-else
                         width="16"
                         height="16"
                         viewBox="0 0 24 24"
@@ -2848,8 +2861,12 @@ async function enviarWhatsApp() {
           </div>
 
           <div v-if="!isVinculado" class="btn-row">
-            <button class="btn btn-success btn-lg" @click="handleFinalizar">
-              Finalizar Orçamento
+            <button
+              class="btn btn-success btn-lg"
+              :disabled="orcamentoStore.carregandoOrcamento"
+              @click="handleFinalizar"
+            >
+              {{ orcamentoStore.carregandoOrcamento ? 'Finalizando…' : 'Finalizar Orçamento' }}
             </button>
           </div>
         </template>
@@ -3102,8 +3119,12 @@ async function enviarWhatsApp() {
               <button class="btn btn-sm btn-outline" @click="gerarCondicoes">
                 Gerar Condições
               </button>
-              <button class="btn btn-sm btn-outline" @click="salvarCondicoes">
-                Salvar Condições
+              <button
+                class="btn btn-sm btn-outline"
+                :disabled="orcamentoStore.carregandoOrcamento"
+                @click="salvarCondicoes"
+              >
+                {{ orcamentoStore.carregandoOrcamento ? 'Salvando…' : 'Salvar Condições' }}
               </button>
               <button
                 v-if="orcamentoStore.orcamentoHeader?.id"

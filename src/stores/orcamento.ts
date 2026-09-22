@@ -92,6 +92,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   const error = ref<string | null>(null)
   const numeroOrcamento = ref<string | null>(null)
   const inserindo = ref(false)
+  // Item em remoção (feedback no botão "Excluir" da tabela de itens)
+  const removendoItemId = ref<number | null>(null)
   const itensInseridos = ref<any[]>([])
   const orcamentoHeader = ref<any | null>(null)
   const carregandoOrcamento = ref(false)
@@ -1108,6 +1110,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   // Remove um item e recalcula os totais
   async function removerItem(itemId: number) {
+    removendoItemId.value = itemId
     try {
       const response = await xano.delete('/api:-qqRIakp/orcamento_item_deletar', {
         item_id: itemId,
@@ -1122,6 +1125,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       console.error('Erro ao remover item:', err)
       error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao remover item'
       throw err
+    } finally {
+      removendoItemId.value = null
     }
   }
 
@@ -1266,6 +1271,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     error,
     numeroOrcamento,
     inserindo,
+    removendoItemId,
     itensInseridos,
     orcamentoHeader,
     totaisRecalculo,
