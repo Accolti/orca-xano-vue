@@ -26,6 +26,17 @@ export async function listarProvedores() {
   return body?.provedores ?? []
 }
 
+// Bump da versão das taxas + marca a data da atualização (chamar só quando mudou).
+export async function finalizarColeta() {
+  const resp = await fetch(url('taxas_coleta_finalizar'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: SECRET }),
+  })
+  if (!resp.ok) throw new Error(`finalizarColeta ${resp.status}: ${await lerErro(resp)}`)
+  return resp.json()
+}
+
 // Importa as taxas coletadas (substitui apenas as de origem "scrape" no Xano).
 export async function importarTaxas({ provedor_id, canal, taxas, sucesso, mensagem }) {
   const resp = await fetch(url('taxas_coleta_importar'), {

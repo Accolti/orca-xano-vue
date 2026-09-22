@@ -9,7 +9,7 @@ query configuracoes verb=GET {
   stack {
     db.query Configuracoes {
       return = {type: "list"}
-      output = ["versao_materiais", "versao_produtos", "versao_taxas_banco"]
+      output = ["versao_materiais", "versao_produtos", "versao_taxas_banco", "taxas_atualizado_em"]
     } as $configuracoes
   }
 

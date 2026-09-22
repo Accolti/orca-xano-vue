@@ -16,6 +16,9 @@ table Configuracoes {
   
     // Versão das taxas de banco (Taxa_Banco). Quando alterada, o app rebaixa a tabela de taxas e recalcula as condições de pagamento
     int versao_taxas_banco?
+  
+    // Data da última atualização automática das taxas (cron) — usada no banner do app
+    timestamp taxas_atualizado_em?
   }
 
   index = [

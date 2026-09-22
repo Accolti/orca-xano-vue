@@ -1,6 +1,7 @@
 // Importa as taxas coletadas pelo cron (Node) para a tabela GLOBAL (user_id = 0).
-// Substitui APENAS as linhas de origem "scrape" do par provedor+canal — nunca toca
-// nas manuais. Atualiza Provedor.ultima_coleta e grava Taxa_Coleta_Log.
+// Compara com as taxas "scrape" atuais do par provedor+canal: se nada mudou, NÃO
+// regrava (evita churn e permite ao cron só "anunciar" quando houve mudança).
+// Nunca toca nas manuais (exceto com substituir_manual = true, uso pontual).
 // Autenticação por token de serviço (env `coleta_secret`). Endpoint público + token.
 query taxas_coleta_importar verb=POST {
   api_group = "Default"
@@ -37,52 +38,88 @@ query taxas_coleta_importar verb=POST {
       error = "Canal inválido (use cartao_link, cartao_celular ou cartao_pos)."
     }
   
-    // Remove as taxas anteriores do par provedor+canal.
-    // Padrão: somente origem = "scrape" (nunca toca nas manuais).
-    // Com substituir_manual = true: remove todas (scrape + manual).
-    db.query Taxa_Banco {
-      where = $db.Taxa_Banco.provedor_id == $input.provedor_id && $db.Taxa_Banco.canal == $input.canal && ($input.substituir_manual || $db.Taxa_Banco.origem == "scrape")
-      return = {type: "list"}
-      output = ["id"]
-    } as $antigas
-  
-    foreach ($antigas) {
-      each as $a {
-        db.del Taxa_Banco {
-          field_name = "id"
-          field_value = $a.id
-        }
-      }
+    var $alterou {
+      value = false
     }
   
-    // Insere as novas (só quando a coleta deu certo)
+    var $removidas {
+      value = 0
+    }
+  
     var $inseridas {
       value = 0
     }
   
     conditional {
-      if ($input.sucesso == true && $input.taxas != null) {
-        foreach ($input.taxas) {
-          each as $t {
-            conditional {
-              if (($t.parcelas != null) && ($t.parcelas > 0) && ($t.cc_taxa != null)) {
-                db.add Taxa_Banco {
-                  enforce_hidden_fields = false
-                  data = {
-                    user_id      : 0
-                    provedor_id  : $input.provedor_id
-                    parcelas     : $t.parcelas
-                    cc_taxa      : $t.cc_taxa
-                    canal        : $input.canal
-                    ativo        : true
-                    origem       : "scrape"
-                    atualizado_em: "now"
-                    created_at   : "now"
+      if ($input.sucesso && $input.taxas != null) {
+        // Taxas coletadas anteriormente (origem = scrape) do par provedor+canal
+        db.query Taxa_Banco {
+          where = $db.Taxa_Banco.provedor_id == $input.provedor_id && $db.Taxa_Banco.origem == "scrape" && $db.Taxa_Banco.canal == $input.canal
+          return = {type: "list"}
+          output = ["id", "parcelas", "cc_taxa"]
+        } as $antigas_scrape
+      
+        // Compara (parcelas:taxa) para saber se algo mudou
+        api.lambda {
+          code = """
+            const antigas = ($var.antigas_scrape || []).map(t => `${t.parcelas}:${Number(t.cc_taxa)}`).sort();
+            const novas = ($input.taxas || []).map(t => `${t.parcelas}:${Number(t.cc_taxa)}`).sort();
+            const mudou = antigas.length !== novas.length || antigas.some((v, i) => v !== novas[i]);
+            return mudou;
+            """
+          timeout = 5
+        } as $mudou
+      
+        var.update $alterou {
+          value = $mudou || $input.substituir_manual
+        }
+      
+        conditional {
+          if ($input.substituir_manual || $alterou) {
+            // Remove as anteriores (só scrape, ou todas com substituir_manual)
+            db.query Taxa_Banco {
+              where = $db.Taxa_Banco.provedor_id == $input.provedor_id && $db.Taxa_Banco.canal == $input.canal && ($input.substituir_manual || $db.Taxa_Banco.origem == "scrape")
+              return = {type: "list"}
+              output = ["id"]
+            } as $remover
+          
+            foreach ($remover) {
+              each as $r {
+                db.del Taxa_Banco {
+                  field_name = "id"
+                  field_value = $r.id
+                }
+              }
+            }
+          
+            var.update $removidas {
+              value = $remover|count
+            }
+          
+            // Insere as novas
+            foreach ($input.taxas) {
+              each as $t {
+                conditional {
+                  if (($t.parcelas != null) && ($t.parcelas > 0) && ($t.cc_taxa != null)) {
+                    db.add Taxa_Banco {
+                      enforce_hidden_fields = false
+                      data = {
+                        user_id      : 0
+                        provedor_id  : $input.provedor_id
+                        parcelas     : $t.parcelas
+                        cc_taxa      : $t.cc_taxa
+                        canal        : $input.canal
+                        ativo        : true
+                        origem       : "scrape"
+                        atualizado_em: "now"
+                        created_at   : "now"
+                      }
+                    } as $nova
+                  
+                    var.update $inseridas {
+                      value = $inseridas + 1
+                    }
                   }
-                } as $nova
-              
-                var.update $inseridas {
-                  value = $inseridas + 1
                 }
               }
             }
@@ -91,7 +128,7 @@ query taxas_coleta_importar verb=POST {
       }
     }
   
-    // Marca a última coleta do provedor
+    // Marca a última coleta do provedor (mesmo quando nada mudou)
     db.edit Provedor {
       field_name = "id"
       field_value = $input.provedor_id
@@ -114,9 +151,10 @@ query taxas_coleta_importar verb=POST {
   }
 
   response = {
-    ok        : $input.sucesso
-    removidas : $antigas|count
-    inseridas : $inseridas
+    ok       : $input.sucesso
+    alterou  : $alterou
+    removidas: $removidas
+    inseridas: $inseridas
   }
 
   tags = ["novo-sis", "taxas", "coleta"]

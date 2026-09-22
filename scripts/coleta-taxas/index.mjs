@@ -6,7 +6,7 @@
 // Uso local:
 //   XANO_BASE_URL=... COLETA_SECRET=... node scripts/coleta-taxas/index.mjs
 //   DRY_RUN=1 ... node scripts/coleta-taxas/index.mjs   (coleta e imprime, sem gravar)
-import { listarProvedores, importarTaxas } from './lib/xano.mjs'
+import { listarProvedores, importarTaxas, finalizarColeta } from './lib/xano.mjs'
 import { coletar } from './adapters/index.mjs'
 
 const DRY_RUN =
@@ -55,6 +55,7 @@ async function main() {
   console.log(`Provedores para coletar: ${provedores.length}`)
 
   let falhas = 0
+  let algumAlterou = false
 
   for (const provedor of provedores) {
     const canalPadrao = provedor?.canal_default || 'cartao_link'
@@ -83,8 +84,10 @@ async function main() {
           sucesso: true,
           mensagem: 'ok',
         })
+        if (r?.alterou) algumAlterou = true
         console.log(
-          `- ${provedor.nome} (${canal}): ${r?.inseridas ?? '?'} inseridas, ${r?.removidas ?? '?'} removidas`,
+          `- ${provedor.nome} (${canal}): ${r?.inseridas ?? '?'} inseridas, ${r?.removidas ?? '?'} removidas` +
+            (r?.alterou ? ' (alterou)' : ' (sem mudança)'),
         )
       }
     } catch (err) {
@@ -92,6 +95,21 @@ async function main() {
       console.error(`- ${provedor.nome}: ERRO — ${err.message}`)
       if (!DRY_RUN) await registrarFalha(provedor, canalPadrao, err.message)
     }
+  }
+
+  // Só anuncia (bump de versão + data) quando alguma taxa realmente mudou.
+  if (algumAlterou && !DRY_RUN) {
+    try {
+      const f = await finalizarColeta()
+      console.log(`Taxas atualizadas — versão bumpada para ${f?.versao_taxas_banco}.`)
+    } catch (err) {
+      falhas += 1
+      console.error(`Falha ao finalizar (bump de versão): ${err.message}`)
+    }
+  } else if (DRY_RUN) {
+    console.log('(DRY_RUN: sem bump de versão)')
+  } else {
+    console.log('Nenhuma taxa mudou — versão mantida.')
   }
 
   if (falhas > 0) {

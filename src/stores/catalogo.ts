@@ -66,6 +66,8 @@ export const useCatalogoStore = defineStore('catalogo', () => {
   const versaoMateriais = ref<number | null>(null)
   const versaoProdutos = ref<number | null>(null)
   const versaoTaxasBanco = ref<number | null>(null)
+  // Data da última atualização automática das taxas (banner)
+  const taxasAtualizadoEm = ref<number | null>(null)
 
   const selectedMaterialId = ref<number | null>(null)
 
@@ -221,6 +223,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     versaoMateriais.value = (cfg.versao_materiais as number) ?? null
     versaoProdutos.value = (cfg.versao_produtos as number) ?? null
     versaoTaxasBanco.value = (cfg.versao_taxas_banco as number) ?? null
+    taxasAtualizadoEm.value = (cfg.taxas_atualizado_em as number) ?? null
   }
 
   // Descida das taxas de banco com cache por versão (mesmo padrão do catálogo).
@@ -335,6 +338,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     versaoMateriais,
     versaoProdutos,
     versaoTaxasBanco,
+    taxasAtualizadoEm,
     versaoLabel,
     selectedMaterialId,
     sucFiltrado,
