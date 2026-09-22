@@ -70,16 +70,6 @@ function post_item {
             detalhes_calculo     : $input.detalhes_calculo
           }
         } as $item
-      
-        // Recálculo dinâmico por somatório
-        function.run Orcamento_Recalcular_Totais {
-          input = {orca_id: $input.orca_id}
-        } as $func_1
-      
-        db.get Orca {
-          field_name = "id"
-          field_value = $input.orca_id
-        } as $Orca_1
       }
     }
   }

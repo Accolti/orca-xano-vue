@@ -10,6 +10,10 @@ function Orcamento_Recalcular_Totais {
   
     // Markup EFETIVO desejado (%). Se omitido, mantém a margem de cada item
     decimal newMargem?
+  
+    // frtB2B efetivo já resolvido pelo caller (opcional) — evita reconsultar User/Perfil
+    decimal frt_b2b?
+    bool frt_b2b_informado?
   }
 
   stack {
@@ -38,8 +42,42 @@ function Orcamento_Recalcular_Totais {
     }
   
     db.query item {
+      join = {
+        Produto : {
+          table: "Produto"
+          where: $db.item.produto_id == $db.Produto.id
+        }
+        Material: {
+          table: "Material"
+          where: $db.Material.id == $db.Produto.material_id
+        }
+        Linha   : {
+          table: "Linha"
+          type : "left"
+          where: $db.Linha.id ==? $db.Produto.linha_id
+        }
+        Tipo    : {
+          table: "Tipo"
+          type : "left"
+          where: $db.Tipo.id ==? $db.Produto.tipo_id
+        }
+        Nivel   : {
+          table: "Nivel"
+          type : "left"
+          where: $db.Nivel.id ==? $db.Produto.nivel_id
+        }
+        Borda   : {
+          table: "Borda"
+          type : "left"
+          where: $db.Borda.id ==? $db.item.borda_id
+        }
+      }
+    
       where = $db.item.orca_id == $input.orca_id
       sort = {item.id: "asc"}
+      eval = {
+        Descricao: $db.Material.nome|concat:" "|concat:$db.Linha.nome|concat:" "|concat:$db.Tipo.nome|concat:" "|concat:$db.Nivel.nome|concat:" "|concat:$db.Borda.nome
+      }
       return = {type: "list"}
       output = [
         "id"
@@ -90,6 +128,7 @@ function Orcamento_Recalcular_Totais {
         "porcentagem_acrescimo"
         "vlr_vnd_unit_bruto"
         "detalhes_calculo"
+        "Descricao"
       ]
     } as $itens
   
@@ -135,7 +174,11 @@ function Orcamento_Recalcular_Totais {
     // 2. Cálculo dinâmico do Frete B2B Kapazi
   
     function.run fCalculaFrete {
-      input = {valor_total_compra: $soma_itens.total_custo_nota}
+      input = {
+        valor_total_compra: $soma_itens.total_custo_nota
+        frt_b2b           : $input.frt_b2b
+        frt_b2b_informado : $input.frt_b2b_informado
+      }
     } as $frete_b2b_total
   
     // 3. Rateio do Frete, Cálculo dos Impostos (ST/DIFAL/Crédito) e Venda com Markup
@@ -243,18 +286,34 @@ function Orcamento_Recalcular_Totais {
         
         return {
           itensParaUpdate: itensComVendaFinal.map(i => ({
-            id                    : i.id,
-            vlr_cst_nota_unit     : Number(i.cst_nota_unit.toFixed(4)),
-            vlr_st_unit           : Number(i.st_unit.toFixed(4)),
-            vlr_custo_fiscal_unit : Number(i.vlr_custo_fiscal_unit.toFixed(4)),
-            vlr_frete_b2b_unit    : Number(i.vlr_frete_b2b_unit.toFixed(4)),
-            vlr_cst_entrada_unit  : Number(i.vlr_cst_entrada_unit.toFixed(4)),
-            vlr_vnd_unit          : Number(i.vlr_vnd_unit.toFixed(4)),
-            vlr_vnd_unit_b2b      : Number(i.vlr_vnd_unit.toFixed(4)),
-            vlr_vnd_unit_bruto    : Number(i.vlr_vnd_unit_bruto.toFixed(4)),
-            vlr_lucro_unit        : Number(i.vlr_lucro_unit.toFixed(4)),
-            margem                : Number(markupAlvo.toFixed(4)),
-            perc_margem_real      : Number(i.perc_margem_real.toFixed(4))
+            id  : i.id,
+            data: {
+              vlr_cst_nota_unit    : Number(i.cst_nota_unit.toFixed(4)),
+              vlr_st_unit          : Number(i.st_unit.toFixed(4)),
+              vlr_custo_fiscal_unit: Number(i.vlr_custo_fiscal_unit.toFixed(4)),
+              vlr_frete_b2b_unit   : Number(i.vlr_frete_b2b_unit.toFixed(4)),
+              vlr_cst_entrada_unit : Number(i.vlr_cst_entrada_unit.toFixed(4)),
+              vlr_vnd_unit         : Number(i.vlr_vnd_unit.toFixed(4)),
+              vlr_vnd_unit_b2b     : Number(i.vlr_vnd_unit.toFixed(4)),
+              vlr_vnd_unit_bruto   : Number(i.vlr_vnd_unit_bruto.toFixed(4)),
+              vlr_lucro_unit       : Number(i.vlr_lucro_unit.toFixed(4)),
+              margem               : Number(markupAlvo.toFixed(4)),
+              perc_margem_real     : Number(i.perc_margem_real.toFixed(4))
+            }
+          })),
+          itemS: itensComVendaFinal.map(i => ({
+            ...i,
+            vlr_cst_nota_unit    : Number(i.cst_nota_unit.toFixed(4)),
+            vlr_st_unit          : Number(i.st_unit.toFixed(4)),
+            vlr_custo_fiscal_unit: Number(i.vlr_custo_fiscal_unit.toFixed(4)),
+            vlr_frete_b2b_unit   : Number(i.vlr_frete_b2b_unit.toFixed(4)),
+            vlr_cst_entrada_unit : Number(i.vlr_cst_entrada_unit.toFixed(4)),
+            vlr_vnd_unit         : Number(i.vlr_vnd_unit.toFixed(4)),
+            vlr_vnd_unit_b2b     : Number(i.vlr_vnd_unit.toFixed(4)),
+            vlr_vnd_unit_bruto   : Number(i.vlr_vnd_unit_bruto.toFixed(4)),
+            vlr_lucro_unit       : Number(i.vlr_lucro_unit.toFixed(4)),
+            margem               : Number(markupAlvo.toFixed(4)),
+            perc_margem_real     : Number(i.perc_margem_real.toFixed(4))
           })),
           totais: {
             cst_tot              : Number(cst_tot.toFixed(4)),
@@ -283,28 +342,13 @@ function Orcamento_Recalcular_Totais {
       timeout = 10
     } as $recalc
   
-    // 4. Atualização dos itens com os novos valores unitários
+    // 4. Atualização dos itens com os novos valores unitários (bulk = 1 round-trip)
   
-    foreach ($recalc.itensParaUpdate) {
-      each as $upd {
-        db.edit item {
-          field_name = "id"
-          field_value = $upd.id
-          enforce_hidden_fields = false
-          data = {
-            margem               : $upd.margem
-            vlr_vnd_unit         : $upd.vlr_vnd_unit
-            vlr_lucro_unit       : $upd.vlr_lucro_unit
-            vlr_vnd_unit_b2b     : $upd.vlr_vnd_unit_b2b
-            vlr_vnd_unit_bruto   : $upd.vlr_vnd_unit_bruto
-            vlr_cst_nota_unit    : $upd.vlr_cst_nota_unit
-            vlr_cst_entrada_unit : $upd.vlr_cst_entrada_unit
-            vlr_frete_b2b_unit   : $upd.vlr_frete_b2b_unit
-            vlr_st_unit          : $upd.vlr_st_unit
-            vlr_custo_fiscal_unit: $upd.vlr_custo_fiscal_unit
-            perc_margem_real     : $upd.perc_margem_real
-          }
-        } as $item_editado
+    conditional {
+      if (($recalc.itensParaUpdate|count) > 0) {
+        db.bulk.patch item {
+          items = $recalc.itensParaUpdate
+        } as $itens_patch
       }
     }
   
@@ -335,101 +379,8 @@ function Orcamento_Recalcular_Totais {
       }
     } as $Orca_1
   
-    // 6. Consulta final para retorno dos itens ao front-end
-  
-    db.query item {
-      join = {
-        Produto : {
-          table: "Produto"
-          where: $db.item.produto_id == $db.Produto.id
-        }
-        Material: {
-          table: "Material"
-          where: $db.Material.id == $db.Produto.material_id
-        }
-        Linha   : {
-          table: "Linha"
-          type : "left"
-          where: $db.Linha.id ==? $db.Produto.linha_id
-        }
-        Tipo    : {
-          table: "Tipo"
-          type : "left"
-          where: $db.Tipo.id ==? $db.Produto.tipo_id
-        }
-        Nivel   : {
-          table: "Nivel"
-          type : "left"
-          where: $db.Nivel.id ==? $db.Produto.nivel_id
-        }
-        Borda   : {
-          table: "Borda"
-          type : "left"
-          where: $db.Borda.id ==? $db.item.borda_id
-        }
-      }
-    
-      where = $db.item.orca_id == $input.orca_id
-      sort = {item.id: "asc"}
-      eval = {
-        Descricao: $db.Material.nome|concat:" "|concat:$db.Linha.nome|concat:" "|concat:$db.Tipo.nome|concat:" "|concat:$db.Nivel.nome|concat:" "|concat:$db.Borda.nome
-      }
-    
-      return = {type: "list"}
-      output = [
-        "id"
-        "created_at"
-        "orca_id"
-        "produto_id"
-        "ipi"
-        "imp"
-        "vlr_custo"
-        "und_produto"
-        "larg"
-        "comp"
-        "larg_fc"
-        "comp_fc"
-        "borda_id"
-        "vlr_cst_borda"
-        "und_borda"
-        "tipo_fator_id"
-        "fator_de_corte_id"
-        "detalhe_id"
-        "variacao_id"
-        "margem"
-        "qtd"
-        "vlr_cst_unit"
-        "vlr_cst_unit_ipi"
-        "vlr_cst_unit_imp"
-        "vlr_vnd_unit"
-        "vlr_vnd_unit_ipi"
-        "vlr_vnd_unit_imp"
-        "vlr_lucro_unit"
-        "vlr_vnd_unit_b2b"
-        "descricao"
-        "area_user"
-        "area_calc"
-        "vlr_cst_nota_unit"
-        "vlr_cst_entrada_unit"
-        "valor_difal_unit"
-        "vlr_credito_icms_unit"
-        "aliq_inter"
-        "aliq_interna"
-        "perc_difal"
-        "vlr_frete_b2b_unit"
-        "vlr_st_unit"
-        "vlr_custo_fiscal_unit"
-        "eh_importado"
-        "perc_margem_real"
-        "com_medida_exata"
-        "porcentagem_acrescimo"
-        "vlr_vnd_unit_bruto"
-        "Descricao"
-        "detalhes_calculo"
-      ]
-    } as $itemS
   }
 
-  response = {totais: $recalc.totais, ORCA_1: $Orca_1, itemS: $itemS}
+  response = {totais: $recalc.totais, ORCA_1: $Orca_1, itemS: $recalc.itemS}
   guid = "MxrjpIDe_bc0YwRP0lpsrg"
 }

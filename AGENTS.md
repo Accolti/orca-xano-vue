@@ -348,6 +348,19 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
 - O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
 - Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
 
+### Performance (precificação / escrita)
+
+Otimizações aplicadas (2026-09) para reduzir o TTFB dos endpoints de orçamento (a base do Xano é ~500 ms; a lógica encadeada somava ~150–370 ms):
+
+- **Índices**: `item.orca_id` (btree), `Aliquotas_icms.uf` (btree) e `Variacao.detalhe_id` (btree) — queries por orçamento/UF deixam de varrer a tabela.
+- **`f_ativo_efetivo`**: caminhada pontual na cadeia (`db.get` por PK em `while`, até 5 níveis) em vez de carregar a tabela `User` inteira + lambda.
+- **`fCalculaFrete`**: aceita `frt_b2b?` + `frt_b2b_informado?` (opcionais). Com o flag, **não** reconsulta `User`/`Perfil` (retrocompatível: sem o flag, caminho antigo). `f_Orcamento_Orquestrador` e `Orcamento_Recalcular_Totais` passam o valor efetivo; `OrcamentoItem_Inserir`/`orcamento_recalcular` também.
+- **`Orcamento_Recalcular_Totais`**: os updates dos itens usam **`db.bulk.patch item`** (1 round-trip em vez de N `db.edit`) — a lambda emite `itensParaUpdate = [{ id, data: { campos } }]`.
+- **Recálculo duplicado removido**: `post_item` chamava `Orcamento_Recalcular_Totais` **e** o `OrcamentoItem_Inserir` chamava de novo → agora só o endpoint recalcula (o `post_item` apenas insere).
+- **1 leitura de itens no recalc**: os joins (Produto/Material/Linha/Tipo/Nivel/Borda) + `Descricao` foram para a 1ª `db.query item` e o retorno `itemS` sai da própria lambda (removida a 2ª query de itens).
+- **Front**: `carregarConfiguracoes` deduplica chamadas concorrentes (`configEmVoo`) — no load, GlobalHeader + banner + catálogo + taxas pediam `/configuracoes` 3–4× e agora é 1. `GlobalHeader.carregarNotifs` passa `{ limite: 20 }` (sem isso o endpoint retornava 400 a cada 60s).
+- **Backlog**: passar `Aliquotas_icms`/`Regime` por input ao orquestrador (evita 2–3 `db.get` por item).
+
 ### Perfil (UF + Regime Tributário) e precificação
 
 A precificação (DIFAL, crédito ICMS, ST) usa `User.uf` + `User.regime_id` (editados em `PerfilModal.vue` → `POST /user/{id}`; `/auth/me` retorna os campos). Sem eles, o backend `Precificar` cai no ramo **Lucro Real/Presumido** (abate crédito ICMS) — **errado** para MEI/Simples. Garantias implementadas:

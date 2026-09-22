@@ -40,7 +40,7 @@ const rotuloNotif = computed(
 async function carregarNotifs() {
   if (!authStore.isAuthenticated) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/notificacoes')
+    const resp = await xano.get('/api:-qqRIakp/notificacoes', { limite: 20 })
     const d = resp.getBody() ?? {}
     notifList.value = (d?.notificacoes ?? []) as typeof notifList.value
     notifNaoLidas.value = Number(d?.nao_lidas) || 0

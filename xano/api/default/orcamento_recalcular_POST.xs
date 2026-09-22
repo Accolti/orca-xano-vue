@@ -328,7 +328,12 @@ query orcamento_recalcular verb=POST {
     // Recálculo dinâmico por somatório
   
     function.run Orcamento_Recalcular_Totais {
-      input = {orca_id: $input.orca_id, newMargem: $margemUsar}
+      input = {
+        orca_id           : $input.orca_id
+        newMargem         : $margemUsar
+        frt_b2b           : $rootLim.frtB2B|first_notnull:0
+        frt_b2b_informado : true
+      }
     } as $func_1
   
     // Header atualizado

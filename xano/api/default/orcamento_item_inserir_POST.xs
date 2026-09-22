@@ -305,7 +305,11 @@ query OrcamentoItem_Inserir verb=POST {
   
     // Recálculo dinâmico por somatório — consolida os unitários na tabela Orca (_tot)
     function.run Orcamento_Recalcular_Totais {
-      input = {orca_id: $id_orca}
+      input = {
+        orca_id           : $id_orca
+        frt_b2b           : $PerfilEfet.frtB2B|first_notnull:0
+        frt_b2b_informado : true
+      }
     } as $func_1
   }
 

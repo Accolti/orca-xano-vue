@@ -216,14 +216,26 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     taxasBanco.value = []
   }
 
+  // Dedupe de chamadas concorrentes: GlobalHeader, banner, fetchCatalogo e
+  // fetchTaxasBanco pedem /configuracoes quase juntos no load → 1 request só.
+  let configEmVoo: Promise<void> | null = null
+
   async function carregarConfiguracoes() {
-    const configResp = await xano.get('/api:-qqRIakp/configuracoes')
-    const configBody = configResp.getBody() as any
-    const cfg = configBody?.['configuracoes-mae']?.[0] ?? {}
-    versaoMateriais.value = (cfg.versao_materiais as number) ?? null
-    versaoProdutos.value = (cfg.versao_produtos as number) ?? null
-    versaoTaxasBanco.value = (cfg.versao_taxas_banco as number) ?? null
-    taxasAtualizadoEm.value = (cfg.taxas_atualizado_em as number) ?? null
+    if (configEmVoo) return configEmVoo
+    configEmVoo = (async () => {
+      try {
+        const configResp = await xano.get('/api:-qqRIakp/configuracoes')
+        const configBody = configResp.getBody() as any
+        const cfg = configBody?.['configuracoes-mae']?.[0] ?? {}
+        versaoMateriais.value = (cfg.versao_materiais as number) ?? null
+        versaoProdutos.value = (cfg.versao_produtos as number) ?? null
+        versaoTaxasBanco.value = (cfg.versao_taxas_banco as number) ?? null
+        taxasAtualizadoEm.value = (cfg.taxas_atualizado_em as number) ?? null
+      } finally {
+        configEmVoo = null
+      }
+    })()
+    return configEmVoo
   }
 
   // Descida das taxas de banco com cache por versão (mesmo padrão do catálogo).

@@ -89,11 +89,6 @@ function f_Orcamento_Orquestrador {
       }
     }
   
-    db.get User {
-      field_name = "id"
-      field_value = $auth.id
-    } as $Us
-  
     // Config efetiva: filhos herdam do topo da cadeia (admin/admin_geral)
     function.run f_perfil_efetivo {
       input = {user_id: $auth.id}
@@ -281,7 +276,8 @@ function f_Orcamento_Orquestrador {
     function.run fCalculaFrete {
       input = {
         valor_total_compra: $custo_nota_total_para_frete
-        user_id           : $input.user_id
+        frt_b2b           : $UsEfet.frtB2B|first_notnull:0
+        frt_b2b_informado : true
       }
     } as $frete_b2b
   
