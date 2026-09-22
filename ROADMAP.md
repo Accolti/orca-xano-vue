@@ -216,3 +216,20 @@ Status: **taxas por empresa + canal implementadas (2026-09)** — cadastro manua
 - **Planos**: Básico (1 admin = vendedor único) e Vendedores + Afiliados → hierarquia (F3) + split Asaas.
 - Maquininha/POS/celular: controle **manual** no Financeiro (fora do link).
 
+## ⚡ Frente 11 — Performance (precificação / escrita)
+
+Status: **ciclo de otimização entregue (2026-09)** — insert/update de item ficaram ~5×/3× mais rápidos (TTFB 4,7s → 0,89s e 3,06s → 0,91s). Detalhes técnicos na seção "Performance" do `AGENTS.md`.
+
+### Feito ✅
+- Índices `item.orca_id`, `Aliquotas_icms.uf`, `Variacao.detalhe_id`.
+- `f_ativo_efetivo` por caminhada pontual (sem varrer a tabela `User`).
+- `fCalculaFrete` com `frt_b2b`/`frt_b2b_informado` (não reconsulta `User`/`Perfil`).
+- `Orcamento_Recalcular_Totais` com **`db.bulk.patch item`** (1 round-trip) e `itemS` vindo da lambda (removida a 2ª query de itens).
+- Removido o recálculo duplicado do `post_item`.
+- Front: `/notificacoes` com `limite` (fim do 400 no polling) e dedupe de `/configuracoes` no load.
+
+### Backlog (próximo ciclo de performance)
+- [ ] Passar `Aliquotas_icms`/`Regime` por input ao `f_Orcamento_Orquestrador` (evita 2–3 `db.get` por item no `orcamento_calcular`).
+- [ ] Adiar requisições não-críticas no mount do front (ex.: `faixas_comissao`) para zerar o tempo de fila (blocked/queueing) do navegador.
+- [ ] Passar `frt_b2b` nos fluxos de update/delete (remover o fallback do `fCalculaFrete`).
+
