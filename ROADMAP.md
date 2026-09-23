@@ -231,5 +231,5 @@ Status: **ciclo de otimização entregue (2026-09)** — insert/update de item f
 ### Backlog (próximo ciclo de performance)
 - [ ] Passar `Aliquotas_icms`/`Regime` por input ao `f_Orcamento_Orquestrador` (evita 2–3 `db.get` por item no `orcamento_calcular`).
 - [ ] Adiar requisições não-críticas no mount do front (ex.: `faixas_comissao`) para zerar o tempo de fila (blocked/queueing) do navegador.
-- [ ] Passar `frt_b2b` nos fluxos de update/delete (remover o fallback do `fCalculaFrete`).
+- [x] Passar `frt_b2b` nos fluxos de update/delete (remover o fallback do `fCalculaFrete`) — feito 2026-09, com o recalc também movido para fora da transação.
 

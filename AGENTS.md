@@ -358,6 +358,7 @@ Otimizações aplicadas (2026-09) para reduzir o TTFB dos endpoints de orçament
 - **`Orcamento_Recalcular_Totais`**: os updates dos itens usam **`db.bulk.patch item`** (1 round-trip em vez de N `db.edit`) — a lambda emite `itensParaUpdate = [{ id, data: { campos } }]`.
 - **Recálculo duplicado removido**: `post_item` chamava `Orcamento_Recalcular_Totais` **e** o `OrcamentoItem_Inserir` chamava de novo → agora só o endpoint recalcula (o `post_item` apenas insere).
 - **1 leitura de itens no recalc**: os joins (Produto/Material/Linha/Tipo/Nivel/Borda) + `Descricao` foram para a 1ª `db.query item` e o retorno `itemS` sai da própria lambda (removida a 2ª query de itens).
+- **`OrcamentoItem_Atualizar`/`orcamento_item_deletar`**: o `Orcamento_Recalcular_Totais` roda **fora** do `db.transaction` (igual ao inserir) e recebe `frt_b2b`/`frt_b2b_informado` (resolvido uma vez via `f_perfil_efetivo`) — remove o fallback do `fCalculaFrete` e o custo de manter o recalc dentro da transação.
 - **Front**: `carregarConfiguracoes` deduplica chamadas concorrentes (`configEmVoo`) — no load, GlobalHeader + banner + catálogo + taxas pediam `/configuracoes` 3–4× e agora é 1. `GlobalHeader.carregarNotifs` passa `{ limite: 20 }` (sem isso o endpoint retornava 400 a cada 60s).
 - **Backlog**: passar `Aliquotas_icms`/`Regime` por input ao orquestrador (evita 2–3 `db.get` por item).
 

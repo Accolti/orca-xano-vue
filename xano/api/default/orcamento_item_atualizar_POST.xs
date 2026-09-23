@@ -97,6 +97,11 @@ query OrcamentoItem_Atualizar verb=POST {
       error = "Item não encontrado."
     }
   
+    // Config efetiva (frtB2B) — filhos herdam do topo da cadeia
+    function.run f_perfil_efetivo {
+      input = {user_id: $auth.id}
+    } as $PerfilEfet
+  
     db.transaction {
       stack {
         db.edit item {
@@ -160,26 +165,29 @@ query OrcamentoItem_Atualizar verb=POST {
           enforce_hidden_fields = false
           data = {condicoes_pagamento: ""}
         } as $Orca_cond_limpa
-      
-        // Recálculo dinâmico por somatório
-      
-        function.run Orcamento_Recalcular_Totais {
-          input = {orca_id: $item_existente.orca_id}
-        } as $func_1
-      
-        db.get Orca {
-          field_name = "id"
-          field_value = $item_existente.orca_id
-          addon = [
-            {
-              name : "Cliente"
-              input: {Cliente_id: $output.cliente_id}
-              as   : "_cliente"
-            }
-          ]
-        } as $Orca_1
       }
     }
+  
+    // Recálculo dinâmico por somatório (fora da transação)
+    function.run Orcamento_Recalcular_Totais {
+      input = {
+        orca_id           : $item_existente.orca_id
+        frt_b2b           : $PerfilEfet.frtB2B|first_notnull:0
+        frt_b2b_informado : true
+      }
+    } as $func_1
+  
+    db.get Orca {
+      field_name = "id"
+      field_value = $item_existente.orca_id
+      addon = [
+        {
+          name : "Cliente"
+          input: {Cliente_id: $output.cliente_id}
+          as   : "_cliente"
+        }
+      ]
+    } as $Orca_1
   }
 
   response = {
