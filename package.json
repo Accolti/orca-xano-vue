@@ -13,6 +13,7 @@
     "coleta:taxas": "node scripts/coleta-taxas/index.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "@xano/js-sdk": "^3.0.1",
     "pdfmake": "^0.3.11",
     "pinia": "^3.0.4",

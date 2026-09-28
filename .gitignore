@@ -39,3 +39,6 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 .env
+
+# Migração Xano -> Supabase (local, não versionar)
+/migracao/
