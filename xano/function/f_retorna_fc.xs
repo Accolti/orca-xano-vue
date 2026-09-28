@@ -25,10 +25,20 @@ function f_retorna_fc {
         const modoCorte = $input.modo_corte || 'lista';
         const passo = Number($input.passo) || 0;
         
-        // MODO PASSO: arredonda sempre para cima ao múltiplo do passo
+        // MODO PASSO: arredonda SEMPRE para cima, mas em UMA única dimensão —
+        // a que resultar na MENOR área final (melhor para o cliente).
+        // Ex.: 1.20 x 2.95 (passo 0.5) → 1.50 x 2.95 (4.425) vs 1.20 x 3.00 (3.60)
+        // → escolhe 1.20 x 3.00.
         if (modoCorte === 'passo' && passo > 0) {
           const roundUp = (v) => (v > 0 ? Math.ceil(v / passo) * passo : 0);
-          return { new_comp: roundUp(comp), new_larg: roundUp(larg) };
+          const cUp = roundUp(comp);
+          const lUp = roundUp(larg);
+          const areaCompUp = cUp * larg;
+          const areaLargUp = comp * lUp;
+          if (areaCompUp <= areaLargUp) {
+            return { new_comp: cUp, new_larg: larg };
+          }
+          return { new_comp: comp, new_larg: lUp };
         }
         
         // MODO LISTA (comportamento original)
