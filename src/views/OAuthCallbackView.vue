@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/services/supabase'
 
-const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
@@ -12,21 +11,11 @@ const processando = ref(true)
 const erro = ref<string | null>(null)
 
 onMounted(async () => {
-  const code = (route.query.code as string) || ''
-
-  if (!code) {
-    erro.value = 'Falha na autenticação: código ausente na resposta do Google.'
-    processando.value = false
-    return
-  }
-
-  // Limpa o code da URL p/ não reutilizar num refresh (o code do Google é one-time)
-  await router.replace({ path: '/oauth/callback', query: {} })
-
   try {
     if (!supabase) throw new Error('Supabase não configurado')
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (error) throw error
+    // detectSessionInUrl (fluxo implícito) já estabelece a sessão a partir da URL.
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) throw new Error('Sessão não estabelecida.')
     await authStore.fetchMe()
     router.replace('/')
   } catch {
