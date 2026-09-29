@@ -42,3 +42,6 @@ __screenshots__/
 
 # Migração Xano -> Supabase (local, não versionar)
 /migracao/
+
+# Supabase CLI (estado local do link/deploy)
+supabase/.temp/

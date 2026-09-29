@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useClienteStore } from '@/stores/cliente'
+import { deletarCliente } from '@/services/clienteApi'
+import { useAuthStore } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import ClienteModal from '@/components/ClienteModal.vue'
 
@@ -43,14 +45,10 @@ function aoSalvar() {
 
   try {
     erroExcluir.value = null
-    const { xano } = await import('@/services/xano')
-    await xano.delete(`/api:-qqRIakp/cliente/${cliente.id}`)
+    await deletarCliente(cliente.id, useAuthStore().user?.id)
     await clienteStore.buscarClientes(termoBusca.value || undefined)
   } catch (err: any) {
-    const body = err?.getResponse?.()?.getBody?.()
-    const mensagem = body?.message || err?.message || 'Erro ao tentar excluir o cliente.'
-    const payload = body?.payload
-    erroExcluir.value = payload ? `${mensagem} (${payload})` : mensagem
+    erroExcluir.value = err?.message || 'Erro ao tentar excluir o cliente.'
   }
 }
 

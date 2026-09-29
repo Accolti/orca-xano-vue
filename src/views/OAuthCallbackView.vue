@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/services/supabase'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,8 +13,6 @@ const erro = ref<string | null>(null)
 
 onMounted(async () => {
   const code = (route.query.code as string) || ''
-  // SEMPRE usa o redirect_uri idêntico ao do init (ignora query p/ evitar mismatch de encoding)
-  const redirectUri = `${window.location.origin}/oauth/callback`
 
   if (!code) {
     erro.value = 'Falha na autenticação: código ausente na resposta do Google.'
@@ -25,9 +24,12 @@ onMounted(async () => {
   await router.replace({ path: '/oauth/callback', query: {} })
 
   try {
-    await authStore.googleCallback(code, redirectUri)
+    if (!supabase) throw new Error('Supabase não configurado')
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) throw error
+    await authStore.fetchMe()
     router.replace('/')
-  } catch (err) {
+  } catch {
     erro.value =
       authStore.error ||
       'Acesso restrito a usuários previamente autorizados. Entre em contato com o suporte.'

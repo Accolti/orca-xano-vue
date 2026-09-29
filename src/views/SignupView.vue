@@ -13,7 +13,7 @@ const password = ref('')
 
 async function handleSubmit() {
   try {
-    await authStore.signup(email.value, password.value, name_first.value, name_last.value)
+    await authStore.signup()
     router.push('/')
   } catch {
     /* error is already in authStore.error */

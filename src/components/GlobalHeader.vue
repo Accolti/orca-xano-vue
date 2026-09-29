@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
 import { useUiStore } from '@/stores/ui'
-import { xano } from '@/services/xano'
+import { listarNotificacoes, marcarNotificacoesLidas } from '@/services/notificacaoApi'
 import PerfilModal from '@/components/PerfilModal.vue'
 import SenhaModal from '@/components/SenhaModal.vue'
 import DevUserSwitcher from '@/components/DevUserSwitcher.vue'
@@ -40,8 +40,7 @@ const rotuloNotif = computed(
 async function carregarNotifs() {
   if (!authStore.isAuthenticated) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/notificacoes', { limite: 20 })
-    const d = resp.getBody() ?? {}
+    const d = (await listarNotificacoes(authStore.user?.id, 20)) ?? {}
     notifList.value = (d?.notificacoes ?? []) as typeof notifList.value
     notifNaoLidas.value = Number(d?.nao_lidas) || 0
   } catch {
@@ -60,7 +59,7 @@ function abrirNotifs() {
 
 async function marcarTodasLidas() {
   try {
-    await xano.post('/api:-qqRIakp/notificacoes_marcar_lida')
+    await marcarNotificacoesLidas(authStore.user?.id)
     await carregarNotifs()
   } catch {
     /* silencioso */
@@ -213,18 +212,6 @@ onBeforeUnmount(() => {
           stroke-linejoin="round"
         >
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-      </button>
-      <button class="header-icon" title="Notificações" aria-label="Notificações">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-        >
-          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 01-3.46 0" />
         </svg>
       </button>
       <div class="notif-wrap">

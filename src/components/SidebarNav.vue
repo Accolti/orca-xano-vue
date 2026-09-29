@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -20,6 +21,7 @@ interface MenuItem {
   adminOnly?: boolean
   manager?: boolean
   comissoes?: boolean
+  secao?: string
 }
 
 function visivel(item: MenuItem) {
@@ -30,24 +32,35 @@ function visivel(item: MenuItem) {
 }
 
 const menuItems: MenuItem[] = [
-  { icon: '\u{1F3E0}', label: 'Home', path: '/' },
-  { icon: '\u{1F464}', label: 'Clientes', path: '/clientes' },
-  { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos' },
-  { icon: '\u{1F465}', label: 'Equipe', path: '/equipe', manager: true, comissoes: true },
-  { icon: '\u{1F4B0}', label: 'Comissões', path: '/comissoes', comissoes: true },
+  { icon: '\u{1F3E0}', label: 'Home', path: '/', secao: 'Principal' },
+  { icon: '\u{1F464}', label: 'Clientes', path: '/clientes', secao: 'Principal' },
+  { icon: '\u{1F4C4}', label: 'Orçamentos', path: '/orcamentos', secao: 'Principal' },
+  { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos', secao: 'Principal' },
+  { icon: '\u{1F465}', label: 'Equipe', path: '/equipe', manager: true, comissoes: true, secao: 'Gestão' },
+  { icon: '\u{1F4B0}', label: 'Comissões', path: '/comissoes', comissoes: true, secao: 'Gestão' },
   {
     icon: '\u{2699}\u{FE0F}',
     label: 'Config. Comissões',
     path: '/faixas',
     adminOnly: true,
     comissoes: true,
+    secao: 'Gestão',
   },
-  { icon: '\u{1F6D2}', label: 'Pedidos', path: '/pedidos' },
-  { icon: '\u{1F4B3}', label: 'Financeiro', path: '/pagamentos' },
-  { icon: '\u{1F3E6}', label: 'Minhas taxas', path: '/taxas', adminOnly: true },
-  { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios' },
-  { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true },
+  { icon: '\u{1F4B3}', label: 'Financeiro', path: '/pagamentos', secao: 'Financeiro' },
+  { icon: '\u{1F3E6}', label: 'Minhas taxas', path: '/taxas', adminOnly: true, secao: 'Financeiro' },
+  { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios', secao: 'Análise' },
+  { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true, secao: 'Conta' },
 ]
+
+const SECOES = ['Principal', 'Gestão', 'Financeiro', 'Análise', 'Conta']
+
+const itensPorSecao = computed(() => {
+  const visiveis = menuItems.filter((i) => visivel(i))
+  return SECOES.map((s) => ({
+    secao: s,
+    itens: visiveis.filter((i) => i.secao === s),
+  })).filter((g) => g.itens.length > 0)
+})
 
 function isActive(item: MenuItem) {
   return !!item.path && route.path === item.path
@@ -113,30 +126,33 @@ function handleLogout() {
           <div class="drawer-divider" />
 
           <nav class="drawer-nav">
-            <RouterLink
-              v-for="item in menuItems.filter((i) => visivel(i) && !i.modal)"
-              :key="item.label"
-              :to="item.path ?? ''"
-              :class="{
-                active: isActive(item),
-                disabled: item.disabled,
-              }"
-              @click="item.disabled ? undefined : close()"
-            >
-              <span class="nav-icon">{{ item.icon }}</span>
-              <span class="nav-label">{{ item.label }}</span>
-            </RouterLink>
-            <button
-              v-for="item in menuItems.filter((i) => visivel(i) && i.modal)"
-              :key="item.label"
-              type="button"
-              class="nav-item"
-              :class="{ disabled: item.disabled }"
-              @click="abrirItem(item)"
-            >
-              <span class="nav-icon">{{ item.icon }}</span>
-              <span class="nav-label">{{ item.label }}</span>
-            </button>
+            <template v-for="grupo in itensPorSecao" :key="grupo.secao">
+              <div class="nav-secao">{{ grupo.secao }}</div>
+              <RouterLink
+                v-for="item in grupo.itens.filter((i) => !i.modal)"
+                :key="item.label"
+                :to="item.path ?? ''"
+                :class="{
+                  active: isActive(item),
+                  disabled: item.disabled,
+                }"
+                @click="item.disabled ? undefined : close()"
+              >
+                <span class="nav-icon">{{ item.icon }}</span>
+                <span class="nav-label">{{ item.label }}</span>
+              </RouterLink>
+              <button
+                v-for="item in grupo.itens.filter((i) => i.modal)"
+                :key="item.label"
+                type="button"
+                class="nav-item"
+                :class="{ disabled: item.disabled }"
+                @click="abrirItem(item)"
+              >
+                <span class="nav-icon">{{ item.icon }}</span>
+                <span class="nav-label">{{ item.label }}</span>
+              </button>
+            </template>
           </nav>
 
           <div class="drawer-footer">
@@ -177,7 +193,8 @@ function handleLogout() {
 
 .drawer {
   width: 280px;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   background: var(--sidebar-bg, #0f1c3a);
   display: flex;
   flex-direction: column;
@@ -247,6 +264,16 @@ function handleLogout() {
   flex-direction: column;
   padding: 0.75rem 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nav-secao {
+  padding: 0.9rem 1rem 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
 }
 
 .drawer-nav a,

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { listarEquipe, listarFaixas, salvarFaixa, definirPlano } from '@/services/equipeApi'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 
 interface FaixaRow {
@@ -27,29 +26,6 @@ const okMsg = ref<string | null>(null)
 const salvandoId = ref<number | string | null>(null)
 
 function getErrorMessage(err: unknown): string {
-  if (err instanceof XanoRequestError) {
-    try {
-      const raw = err.getResponse().getBody()
-      let body: any = raw
-      if (typeof raw === 'string') {
-        try {
-          body = JSON.parse(raw)
-        } catch {
-          const texto = raw.trim()
-          return texto || 'Erro ao salvar.'
-        }
-      }
-      if (body && typeof body === 'object') {
-        if (typeof body.message === 'string' && body.message.trim()) return body.message.trim()
-        if (body.payload && typeof body.payload.message === 'string') {
-          return body.payload.message.trim()
-        }
-        if (body.error && typeof body.error.message === 'string') return body.error.message.trim()
-      }
-    } catch {
-      /* segue para fallback */
-    }
-  }
   const msg = (err as Error)?.message
   if (msg && !/error with your request/i.test(msg)) return msg
   return 'Erro ao salvar. Verifique os dados e tente novamente.'
@@ -63,8 +39,7 @@ function avisarOk(msg: string) {
 async function carregarEmpresas() {
   if (!authStore.isAdminGeral) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/equipe')
-    const lista = (resp.getBody() as any[]) ?? []
+    const lista = (await listarEquipe(authStore.user?.id)) ?? []
     empresas.value = lista
       .filter((u) => u.role !== 'vendedor' && u.role !== 'vendedor_master')
       .map((u) => ({
@@ -95,10 +70,7 @@ async function salvarPlano() {
   if (!empresaSelecionada.value) return
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/user_plano', {
-      user_id: empresaSelecionada.value,
-      plano: planoEmpresa.value,
-    })
+    await definirPlano(authStore.user?.id, empresaSelecionada.value, planoEmpresa.value)
     const e = empresas.value.find((x) => x.id === empresaSelecionada.value)
     if (e) e.plano = planoEmpresa.value
     avisarOk('Plano atualizado.')
@@ -112,12 +84,8 @@ async function carregar() {
   loading.value = true
   erro.value = null
   try {
-    const params = new URLSearchParams()
-    if (authStore.isAdminGeral && empresaSelecionada.value) {
-      params.set('user_id', String(empresaSelecionada.value))
-    }
-    const resp = await xano.get(`/api:-qqRIakp/faixas_comissao?${params.toString()}`)
-    const d = resp.getBody() ?? {}
+    const target = authStore.isAdminGeral && empresaSelecionada.value ? empresaSelecionada.value : undefined
+    const d = (await listarFaixas(authStore.user?.id, target)) ?? {}
     const lista = (d?.faixas ?? []) as any[]
     faixas.value = lista.map((f) => ({
       id: f.id ?? null,
@@ -185,7 +153,7 @@ async function salvar(f: FaixaRow) {
     if (authStore.isAdminGeral && empresaSelecionada.value) {
       payload.user_id = empresaSelecionada.value
     }
-    await xano.post('/api:-qqRIakp/faixa_comissao_salvar', payload)
+    await salvarFaixa(authStore.user?.id, payload)
     avisarOk('Faixa salva.')
     await carregar()
   } catch (err) {

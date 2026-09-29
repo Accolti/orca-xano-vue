@@ -1,6 +1,12 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { xano } from '@/services/xano'
+import {
+  getConfiguracoes,
+  getTaxasBanco,
+  getProdutosParaSelecao,
+  getProdutosAll,
+  getProdutosSucFiltrado,
+} from '@/services/catalogApi'
 import { useAuthStore } from './auth'
 import { filtrarPorCanal } from '@/utils/taxasBanco'
 import type {
@@ -87,14 +93,9 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     const reqId = ++sucReqId
     const key = chaveSuc(materialId, linhaId, tipoId)
     try {
-      const response = await xano.get('/api:-qqRIakp/produtos_suc_filtrado', {
-        material_id: materialId,
-        linha_id: linhaId ?? 0,
-        tipo_id: tipoId ?? 0,
-      })
+      const body = await getProdutosSucFiltrado(materialId, linhaId ?? 0, tipoId ?? 0)
       // Resposta fora de ordem (seleção mudou de novo) → ignora
       if (reqId !== sucReqId) return
-      const body = response.getBody() as any
       const row = body?.Material_1?.[0]
       sucFiltrado.value = row
         ? {
@@ -224,8 +225,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     if (configEmVoo) return configEmVoo
     configEmVoo = (async () => {
       try {
-        const configResp = await xano.get('/api:-qqRIakp/configuracoes')
-        const configBody = configResp.getBody() as any
+        const configBody = await getConfiguracoes()
         const cfg = configBody?.['configuracoes-mae']?.[0] ?? {}
         versaoMateriais.value = (cfg.versao_materiais as number) ?? null
         versaoProdutos.value = (cfg.versao_produtos as number) ?? null
@@ -251,8 +251,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     if (cached && cached.versao === versaoT) {
       taxasBanco.value = cached.taxas ?? []
     } else {
-      const resp = await xano.get('/api:-qqRIakp/taxas_banco')
-      const body = (resp.getBody() as TaxaBanco[]) ?? []
+      const body = await getTaxasBanco(useAuthStore().user?.id)
       taxasBanco.value = body.filter((t) => t.ativo !== false)
       salvarCacheTaxas(versaoT)
     }
@@ -293,8 +292,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
         allNiveis.value = cachedM.nivel
         allBordas.value = cachedM.borda
       } else {
-        const response = await xano.get('/api:-qqRIakp/produtos_para_selecao')
-        const body = response.getBody() as any
+        const body = await getProdutosParaSelecao()
         const data = body?.lista_para_selecao ?? body
 
         const materialRaw = data?.Material
@@ -314,15 +312,7 @@ export const useCatalogoStore = defineStore('catalogo', () => {
       if (cachedP && cachedP.versao === versaoP) {
         allProdutos.value = cachedP.produtos ?? []
       } else {
-        const produtosResp = await xano.get('/api:-qqRIakp/produtos_all', {
-          produto_id: 0,
-          material_id: 0,
-          linha_id: 0,
-          tipo_id: 0,
-          nivel_id: 0,
-          detalhe_id: 0,
-        })
-        allProdutos.value = (produtosResp.getBody() as ProdutoCatalogo[]) ?? []
+        allProdutos.value = await getProdutosAll()
 
         salvarCacheProdutos(versaoP)
       }

@@ -86,6 +86,11 @@ const router = createRouter({
       component: () => import('../views/OAuthCallbackView.vue'),
     },
     {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('../views/ResetPasswordView.vue'),
+    },
+    {
       path: '/dev/produtos',
       name: 'dev-produtos',
       component: () => import('../views/DevProdutosView.vue'),
@@ -110,7 +115,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  const guestRoutes = ['login', 'signup', 'auth-callback']
+  const guestRoutes = ['login', 'signup', 'auth-callback', 'reset-password']
 
   if (guestRoutes.includes(to.name as string) && auth.isAuthenticated) {
     return { name: 'home' }

@@ -1,7 +1,13 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import {
+  listarParcelas,
+  salvarParcelas as apiSalvarParcelas,
+  baixarParcela,
+  estornarParcela,
+  excluirParcela,
+} from '@/services/pagamentoApi'
+import { useAuthStore } from './auth'
 import type { ParcelaFinanceira } from '@/utils/pagamentos'
 
 export interface PagamentoRow {
@@ -23,26 +29,13 @@ export const usePagamentoStore = defineStore('pagamentos', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  function msgErro(err: unknown): string {
-    if (err instanceof XanoRequestError) {
-      try {
-        const body = err.getResponse().getBody()
-        if (body?.message) return body.message
-      } catch {
-        /* ignore */
-      }
-    }
-    return (err as Error).message || 'Erro inesperado'
-  }
-
   async function carregar() {
     loading.value = true
     error.value = null
     try {
-      const resp = await xano.get('/api:-qqRIakp/pagamentos')
-      parcelas.value = resp.getBody() ?? []
+      parcelas.value = await listarParcelas(useAuthStore().user?.id)
     } catch (err) {
-      error.value = msgErro(err)
+      error.value = (err as Error).message || 'Erro inesperado'
       parcelas.value = []
     } finally {
       loading.value = false
@@ -50,34 +43,23 @@ export const usePagamentoStore = defineStore('pagamentos', () => {
   }
 
   async function carregarPorOrca(orcaId: number): Promise<PagamentoRow[]> {
-    const resp = await xano.get('/api:-qqRIakp/pagamentos', { orca_id: orcaId })
-    return resp.getBody() ?? []
+    return listarParcelas(useAuthStore().user?.id, orcaId)
   }
 
   async function salvarParcelas(orcaId: number, lista: ParcelaFinanceira[]) {
-    await xano.post('/api:-qqRIakp/pagamento_salvar', {
-      orca_id: orcaId,
-      parcelas: lista.map((p) => ({
-        valor: p.valor,
-        vencimento: p.vencimento,
-        forma_pagamento_id: p.forma_pagamento_id,
-      })),
-    })
+    await apiSalvarParcelas(orcaId, lista, useAuthStore().user?.id)
   }
 
   async function baixar(id: number, pagamento?: string) {
-    await xano.post('/api:-qqRIakp/pagamento_baixa', {
-      boleto_id: id,
-      pagamento: pagamento ?? 'today',
-    })
+    await baixarParcela(id, pagamento, useAuthStore().user?.id)
   }
 
   async function estornar(id: number) {
-    await xano.post('/api:-qqRIakp/pagamento_baixa', { boleto_id: id, estornar: true })
+    await estornarParcela(id, useAuthStore().user?.id)
   }
 
   async function excluir(id: number) {
-    await xano.post('/api:-qqRIakp/pagamento_excluir', { boleto_id: id })
+    await excluirParcela(id, useAuthStore().user?.id)
   }
 
   return {

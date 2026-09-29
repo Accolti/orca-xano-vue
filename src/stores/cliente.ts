@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { buscarClientes as apiBuscarClientes } from '@/services/clienteApi'
+import { useAuthStore } from './auth'
 import type { Cliente } from '@/types/cliente'
 
 export const useClienteStore = defineStore('cliente', () => {
@@ -23,20 +23,12 @@ export const useClienteStore = defineStore('cliente', () => {
     error.value = null
 
     try {
-      const params: Record<string, string | number> = { pagina: pg }
-      if (buscaAtual.value) params.busca = buscaAtual.value
-      const response = await xano.get('/api:-qqRIakp/cliente_user_busca', params)
-      const body = response.getBody()
-      clientes.value = body.cliente ?? []
-      total.value = Number(body.total) || clientes.value.length
+      const body = await apiBuscarClientes(termo || undefined, pg, useAuthStore().user?.id)
+      clientes.value = (body?.cliente ?? []) as Cliente[]
+      total.value = Number(body?.total) || clientes.value.length
       pagina.value = pg
     } catch (err: unknown) {
-      if (err instanceof XanoRequestError) {
-        const body = err.getResponse().getBody()
-        error.value = body?.message || err.message || 'Erro ao buscar clientes'
-      } else {
-        error.value = (err as Error).message || 'Erro inesperado'
-      }
+      error.value = (err as Error)?.message || 'Erro inesperado'
       clientes.value = []
       total.value = 0
     } finally {

@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import {
+  listarEquipe,
+  criarVendedor as apiCriarVendedor,
+  vincularEquipe,
+  salvarEquipe,
+  promoverRole,
+} from '@/services/equipeApi'
 
 interface MembroEquipe {
   id: number
@@ -33,7 +38,6 @@ const criarForm = reactive({
   name_first: '',
   name_last: '',
   email: '',
-  password: '',
   percentual: 0,
   role: 'vendedor' as 'vendedor' | 'vendedor_master',
 })
@@ -105,17 +109,7 @@ function alternarHerdar() {
 }
 
 function getErrorMessage(err: unknown): string {
-  if (err instanceof XanoRequestError) {
-    try {
-      const body = err.getResponse().getBody()
-      if (typeof body === 'string') return body
-      if (body?.message) return body.message
-      if (body?.error?.message) return body.error.message
-    } catch {
-      /* ignore */
-    }
-  }
-  return (err as Error).message || 'Erro inesperado'
+  return (err as Error)?.message || 'Erro inesperado'
 }
 
 function avisarErro(err: unknown) {
@@ -132,8 +126,7 @@ async function carregar() {
   loading.value = true
   erro.value = null
   try {
-    const resp = await xano.get('/api:-qqRIakp/equipe')
-    membros.value = (resp.getBody() as MembroEquipe[]) ?? []
+    membros.value = (await listarEquipe(authStore.user?.id)) ?? []
   } catch (err) {
     avisarErro(err)
   } finally {
@@ -147,28 +140,22 @@ async function criarVendedor() {
     erro.value = 'Informe nome e e-mail.'
     return
   }
-  if (criarForm.password.length < 8) {
-    erro.value = 'A senha deve ter pelo menos 8 caracteres.'
-    return
-  }
   salvandoCriar.value = true
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/equipe_criar', {
+    await apiCriarVendedor(authStore.user?.id, {
       name_first: criarForm.name_first,
       name_last: criarForm.name_last,
       email: criarForm.email,
-      password: criarForm.password,
       percentual_comissao: criarForm.percentual || undefined,
       role: criarForm.role,
     })
     criarForm.name_first = ''
     criarForm.name_last = ''
     criarForm.email = ''
-    criarForm.password = ''
     criarForm.percentual = 0
     criarForm.role = 'vendedor'
-    avisarOk('Vendedor criado com sucesso.')
+    avisarOk('Vendedor criado com sucesso. Um e-mail de convite será enviado.')
     await carregar()
   } catch (err) {
     avisarErro(err)
@@ -186,11 +173,7 @@ async function vincular() {
   salvandoVincular.value = true
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/equipe_vincular', {
-      email: vincularForm.email,
-      percentual_comissao: vincularForm.percentual || undefined,
-      role: vincularForm.role,
-    })
+    await vincularEquipe(authStore.user?.id, vincularForm.email, vincularForm.percentual || undefined, vincularForm.role)
     vincularForm.email = ''
     vincularForm.percentual = 0
     vincularForm.role = 'vendedor'
@@ -260,7 +243,7 @@ async function salvarEdicao(m: MembroEquipe) {
       payload.desconto_livre_perc = 0
       payload.desconto_max_perc = 0
     }
-    await xano.post('/api:-qqRIakp/equipe_salvar', payload)
+    await salvarEquipe(authStore.user?.id, payload)
     editandoId.value = null
     editPercentual.value = null
     editLivre.value = null
@@ -279,8 +262,8 @@ async function salvarEdicao(m: MembroEquipe) {
 
 async function alternarAtivo(m: MembroEquipe) {
   try {
-    // Snapshot completo: envia ativo + os demais campos atuais (não deixa o Xano zerar)
-    await xano.post('/api:-qqRIakp/equipe_salvar', {
+    // Snapshot completo: envia ativo + os demais campos atuais (não deixa o backend zerar)
+    await salvarEquipe(authStore.user?.id, {
       user_id: m.id,
       ativo: !(m.ativo ?? true),
       percentual_comissao: m.percentual_comissao ?? 0,
@@ -296,7 +279,7 @@ async function alternarAtivo(m: MembroEquipe) {
 async function promoverAdmin(m: MembroEquipe) {
   if (!confirm(`Promover ${nomeMembro(m)} (${m.email}) a Admin (conta independente)?`)) return
   try {
-    await xano.post('/api:-qqRIakp/equipe_role', { user_id: m.id, role: 'admin' })
+    await promoverRole(authStore.user?.id, m.id, 'admin')
     avisarOk('Usuário promovido a Admin.')
     await carregar()
   } catch (err) {
@@ -363,16 +346,9 @@ onMounted(carregar)
             <label for="eq-email">E-mail (login)</label>
             <input id="eq-email" v-model="criarForm.email" type="email" placeholder="email@exemplo.com" />
           </div>
-          <div class="field">
-            <label for="eq-senha">Senha inicial</label>
-            <input
-              id="eq-senha"
-              v-model="criarForm.password"
-              type="password"
-              autocomplete="new-password"
-              placeholder="Mín. 8 caracteres"
-            />
-          </div>
+          <p class="convite-aviso">
+            O vendedor receberá um e-mail de convite para definir a própria senha.
+          </p>
           <div v-if="criarForm.role !== 'vendedor_master'" class="field">
             <label for="eq-perc">Comissão do vendedor (%)</label>
             <input

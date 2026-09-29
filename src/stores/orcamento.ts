@@ -1,6 +1,23 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { xano } from '@/services/xano'
+import {
+  calcularOrcamento,
+  gerarNumeroOrcamento as apiGerarNumeroOrcamento,
+  inserirItem as apiInserirItem,
+  atualizarItem as apiAtualizarItem,
+  deletarItem as apiDeletarItem,
+  recalcularOrcamento,
+  carregarOrcamentoDetalhes,
+  carregarOrcamentoDetalhesPorId,
+  atualizarStatusOrcamento,
+  converterOrcamentoPedido,
+  carregarStatusHistorico as apiCarregarStatusHistorico,
+  deletarOrcamento as apiDeletarOrcamento,
+  duplicarOrcamento as apiDuplicarOrcamento,
+  carregarControlePedido as apiCarregarControlePedido,
+  salvarControlePedido as apiSalvarControlePedido,
+} from '@/services/orcamentoApi'
 import { useAuthStore } from './auth'
 import { useCatalogoStore } from './catalogo'
 import type {
@@ -630,11 +647,11 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
 
     try {
-      const response = await xano.post('/api:-qqRIakp/orcamento_calcular', payload)
-      resultadoNovo.value = response.getBody()
+      const response = await calcularOrcamento(payload, authIns.user?.id)
+      resultadoNovo.value = response
     } catch (err: any) {
       console.error('Erro ao calcular (orquestrador):', err)
-      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao calcular'
+      error.value = err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao calcular'
     } finally {
       loading.value = false
     }
@@ -644,10 +661,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     if (numeroOrcamento.value) return
     try {
       const authIns = useAuthStore()
-      const response = await xano.get('/api:-qqRIakp/Novo_Numero_Orcamento', {
-        id_do_Usuario: authIns.user?.id,
-      })
-      numeroOrcamento.value = response.getBody().result_1?.newOrca
+      numeroOrcamento.value = await apiGerarNumeroOrcamento(authIns.user?.id)
     } catch (err: any) {
       console.error('Erro ao gerar número do orçamento:', err)
       throw new Error('Erro ao gerar número do orçamento')
@@ -886,11 +900,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         }
       }
 
-      const response = await xano.post('/api:-qqRIakp/OrcamentoItem_Inserir', payload)
-      const body = response.getBody()
-      itensInseridos.value = body?.ORC?.itemS ?? []
-      orcamentoHeader.value = body?.ORC?.ORCA_1 ?? null
-      numeroOrcamento.value = body?.ORC?.ORCA_1?.cod_orca ?? numeroOrcamento.value
+      const body = await apiInserirItem(payload, authIns.user?.id)
+      itensInseridos.value = body?.itemS ?? []
+      orcamentoHeader.value = body?.ORCA_1 ?? null
+      numeroOrcamento.value = body?.ORCA_1?.cod_orca ?? numeroOrcamento.value
       limparFormItem()
     } catch (err: any) {
       console.error('Erro ao inserir orçamento:', err)
@@ -916,11 +929,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
         (useAuthStore().userEfetivo ?? useAuthStore().user)?.margem ??
         0
       const payload = montarPayloadItem(descricao, margemBase)
-      const response = await xano.post('/api:-qqRIakp/OrcamentoItem_Atualizar', {
-        item_id: itemId,
-        ...payload,
-      })
-      const body = response.getBody() as any
+      const body = await apiAtualizarItem({ item_id: itemId, ...payload }, useAuthStore().user?.id)
       orcamentoHeader.value = body?.ORCA_1 ?? null
       itensInseridos.value = body?.itemS ?? []
       numeroOrcamento.value = body?.ORCA_1?.cod_orca ?? numeroOrcamento.value
@@ -977,10 +986,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     error.value = null
     try {
       // Leitura read-only: 1 chamada, sem recalcular e sem escrever no banco.
-      const response = await xano.get('/api:-qqRIakp/orca_detalhes', {
-        cod_orca: codOrca,
-      })
-      const body = response.getBody() as any
+      const body = await carregarOrcamentoDetalhes(codOrca, useAuthStore().user?.id)
       const header = body?.ORCA_1 ?? null
       if (!header?.id) {
         throw new Error('Orçamento não encontrado')
@@ -1001,8 +1007,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     carregandoOrcamento.value = true
     error.value = null
     try {
-      const response = await xano.get('/api:-qqRIakp/orca_por_id', { orca_id: orcaId })
-      const body = response.getBody() as any
+      const body = await carregarOrcamentoDetalhesPorId(orcaId, useAuthStore().user?.id)
       const header = body?.ORCA_1 ?? null
       if (!header?.id) {
         throw new Error('Orçamento não encontrado')
@@ -1020,12 +1025,12 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   async function deleteOrcamento(orcaId: number) {
     try {
-      await xano.delete('/api:-qqRIakp/orcamento_deletar', {
-        orca_id: orcaId,
-      })
+      await apiDeletarOrcamento(orcaId, useAuthStore().user?.id)
     } catch (err: any) {
       console.error('Erro ao excluir orçamento:', err)
-      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao excluir orçamento')
+      throw new Error(
+        err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao excluir orçamento',
+      )
     }
   }
 
@@ -1033,11 +1038,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   async function duplicarOrcamento(orcaId: number): Promise<string> {
     try {
       const authIns = useAuthStore()
-      const response = await xano.post('/api:-qqRIakp/Orcamento_Duplicar', {
-        orca_id: orcaId,
-        user_id: authIns.user?.id,
-      })
-      const body = response.getBody() as any
+      const body = await apiDuplicarOrcamento(orcaId, authIns.user?.id)
       const novoCod = body?.orca?.cod_orca ?? body?.cod_orca
       if (!novoCod) {
         throw new Error('Orçamento duplicado sem número retornado')
@@ -1045,7 +1046,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       return String(novoCod)
     } catch (err: any) {
       console.error('Erro ao duplicar orçamento:', err)
-      throw new Error(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao duplicar orçamento')
+      throw new Error(
+        err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao duplicar orçamento',
+      )
     }
   }
 
@@ -1080,17 +1083,19 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     carregandoOrcamento.value = true
     error.value = null
     try {
-      const response = await xano.post('/api:-qqRIakp/orcamento_recalcular', {
-        orca_id: orcaId,
-        newMargem: opts?.newMargem,
-        frtB2C: opts?.frtB2C,
-        desconto: opts?.desconto,
-        maoDeObra: opts?.maoDeObra,
-        observacao: opts?.observacao,
-        condicoesPagamento: opts?.condicoesPagamento,
-        condicoesPagamentoParams: opts?.condicoesPagamentoParams,
-      })
-      const body = response.getBody() as any
+      const body = await recalcularOrcamento(
+        {
+          orca_id: orcaId,
+          newMargem: opts?.newMargem,
+          frtB2C: opts?.frtB2C,
+          desconto: opts?.desconto,
+          maoDeObra: opts?.maoDeObra,
+          observacao: opts?.observacao,
+          condicoesPagamento: opts?.condicoesPagamento,
+          condicoesPagamentoParams: opts?.condicoesPagamentoParams,
+        },
+        useAuthStore().user?.id,
+      )
       console.log('[recalcularTotais] resposta', {
         frtB2C: body?.ORCA_1?.frtB2C,
         desconto: body?.ORCA_1?.desconto,
@@ -1101,7 +1106,8 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       numeroOrcamento.value = body?.ORCA_1?.cod_orca ?? numeroOrcamento.value
     } catch (err: any) {
       console.error('Erro ao recalcular:', err)
-      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao recalcular'
+      error.value =
+        err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao recalcular'
       throw err
     } finally {
       carregandoOrcamento.value = false
@@ -1112,10 +1118,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   async function removerItem(itemId: number) {
     removendoItemId.value = itemId
     try {
-      const response = await xano.delete('/api:-qqRIakp/orcamento_item_deletar', {
-        item_id: itemId,
-      })
-      const body = response.getBody() as any
+      const body = await apiDeletarItem(itemId)
       orcamentoHeader.value = body?.ORCA_1 ?? null
       itensInseridos.value =
         body?.itemS ?? (itensInseridos.value ?? []).filter((i) => i.id !== itemId)
@@ -1145,17 +1148,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   async function atualizarStatus(orcaId: number, status: string, motivo?: string) {
     error.value = null
     try {
-      const response = await xano.post('/api:-qqRIakp/orcamento_status', {
-        orca_id: orcaId,
-        status,
-        motivo,
-      })
-      const body = response.getBody() as any
+      const body = await atualizarStatusOrcamento(orcaId, status, motivo, useAuthStore().user?.id)
       orcamentoHeader.value = body?.ORCA_1 ?? orcamentoHeader.value
       await carregarStatusHistorico(orcaId)
     } catch (err: any) {
       console.error('Erro ao atualizar status:', err)
-      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar status'
+      error.value =
+        err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao atualizar status'
       throw err
     }
   }
@@ -1165,15 +1164,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
   async function converterEmPedido(orcaId: number) {
     error.value = null
     try {
-      const response = await xano.post('/api:-qqRIakp/orcamento_converter_pedido', {
-        orca_id: orcaId,
-      })
-      const body = response.getBody() as any
+      const body = await converterOrcamentoPedido(orcaId, useAuthStore().user?.id)
       orcamentoHeader.value = body?.ORCA_1 ?? orcamentoHeader.value
       await carregarStatusHistorico(orcaId)
     } catch (err: any) {
       console.error('Erro ao converter em pedido:', err)
-      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao converter em pedido'
+      error.value =
+        err?.getResponse?.()?.getBody?.()?.message || err?.message || 'Erro ao converter em pedido'
       throw err
     }
   }
@@ -1189,10 +1186,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     }
     carregandoHistorico.value = true
     try {
-      const response = await xano.get('/api:-qqRIakp/orcamento_status_historico', {
-        orca_id: orcaId,
-      })
-      const body = response.getBody() as any
+      const body = await apiCarregarStatusHistorico(orcaId, useAuthStore().user?.id)
       statusHistorico.value = Array.isArray(body) ? body : []
     } catch (err: any) {
       console.error('Erro ao carregar histórico de status:', err)
@@ -1211,10 +1205,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       return
     }
     try {
-      const response = await xano.get('/api:-qqRIakp/controle_pedido_por_orca', {
-        orca_id: orcaId,
-      })
-      controlePedido.value = response.getBody() as any
+      controlePedido.value = await apiCarregarControlePedido(orcaId, useAuthStore().user?.id)
     } catch (err: any) {
       console.error('Erro ao carregar controle do pedido:', err)
       controlePedido.value = null
@@ -1223,14 +1214,13 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
 
   async function salvarControlePedido(orcaId: number, dados: Record<string, any>) {
     try {
-      const response = await xano.post('/api:-qqRIakp/controle_pedido_salvar', {
-        orca_id: orcaId,
-        ...dados,
-      })
-      controlePedido.value = response.getBody() as any
+      controlePedido.value = await apiSalvarControlePedido(orcaId, dados, useAuthStore().user?.id)
     } catch (err: any) {
       console.error('Erro ao salvar controle do pedido:', err)
-      error.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar dados da fábrica'
+      error.value =
+        err?.getResponse?.()?.getBody?.()?.message ||
+        err?.message ||
+        'Erro ao salvar dados da fábrica'
       throw err
     }
   }

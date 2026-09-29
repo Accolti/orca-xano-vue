@@ -1,25 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import SidebarNav from '@/components/SidebarNav.vue'
 import GlobalHeader from '@/components/GlobalHeader.vue'
 import TaxasAtualizadasBanner from '@/components/TaxasAtualizadasBanner.vue'
 
 const authStore = useAuthStore()
-const router = useRouter()
 
 const sidebarOpen = ref(false)
-
-onMounted(async () => {
-  if (authStore.token) {
-    try {
-      await authStore.fetchMe()
-    } catch {
-      router.push('/login')
-    }
-  }
-})
 </script>
 
 <template>

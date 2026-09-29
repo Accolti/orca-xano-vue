@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
+import { buscarPendentesAprovacao, aprovarDescontoOrcamento } from '@/services/orcamentoApi'
 import { XanoRequestError } from '@xano/js-sdk'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import {
@@ -50,8 +50,7 @@ async function carregarPendentes() {
   pendLoading.value = true
   pendErro.value = ''
   try {
-    const resp = await xano.get('/api:-qqRIakp/orcamentos_pendentes_aprovacao')
-    const d = resp.getBody() ?? {}
+    const d = await buscarPendentesAprovacao(authStore.user?.id)
     pendentes.value = (d?.linhas ?? []) as typeof pendentes.value
   } catch (err) {
     pendErro.value = getErrMsg(err)
@@ -73,10 +72,7 @@ function abrirPendente(id: number) {
 
 async function aprovarPendente(row: { id: number }) {
   try {
-    await xano.post('/api:-qqRIakp/orcamento_aprovar_desconto', {
-      orca_id: row.id,
-      aprovado: true,
-    })
+    await aprovarDescontoOrcamento(row.id, true, authStore.user?.id)
     mostrarToast('Desconto aprovado.')
     await carregarPendentes()
   } catch (err) {

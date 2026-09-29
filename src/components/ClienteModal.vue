@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { carregarCliente, salvarCliente, capturarDadosCNPJ } from '@/services/clienteApi'
+import { useAuthStore } from '@/stores/auth'
 import type { ClienteForm, TelefoneEntry, Cliente } from '@/types/cliente'
 import { defaultForm } from '@/types/cliente'
 import {
@@ -25,6 +25,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   saved: [cliente?: Partial<Cliente>]
 }>()
+
+const authStore = useAuthStore()
 
 const form = reactive<ClienteForm>({ ...defaultForm })
 const editandoId = ref<number | null>(null)
@@ -53,8 +55,7 @@ watch(
     if (props.clienteId) {
       carregandoCliente.value = true
       try {
-        const resp = await xano.get(`/api:-qqRIakp/cliente/${props.clienteId}`)
-        const data = resp.getBody()
+        const data = await carregarCliente(props.clienteId, authStore.user?.id)
 
         form.tipo_pessoa = data.tipo_pessoa || (data.cnpj?.trim() ? 'CNPJ' : 'CPF')
         form.razao_social = data.razao_social ?? ''
@@ -133,16 +134,7 @@ function removerTelefone(idx: number) {
 }
 
 function getErroMsg(err: unknown): string {
-  if (err instanceof XanoRequestError) {
-    try {
-      const body = err.getResponse().getBody()
-      if (typeof body === 'string') return body
-      if (body?.message) return body.message
-    } catch {
-      /* ignore */
-    }
-  }
-  return (err as Error).message || 'Erro inesperado'
+  return (err as Error)?.message || 'Erro inesperado'
 }
 
 function lookupId(map: Record<string, number>, key: string, label: string): number | undefined {
@@ -223,16 +215,10 @@ async function submit() {
   if (beneficio_id !== undefined) payload.beneficio_fiscal_id = beneficio_id
 
   try {
-    if (editandoId.value) {
-      await xano.patch('/api:-qqRIakp/Cliente_Endereco_Telefone', payload)
-      emit('saved', montarClienteSalvo(editandoId.value))
-    } else {
-      const resp = await xano.post('/api:-qqRIakp/Cliente_Endereco_Telefone', payload)
-      const body = resp.getBody() ?? {}
-      const criado = body?.Cliente_2 ?? body?.cliente ?? null
-      const novoId = Number(criado?.id) || 0
-      emit('saved', montarClienteSalvo(novoId))
-    }
+    const body = await salvarCliente(payload, authStore.user?.id)
+    const criado = body?.cliente ?? null
+    const novoId = Number(criado?.id) || 0
+    emit('saved', montarClienteSalvo(novoId))
     close()
   } catch (err) {
     erroSalvar.value = getErroMsg(err)
@@ -280,8 +266,7 @@ async function buscarCNPJ() {
   buscandoCNPJ.value = true
   erroCNPJ.value = null
   try {
-    const response = await xano.get('/api:-qqRIakp/capturarDados_CNPJ_IE', { cnpj: raw })
-    const data = response.getBody() as any
+    const data = (await capturarDadosCNPJ(raw)) as any
 
     if (data?.razaoSocial) form.razao_social = data.razaoSocial
     if (data?.nomeFantasia) form.nome_fantasia = data.nomeFantasia
@@ -311,8 +296,7 @@ async function buscarCNPJ() {
     }
   } catch (err: any) {
     console.error('Erro ao buscar CNPJ:', err)
-    const body = err?.getResponse?.()?.getBody?.()
-    erroCNPJ.value = body?.message || err?.message || 'Erro ao buscar CNPJ'
+    erroCNPJ.value = err?.message || 'Erro ao buscar CNPJ'
   } finally {
     buscandoCNPJ.value = false
   }

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { listarComissoes, pagarComissao } from '@/services/equipeApi'
 import PeriodoBar, { type PeriodoOpcao } from '@/components/PeriodoBar.vue'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 
@@ -42,17 +41,7 @@ function mesAtualISO(): string {
 }
 
 function getErrorMessage(err: unknown): string {
-  if (err instanceof XanoRequestError) {
-    try {
-      const body = err.getResponse().getBody()
-      if (typeof body === 'string') return body
-      if (body?.message) return body.message
-      if (body?.error?.message) return body.error.message
-    } catch {
-      /* ignore */
-    }
-  }
-  return (err as Error).message || 'Erro inesperado'
+  return (err as Error)?.message || 'Erro inesperado'
 }
 
 async function carregar() {
@@ -60,9 +49,7 @@ async function carregar() {
   loading.value = true
   erro.value = null
   try {
-    const params = new URLSearchParams({ periodo: periodo.value, mes_inicio: mesInicio.value })
-    const resp = await xano.get(`/api:-qqRIakp/comissoes?${params.toString()}`)
-    const d = resp.getBody() ?? {}
+    const d = (await listarComissoes(authStore.user?.id, periodo.value, mesInicio.value)) ?? {}
     linhas.value = (d?.linhas as LinhaComissao[]) ?? []
     totais.value = d?.totais ?? { calculada: { qtd: 0, total: 0 }, paga: { qtd: 0, total: 0 } }
   } catch (err) {
@@ -78,7 +65,7 @@ async function marcarPaga(l: LinhaComissao) {
   pagandoId.value = l.id
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/comissao_pagar', { comissao_id: l.id })
+    await pagarComissao(authStore.user?.id, l.id)
     await carregar()
   } catch (err) {
     erro.value = getErrorMessage(err)

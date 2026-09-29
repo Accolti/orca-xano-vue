@@ -3,8 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import logoOrca from '@/assets/orca_system_1000x1000.png?inline'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { carregarDashboard } from '@/services/dashboardApi'
 import DashboardGrafico from '@/components/DashboardGrafico.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
@@ -55,9 +54,12 @@ async function carregar() {
   loading.value = true
   error.value = null
   try {
-    const params = new URLSearchParams({ periodo: periodo.value, mes_inicio: mesInicio.value })
-    const resp = await xano.get(`/api:-qqRIakp/dashboard?${params.toString()}`)
-    const d = resp.getBody() ?? {}
+    const d =
+      (await carregarDashboard({
+        periodo: periodo.value,
+        mesInicio: mesInicio.value,
+        userId: authStore.user?.id,
+      })) ?? {}
     orcamentos.value = Number(d.orcamentos) || 0
     pedidos.value = Number(d.pedidos) || 0
     boletosVencidos.value = Number(d.boletosVencidos) || 0
@@ -66,8 +68,7 @@ async function carregar() {
     funil.value = d.funil ?? {}
     serie.value = Array.isArray(d.serie) ? (d.serie as SerieMes[]) : []
   } catch (err) {
-    const body = (err as XanoRequestError)?.getResponse?.()?.getBody?.()
-    error.value = body?.message || (err as Error).message || 'Erro ao carregar o dashboard.'
+    error.value = (err as Error).message || 'Erro ao carregar o dashboard.'
   } finally {
     loading.value = false
   }

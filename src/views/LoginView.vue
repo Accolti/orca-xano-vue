@@ -12,11 +12,25 @@ const sessaoExpirada = ref(route.query.expired === '1')
 const email = ref('')
 const password = ref('')
 
+const esqueciAberto = ref(false)
+const emailReset = ref('')
+const resetEnviado = ref(false)
+
 async function handleSubmit() {
   sessaoExpirada.value = false
   try {
     await authStore.login(email.value, password.value)
     router.push('/')
+  } catch {
+    /* error is already in authStore.error */
+  }
+}
+
+async function enviarReset() {
+  if (!emailReset.value) return
+  try {
+    await authStore.resetPassword(emailReset.value)
+    resetEnviado.value = true
   } catch {
     /* error is already in authStore.error */
   }
@@ -61,6 +75,27 @@ async function handleSubmit() {
           {{ authStore.loading ? 'Entrando…' : 'Entrar' }}
         </button>
       </form>
+
+      <button type="button" class="link-forgot" @click="esqueciAberto = !esqueciAberto">
+        Esqueci a senha?
+      </button>
+
+      <div v-if="esqueciAberto" class="reset-box">
+        <p class="reset-hint">Informe seu e-mail para receber o link de redefinição.</p>
+        <div class="field">
+          <input
+            id="email-reset"
+            v-model="emailReset"
+            type="email"
+            placeholder="seu@email.com"
+            autocomplete="email"
+          />
+        </div>
+        <button type="button" class="btn" :disabled="authStore.loading" @click="enviarReset">
+          {{ authStore.loading ? 'Enviando…' : 'Enviar link de redefinição' }}
+        </button>
+        <p v-if="resetEnviado" class="info-msg">Link enviado! Verifique seu e-mail.</p>
+      </div>
 
       <div class="auth-divider">
         <span>ou</span>
@@ -249,5 +284,34 @@ async function handleSubmit() {
 
 .switch-link a:hover {
   text-decoration: underline;
+}
+
+.link-forgot {
+  display: block;
+  margin: 0.75rem auto 0;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-forgot:hover {
+  text-decoration: underline;
+}
+
+.reset-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.reset-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
 }
 </style>

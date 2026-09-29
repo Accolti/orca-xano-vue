@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { xano } from '@/services/xano'
+import { listarEquipe, listarFaixas } from '@/services/equipeApi'
 
 const props = withDefaults(defineProps<{ apenasLimites?: boolean }>(), { apenasLimites: false })
 
@@ -77,18 +77,18 @@ const visivel = computed(() => semFaixas.value || semLimites.value)
 async function carregar() {
   if (!elegivel.value) return
   const [faixas, equipe] = await Promise.allSettled([
-    xano.get('/api:-qqRIakp/faixas_comissao'),
-    xano.get('/api:-qqRIakp/equipe'),
+    listarFaixas(authStore.user?.id),
+    listarEquipe(authStore.user?.id),
   ])
 
   if (faixas.status === 'fulfilled') {
-    const d = faixas.value.getBody() ?? {}
+    const d = faixas.value ?? {}
     faixasVazias.value = !((d?.faixas as unknown[])?.length)
   }
   carregouFaixas.value = true
 
   if (equipe.status === 'fulfilled') {
-    const lista = ((equipe.value.getBody() as any[]) ?? []).filter((m) => m?.ativo !== false)
+    const lista = ((equipe.value as any[]) ?? []).filter((m) => m?.ativo !== false)
     temEquipe.value = lista.length > 0
     membrosSemLimite.value = lista.some((m) => !limiteEfetivoOk(m))
   }

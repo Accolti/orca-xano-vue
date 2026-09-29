@@ -13,6 +13,7 @@ import {
   copiarEabrirWhatsApp,
 } from '@/services/pdf'
 import { xano } from '@/services/xano'
+import { aprovarDescontoOrcamento } from '@/services/orcamentoApi'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import { CANAIS_CARTAO, provedoresDisponiveis, labelCanalCurto } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
@@ -65,13 +66,13 @@ async function aprovarDesconto(aprovado: boolean) {
   const id = orcamentoStore.orcamentoHeader?.id
   if (!id) return
   try {
-    await xano.post('/api:-qqRIakp/orcamento_aprovar_desconto', { orca_id: id, aprovado })
+    await aprovarDescontoOrcamento(id, aprovado, authStore.user?.id)
     await orcamentoStore.carregarOrcamentoPorId(id)
     toastMsg.value = aprovado ? 'Desconto aprovado.' : 'Desconto recusado.'
     if (toastTimer) clearTimeout(toastTimer)
     toastTimer = setTimeout(() => (toastMsg.value = ''), 3000)
   } catch (err: any) {
-    alert(err?.getResponse?.()?.getBody?.()?.message || 'Erro ao aprovar desconto')
+    alert(err?.message || err?.getResponse?.()?.getBody?.()?.message || 'Erro ao aprovar desconto')
   }
 }
 const clienteStore = useClienteStore()

@@ -1,7 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { supabase } from '@/services/supabase'
 import { useCatalogoStore } from './catalogo'
 import { useOrcamentoStore } from './orcamento'
 
@@ -51,11 +50,12 @@ export interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('authToken'))
+  const session = ref<any | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const isAuthenticated = computed(() => !!token.value)
+  const token = computed(() => session.value?.access_token ?? null)
+  const isAuthenticated = computed(() => !!session.value)
 
   // Role efetiva: contas sem role (legado) com vendedor_pai_id contam como vendedor;
   // sem role e sem pai → admin.
@@ -79,51 +79,52 @@ export const useAuthStore = defineStore('auth', () => {
   // Serviço de comissões: habilitado pelo plano da empresa (filhos herdam do topo).
   const temComissoes = computed(() => (userEfetivo.value?.plano ?? user.value?.plano) === 'plus')
 
-  if (token.value) {
-    xano.setAuthToken(token.value)
-  }
+  // Acompanha o estado da sessão (login/refresh/logout). O carregamento do perfil
+  // (usuarios) é feito explicitamente em init()/login/fetchMe.
+  supabase?.auth.onAuthStateChange((event, sess) => {
+    session.value = sess
+    if (event === 'SIGNED_OUT') {
+      user.value = null
+      empresaEfetiva.value = null
+    }
+  })
 
   function getErrorMessage(err: unknown): string {
-    if (err instanceof XanoRequestError) {
-      try {
-        const body = err.getResponse().getBody()
-        if (typeof body === 'string') return body
-        if (body?.message) return body.message
-        if (body?.error?.message) return body.error.message
-      } catch {
-        /* ignore */
-      }
+    return (err as Error)?.message || 'Erro inesperado'
+  }
+
+  async function init() {
+    if (!supabase) return
+    const { data } = await supabase.auth.getSession()
+    session.value = data.session
+    if (data.session) {
+      await fetchMe().catch(() => {})
     }
-    return (err as Error).message || 'Erro inesperado'
   }
 
   async function loadPerfilEfetivo() {
     if (!user.value) return
     try {
-      const response = await xano.get('/api:-qqRIakp/perfil_efetivo')
-      const d = response.getBody() ?? {}
-      empresaEfetiva.value = d ?? null
+      const { data, error: err } = await supabase!.rpc('perfil_efetivo', {
+        p_user_id: user.value.id,
+      })
+      if (err) throw err
+      empresaEfetiva.value = (data ?? null) as Partial<User> | null
     } catch {
       empresaEfetiva.value = null
     }
   }
 
   async function login(email: string, password: string) {
+    if (!supabase) throw new Error('Supabase não configurado')
     loading.value = true
     error.value = null
     try {
-      const response = await xano.post('/api:-qqRIakp/auth/login', { email, password })
-      const data = response.getBody()
-      token.value = data.authToken
-      localStorage.setItem('authToken', data.authToken)
-      xano.setAuthToken(data.authToken)
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+      if (err) throw new Error(err.message)
       await fetchMe()
     } catch (err) {
       console.error('[auth/login]', err)
-      if (err instanceof XanoRequestError) {
-        console.error('[auth/login] status:', err.getResponse().getStatusCode())
-        console.error('[auth/login] body:', err.getResponse().getBody())
-      }
       const msg = getErrorMessage(err)
       error.value = msg
       throw new Error(msg)
@@ -132,47 +133,93 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function signup(email: string, password: string, name_first: string, name_last: string) {
+  // Cadastro fechado: usuários são criados pelo admin (via /equipe) com convite.
+  async function signup() {
     loading.value = true
     error.value = null
     try {
-      const response = await xano.post('/api:-qqRIakp/auth/signup', {
-        email,
-        password,
-        name_first,
-        name_last,
-      })
-      const data = response.getBody()
-      token.value = data.authToken
-      localStorage.setItem('authToken', data.authToken)
-      xano.setAuthToken(data.authToken)
-      await fetchMe()
+      throw new Error('Cadastro por convite. Entre em contato para liberar seu acesso.')
     } catch (err) {
-      console.error('[auth/signup]', err)
-      if (err instanceof XanoRequestError) {
-        console.error('[auth/signup] status:', err.getResponse().getStatusCode())
-        console.error('[auth/signup] body:', err.getResponse().getBody())
-      }
       const msg = getErrorMessage(err)
       error.value = msg
       throw new Error(msg)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Dispara o fluxo Google OAuth (Supabase). Redireciona para o Google.
+  async function googleLogin() {
+    if (!supabase) throw new Error('Supabase não configurado')
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/oauth/callback`,
+          queryParams: { prompt: 'select_account' },
+        },
+      })
+      if (err) throw new Error(err.message)
+    } catch (err) {
+      console.error('[oauth/google]', err)
+      error.value = getErrorMessage(err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Envia o e-mail de redefinição de senha (fluxo "Esqueci a senha").
+  async function resetPassword(email: string) {
+    if (!supabase) throw new Error('Supabase não configurado')
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (err) throw new Error(err.message)
+    } catch (err) {
+      error.value = getErrorMessage(err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Define a nova senha após o link de redefinição (sessão de recuperação ativa).
+  async function updatePassword(newPassword: string) {
+    if (!supabase) throw new Error('Supabase não configurado')
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: newPassword })
+      if (err) throw new Error(err.message)
+    } catch (err) {
+      error.value = getErrorMessage(err)
+      throw err
     } finally {
       loading.value = false
     }
   }
 
   async function fetchMe() {
+    if (!supabase) throw new Error('Supabase não configurado')
     try {
-      const response = await xano.get('/api:-qqRIakp/auth/me')
-      user.value = response.getBody()
+      const { data, error: err } = await supabase.auth.getUser()
+      if (err || !data?.user) throw new Error('Sessão expirada. Faça login novamente.')
+
+      const { data: me, error: rpcErr } = await supabase.rpc('auth_me')
+      if (rpcErr) throw new Error(rpcErr.message)
+      if (!me) throw new Error('Usuário não cadastrado.')
+
+      user.value = me as User
     } catch (err) {
       console.error('[auth/me]', err)
-      if (err instanceof XanoRequestError) {
-        console.error('[auth/me] status:', err.getResponse().getStatusCode())
-        console.error('[auth/me] body:', err.getResponse().getBody())
-      }
       logout()
-      throw new Error('Sessão expirada. Faça login novamente.')
+      throw new Error(getErrorMessage(err) || 'Sessão expirada. Faça login novamente.')
     }
     // Conta desativada pela empresa (ou um "pai" desativado) não pode operar.
     const u = user.value
@@ -183,62 +230,11 @@ export const useAuthStore = defineStore('auth', () => {
     await loadPerfilEfetivo()
   }
 
-  // Dispara o fluxo Google OAuth: chama init e redireciona o usuário para o Google
-  async function googleLogin() {
-    loading.value = true
-    error.value = null
-    try {
-      const redirectUri = `${window.location.origin}/oauth/callback`
-      const response = await xano.get('/api:8ebaG5ZN/oauth/google/init', {
-        redirect_uri: redirectUri,
-      })
-      const body = response.getBody()
-      if (body?.authUrl) {
-        window.location.href = body.authUrl
-      } else {
-        throw new Error('URL de autenticação não retornada')
-      }
-    } catch (err) {
-      console.error('[oauth/google/init]', err)
-      error.value = getErrorMessage(err)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // Processa o callback do Google: continue → token → fetchMe
-  async function googleCallback(code: string, redirectUri: string) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await xano.get('/api:8ebaG5ZN/oauth/google/continue', {
-        code,
-        redirect_uri: redirectUri,
-      })
-      const data = response.getBody()
-      token.value = data.token
-      localStorage.setItem('authToken', data.token)
-      xano.setAuthToken(data.token)
-      await fetchMe()
-    } catch (err) {
-      console.error('[oauth/google/continue] erro:', err)
-      if (err instanceof XanoRequestError) {
-        console.error('[oauth/google/continue] status:', err.getResponse().getStatusCode())
-        console.error('[oauth/google/continue] body:', JSON.stringify(err.getResponse().getBody()))
-      }
-      error.value = getErrorMessage(err)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
   function logout() {
-    token.value = null
+    session.value = null
     user.value = null
     empresaEfetiva.value = null
-    localStorage.removeItem('authToken')
-    xano.setAuthToken(null)
+    supabase?.auth.signOut().catch(() => {})
     useCatalogoStore().resetarSessao()
     // Limpa o orçamento em edição (número/cabeçalho/resultado) para o próximo usuário
     // não herdar dados da conta anterior (ex.: número de um pedido convertido).
@@ -247,6 +243,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
+    session,
     token,
     loading,
     error,
@@ -260,11 +257,13 @@ export const useAuthStore = defineStore('auth', () => {
     temComissoes,
     empresaEfetiva,
     userEfetivo,
+    init,
     login,
     signup,
     fetchMe,
     googleLogin,
-    googleCallback,
+    resetPassword,
+    updatePassword,
     logout,
   }
 })

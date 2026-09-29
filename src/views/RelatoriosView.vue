@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { carregarRelatorio } from '@/services/dashboardApi'
+import { useAuthStore } from '@/stores/auth'
 import { nomeForma } from '@/utils/pagamentos'
 import PeriodoBar from '@/components/PeriodoBar.vue'
 
@@ -71,6 +71,8 @@ interface Transicao {
 const periodo = ref<PeriodoOpcao>('todos')
 const mesInicio = ref(mesAtualISO())
 
+const authStore = useAuthStore()
+
 function mesAtualISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -96,9 +98,12 @@ async function carregar() {
   loading.value = true
   error.value = null
   try {
-    const params = new URLSearchParams({ periodo: periodo.value, mes_inicio: mesInicio.value })
-    const resp = await xano.get(`/api:-qqRIakp/relatorio?${params.toString()}`)
-    const d = resp.getBody() ?? {}
+    const d =
+      (await carregarRelatorio({
+        periodo: periodo.value,
+        mesInicio: mesInicio.value,
+        userId: authStore.user?.id,
+      })) ?? {}
 
     financeiroPedidos.value = d?.financeiro?.pedidos ?? []
     financeiroTotais.value = d?.financeiro?.totais ?? null
@@ -116,8 +121,7 @@ async function carregar() {
     orcamentosJanela.value = Number(d?.funil?.orcamentos_janela) || 0
     conversao.value = Number(d?.funil?.conversao) || 0
   } catch (err) {
-    const body = (err as XanoRequestError)?.getResponse?.()?.getBody?.()
-    error.value = body?.message || (err as Error).message || 'Erro ao carregar os relatórios.'
+    error.value = (err as Error).message || 'Erro ao carregar os relatórios.'
   } finally {
     loading.value = false
   }

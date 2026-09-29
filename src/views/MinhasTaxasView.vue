@@ -2,8 +2,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
-import { xano } from '@/services/xano'
-import { XanoRequestError } from '@xano/js-sdk'
+import { listarTaxasGerenciar, salvarTaxa, excluirTaxa, salvarProvedor } from '@/services/taxaApi'
+import { listarEquipe } from '@/services/equipeApi'
 import { CANAIS_CARTAO } from '@/utils/taxasBanco'
 
 interface TaxaRow {
@@ -74,29 +74,6 @@ const globaisFiltradas = computed(() =>
 )
 
 function getErrorMessage(err: unknown): string {
-  if (err instanceof XanoRequestError) {
-    try {
-      const raw = err.getResponse().getBody()
-      let body: any = raw
-      if (typeof raw === 'string') {
-        try {
-          body = JSON.parse(raw)
-        } catch {
-          const texto = raw.trim()
-          return texto || 'Erro ao salvar.'
-        }
-      }
-      if (body && typeof body === 'object') {
-        if (typeof body.message === 'string' && body.message.trim()) return body.message.trim()
-        if (body.payload && typeof body.payload.message === 'string') {
-          return body.payload.message.trim()
-        }
-        if (body.error && typeof body.error.message === 'string') return body.error.message.trim()
-      }
-    } catch {
-      /* segue para fallback */
-    }
-  }
   const msg = (err as Error)?.message
   if (msg && !/error with your request/i.test(msg)) return msg
   return 'Erro ao salvar. Verifique os dados e tente novamente.'
@@ -110,8 +87,7 @@ function avisarOk(msg: string) {
 async function carregarEmpresas() {
   if (!authStore.isAdminGeral) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/equipe')
-    const lista = (resp.getBody() as any[]) ?? []
+    const lista = (await listarEquipe(authStore.user?.id)) ?? []
     empresas.value = lista
       .filter((u) => u.role !== 'vendedor' && u.role !== 'vendedor_master')
       .map((u) => ({ id: Number(u.id), nome: u.name_first || u.name || `#${u.id}` }))
@@ -128,13 +104,8 @@ async function carregar() {
   loading.value = true
   erro.value = null
   try {
-    const params = new URLSearchParams()
-    if (authStore.isAdminGeral && empresaSelecionada.value) {
-      params.set('user_id', String(empresaSelecionada.value))
-    }
-    const qs = params.toString()
-    const resp = await xano.get(`/api:-qqRIakp/taxas_banco_gerenciar${qs ? `?${qs}` : ''}`)
-    const d = resp.getBody() ?? {}
+    const target = authStore.isAdminGeral && empresaSelecionada.value ? empresaSelecionada.value : undefined
+    const d = (await listarTaxasGerenciar(authStore.user?.id, target)) ?? {}
     const mapTaxa = (t: any): TaxaRow => ({
       id: t.id ?? null,
       provedor_id: t.provedor_id != null ? Number(t.provedor_id) : null,
@@ -194,7 +165,7 @@ async function salvar(f: TaxaRow) {
     if (authStore.isAdminGeral && empresaSelecionada.value) {
       payload.user_id = empresaSelecionada.value
     }
-    await xano.post('/api:-qqRIakp/taxa_banco_salvar', payload)
+    await salvarTaxa(authStore.user?.id, payload)
     avisarOk('Taxa salva.')
     await carregar()
     await catalogo.recarregarTaxas()
@@ -213,7 +184,7 @@ async function excluir(f: TaxaRow) {
   if (!confirm('Excluir esta taxa?')) return
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/taxa_banco_excluir', { id: f.id })
+    await excluirTaxa(authStore.user?.id, f.id)
     avisarOk('Taxa excluída.')
     await carregar()
     await catalogo.recarregarTaxas()
@@ -242,7 +213,7 @@ async function importarPadrao() {
       if (authStore.isAdminGeral && empresaSelecionada.value) {
         payload.user_id = empresaSelecionada.value
       }
-      await xano.post('/api:-qqRIakp/taxa_banco_salvar', payload)
+      await salvarTaxa(authStore.user?.id, payload)
     }
     avisarOk('Taxas padrão importadas.')
     await carregar()
@@ -259,7 +230,7 @@ async function adicionarProvedor() {
   if (!nome) return
   erro.value = null
   try {
-    await xano.post('/api:-qqRIakp/provedor_salvar', { nome })
+    await salvarProvedor(authStore.user?.id, { nome })
     novoProvedorNome.value = ''
     avisarOk('Provedor cadastrado.')
     await carregar()

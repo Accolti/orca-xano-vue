@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { xano } from '@/services/xano'
+import { buscarListaOrcamentos } from '@/services/orcamentoApi'
 import { useOrcamentoStore } from '@/stores/orcamento'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -245,32 +245,15 @@ export function useOrcamentosListActions() {
     soPedidos = false,
     somenteOrcamentos = false,
   ): Promise<{ items: OrcamentoRow[]; hasNext: boolean; hasPrev: boolean }> {
-    const [buscaRes, statusRes] = await Promise.all([
-      xano.get('/api:-qqRIakp/orca_por_cliente_busca', {
-        busca: termo,
-        page,
-        per_page: perPage,
-        so_pedidos: soPedidos || undefined,
-        somente_orcamentos: somenteOrcamentos || undefined,
-      }),
-      xano.get('/api:-qqRIakp/orcamento_status_lista'),
-    ])
-    const body = buscaRes.getBody() as any
-    const statusMap = new Map<number, string>()
-    const statusList = (statusRes.getBody() as any[]) ?? []
-    statusList.forEach((o: any) => {
-      if (o?.id != null && o?.status) statusMap.set(Number(o.id), o.status)
+    const { items, hasNext, hasPrev } = await buscarListaOrcamentos({
+      userId: authStore.user?.id,
+      busca: termo,
+      page,
+      perPage,
+      soPedidos,
+      somenteOrcamentos,
     })
-    const items = ((body?.items ?? []) as OrcamentoRow[]).map((row) => ({
-      ...row,
-      status: statusMap.get(Number(row.id)) ?? row.status ?? 'RASCUNHO',
-    }))
-    const itemsReceived = body?.itemsReceived ?? items.length
-    return {
-      items,
-      hasNext: !!body.nextPage && itemsReceived >= perPage,
-      hasPrev: !!body.prevPage,
-    }
+    return { items: items as OrcamentoRow[], hasNext, hasPrev }
   }
 
   return {
