@@ -1484,6 +1484,7 @@ const kapaziForm = ref({
   num_pedido_fabrica: '',
   data_aprovacao_layout: '',
   num_pedido_venda: '',
+  compra_numero: '',
   num_nf: '',
   forma_pagamento_fabrica: '',
   desconto_kapazi_perc: '',
@@ -1504,6 +1505,7 @@ function kapaziParaForm(c: any) {
     num_pedido_fabrica: c?.num_pedido_fabrica ?? '',
     data_aprovacao_layout: c?.data_aprovacao_layout ?? '',
     num_pedido_venda: c?.num_pedido_venda ?? '',
+    compra_numero: h?.compra_numero ?? '',
     num_nf: c?.num_nf ?? '',
     forma_pagamento_fabrica: c?.forma_pagamento_fabrica ?? '',
     desconto_kapazi_perc: c?.desconto_kapazi_perc ?? '',
@@ -1534,6 +1536,7 @@ async function salvarDadosKapazi() {
       num_pedido_fabrica: f.num_pedido_fabrica || null,
       data_aprovacao_layout: f.data_aprovacao_layout || null,
       num_pedido_venda: f.num_pedido_venda || null,
+      compra_numero: f.compra_numero || null,
       num_nf: f.num_nf || null,
       forma_pagamento_fabrica: f.forma_pagamento_fabrica || null,
       desconto_kapazi_perc: f.desconto_kapazi_perc !== '' ? Number(f.desconto_kapazi_perc) : null,
@@ -1545,6 +1548,9 @@ async function salvarDadosKapazi() {
       freteB2BReal: Number(f.freteB2BReal) > 0 ? Number(f.freteB2BReal) : null,
       freteB2CReal: f.freteB2CReal !== '' ? Number(f.freteB2CReal) : null,
     })
+    if (orcamentoStore.orcamentoHeader) {
+      orcamentoStore.orcamentoHeader.compra_numero = f.compra_numero || null
+    }
     mostrarToast('Dados da fábrica salvos.')
   } catch {
     /* error já definido no store */
@@ -3587,6 +3593,10 @@ async function enviarWhatsApp() {
                 type="text"
                 placeholder="Email da Kapazi"
               />
+            </div>
+            <div class="field">
+              <label>Compra Nº</label>
+              <input v-model="kapaziForm.compra_numero" type="text" placeholder="Nº do pedido de compra" />
             </div>
             <div class="field">
               <label>Nº NF</label>

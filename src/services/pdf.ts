@@ -838,7 +838,7 @@ export async function gerarPdfPedidoVenda({
             ],
             [
               { text: 'Compra Nº:', bold: true, fontSize: 8 },
-              { text: '', fontSize: 8 },
+              { text: header?.compra_numero || '', fontSize: 8 },
             ],
           ],
         },
