@@ -5,6 +5,7 @@ import type { User } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import { montarLinhasGarantia } from '@/utils/garantia'
+import { prazoEntregaDosItens } from '@/utils/prazosEntrega'
 import { montarItemDisplay } from '@/utils/itemDisplay'
 import { useCatalogoStore } from '@/stores/catalogo'
 import { useAuthStore } from '@/stores/auth'
@@ -26,11 +27,6 @@ interface PdfOrcamentoInput {
   user?: User | null
   faturar?: boolean
   condicoesPagamento?: string
-}
-
-export const PRAZOS_ORCAMENTO = {
-  entrega: '10 a 15 dias úteis',
-  frete: 'Gratuito para Sorocaba e região',
 }
 
 // Garantia vinda da tabela Material (meses), agrupada por material e deduplicada.
@@ -414,6 +410,7 @@ export async function gerarPdfOrcamento({
   const enderecos = (header?._cliente?._enderecos as any[]) ?? []
   const end = enderecos.find((e) => e?.Tipo === 'Comercial') || enderecos[0]
   const localizacao = end?.cidade && end?.estado ? `${end.cidade} / ${end.estado}` : ''
+  const prazoEntrega = prazoEntregaDosItens(itens, useCatalogoStore().allProdutos, end?.estado)
 
   const subtotal = subtotalItensBruto(itens, header)
   const desconto = Number(header?.desconto) || 0
@@ -633,7 +630,7 @@ export async function gerarPdfOrcamento({
     width: '*',
     stack: [
       { text: 'Prazos e Entregas', style: 'section' },
-      { text: `• Prazo de Entrega: ${PRAZOS_ORCAMENTO.entrega}`, style: 'item' },
+      { text: `• Prazo de Entrega: ${prazoEntrega}`, style: 'item' },
       { text: `• ${linhaFrete(freteB2C)}`, style: 'item' },
     ],
   }
@@ -780,6 +777,7 @@ export async function gerarPdfPedidoVenda({
     cliente?.nome_fantasia || cliente?.razao_social || cliente?.nome_cpf || cliente?.contato || ''
   const docCliente = cliente?.cnpj || cliente?.cpf || ''
   const endCliente = enderecoClienteLinha(cliente)
+  const prazoEntrega = prazoEntregaDosItens(itens, useCatalogoStore().allProdutos, endCliente.uf)
   const telefoneCliente = obterWhatsappCliente(cliente)
   const contatoCliente = cliente?.contato || ''
   const ieCliente = cliente?.inscricao_estadual || ''
@@ -929,7 +927,7 @@ export async function gerarPdfPedidoVenda({
         ],
         [
           { text: 'Previsão de entrega:', bold: true, fontSize: 9 },
-          { text: 'em 5 dias', fontSize: 9 },
+          { text: prazoEntrega, fontSize: 9 },
         ],
         [
           { text: 'Observações:', bold: true, fontSize: 9 },
@@ -1014,11 +1012,20 @@ export async function gerarPdfPedidoVenda({
     ])
   }
   body.push([
-    { text: 'TOTAL', ...td, bold: true, fontSize: 11, fillColor: '#eef2ff' },
-    { text: '', ...td, fillColor: '#eef2ff' },
-    { text: '', ...td, fillColor: '#eef2ff' },
-    { text: '', ...td, fillColor: '#eef2ff' },
-    { text: '', ...td, fillColor: '#eef2ff' },
+    {
+      text: 'TOTAL',
+      ...td,
+      bold: true,
+      fontSize: 11,
+      fillColor: '#eef2ff',
+      colSpan: 5,
+      alignment: 'right',
+      noWrap: true,
+    },
+    {},
+    {},
+    {},
+    {},
     {
       text: formatarMoeda(totalGeral),
       ...td,
@@ -1026,13 +1033,14 @@ export async function gerarPdfPedidoVenda({
       fontSize: 11,
       alignment: 'right',
       fillColor: '#eef2ff',
+      noWrap: true,
     },
   ])
 
   const tabelaItens = {
     table: {
       headerRows: 1,
-      widths: [40, '*', 72, 35, 62, 62],
+      widths: [40, '*', 72, 35, 62, 80],
       body,
     },
     layout: {
