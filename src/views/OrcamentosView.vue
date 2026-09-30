@@ -12,8 +12,8 @@ import {
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
 } from '@/services/pdf'
-import { xano } from '@/services/xano'
 import { aprovarDescontoOrcamento } from '@/services/orcamentoApi'
+import { listarFaixas } from '@/services/equipeApi'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import { CANAIS_CARTAO, provedoresDisponiveis, labelCanalCurto } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
@@ -136,14 +136,22 @@ const limiteDescontoTexto = computed(() => {
   }
   return `Desconto livre até ${l.livre}% · até ${l.max}% com aprovação.`
 })
-// Status do desconto Pix frente aos limites (só para filhos)
+// Status do desconto TOTAL (desconto R$ + desconto Pix) frente aos limites (só para filhos).
+// Espelha a soma feita no backend (orcamento_recalcular): Pix sobre o líquido.
 const pixLimiteStatus = computed<'acima' | 'pendente' | null>(() => {
   if (authStore.isAdmin) return null
-  const p = Number(descontoPixPercentual.value) || 0
   const l = limitesDesconto.value
-  if (!l || p <= 0) return null
-  if (p > l.max) return 'acima'
-  if (p > l.livre) return 'pendente'
+  if (!l) return null
+  const header = orcamentoStore.orcamentoHeader
+  const gross =
+    Number(header?.venda_bruta_tot) || (Number(header?.vnd_tot) + Number(header?.desconto)) || 0
+  const descontoRs = Number(header?.desconto) || 0
+  const pixPerc = Number(descontoPixPercentual.value) || 0
+  if (gross <= 0 || (descontoRs <= 0 && pixPerc <= 0)) return null
+  const pixVal = (gross - descontoRs) * (pixPerc / 100)
+  const totalPerc = ((descontoRs + pixVal) / gross) * 100
+  if (totalPerc > l.max) return 'acima'
+  if (totalPerc > l.livre) return 'pendente'
   return null
 })
 // Nº de parcelas do boleto escolhido pelo vendedor (null = máximo calculado)
@@ -245,13 +253,13 @@ const faixasComissao = ref<
   Array<{ faixa_min: number; faixa_max: number | null; comissao_total_perc: number }>
 >([])
 const percentualComissaoProprio = ref<number | null>(null)
+const equipeComissao = ref<Array<{ id: number; percentual_comissao: number }>>([])
 
 async function carregarFaixasComissao() {
   if (!authStore.isVendedor && !authStore.isVendedorMaster) return
   if (!authStore.temComissoes) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/faixas_comissao')
-    const d = resp.getBody() ?? {}
+    const d = (await listarFaixas(authStore.user?.id)) ?? {}
     faixasComissao.value = ((d?.faixas ?? []) as any[]).map((f) => ({
       faixa_min: Number(f.faixa_min) || 0,
       faixa_max: f.faixa_max != null ? Number(f.faixa_max) : null,
@@ -259,6 +267,10 @@ async function carregarFaixasComissao() {
     }))
     percentualComissaoProprio.value =
       d?.percentual_comissao != null ? Number(d.percentual_comissao) : null
+    equipeComissao.value = ((d?.equipe ?? []) as any[]).map((e) => ({
+      id: Number(e.id),
+      percentual_comissao: Number(e.percentual_comissao) || 0,
+    }))
   } catch {
     /* sem faixas/erro → sem projeção */
   }
@@ -284,7 +296,18 @@ const projecaoComissao = computed(() => {
     const val = (vnd * pctUso) / 100
     return `Com markup de ${fmtMarkup}, sua comissão nesta venda: ${pctUso.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% (R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})${pct > total ? ' (limitada pela faixa)' : ''}.`
   }
-  return `Faixa de markup ${fmtMarkup}: comissão total liberada de ${total.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% ao Master.`
+  // Master: dono da Orca → faixa total; vendo venda de um filho → override (faixa - % do ponta).
+  const ownerId = Number(header?.user_id) || 0
+  const ehDono = ownerId === Number(authStore.user?.id)
+  const fmtVal = (p: number) =>
+    `R$ ${((vnd * p) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (ehDono) {
+    return `Com markup de ${fmtMarkup}, sua comissão nesta venda: ${total.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% (${fmtVal(total)}).`
+  }
+  const dono = equipeComissao.value.find((e) => Number(e.id) === ownerId)
+  const pctPonta = dono ? Number(dono.percentual_comissao) || 0 : 0
+  const pctUso = Math.max(0, total - pctPonta)
+  return `Com markup de ${fmtMarkup}, sua comissão (override) nesta venda: ${pctUso.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% (${fmtVal(pctUso)}).`
 })
 
 watch([() => authStore.user?.id, () => orcamentoStore.orcamentoHeader?.id], () => {
@@ -576,9 +599,19 @@ const descontoKapazi = computed(() => {
   return (custoKapaziTotal.value * perc) / 100
 })
 const custoKapaziEfetivo = computed(() => custoKapaziTotal.value - descontoKapazi.value)
-const lucroRealKapazi = computed(
-  () => (orcamentoStore.orcamentoHeader?.luc_tot ?? 0) + descontoKapazi.value,
-)
+const freteEfetivoResumo = computed(() => {
+  const real = Number(orcamentoStore.controlePedido?.freteB2BReal) || 0
+  const contratado = orcamentoStore.orcamentoHeader?.frtB2B ?? 0
+  return real > 0 ? real : contratado
+})
+const lucroRealKapazi = computed(() => {
+  const frt = orcamentoStore.orcamentoHeader?.frtB2B ?? 0
+  return (
+    (orcamentoStore.orcamentoHeader?.luc_tot ?? 0) +
+    descontoKapazi.value +
+    (frt - freteEfetivoResumo.value)
+  )
+})
 const margemRealKapazi = computed(() => {
   const vnd = orcamentoStore.orcamentoHeader?.vnd_tot ?? 0
   if (vnd <= 0) return 0
@@ -3016,13 +3049,19 @@ async function enviarWhatsApp() {
           </template>
           <div class="resumo-total-item">
             <span class="resumo-label">Frete B2B</span>
-            <span>{{
-              formatarMoeda(
-                orcamentoStore.totaisRecalculo?.frete_b2b_total ??
-                  orcamentoStore.orcamentoHeader?.frtB2B ??
-                  0,
-              )
-            }}</span>
+            <span
+              >{{
+                formatarMoeda(
+                  orcamentoStore.totaisRecalculo?.frete_b2b_total ??
+                    orcamentoStore.orcamentoHeader?.frtB2B ??
+                    0,
+                )
+              }}<template
+                v-if="freteEfetivoResumo > 0 && freteEfetivoResumo !== (orcamentoStore.totaisRecalculo?.frete_b2b_total ?? orcamentoStore.orcamentoHeader?.frtB2B ?? 0)"
+              >
+                &nbsp;· efetivo {{ formatarMoeda(freteEfetivoResumo) }}
+              </template></span
+            >
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Margem Real</span>
@@ -3224,7 +3263,10 @@ async function enviarWhatsApp() {
                 >
                   Acima do desconto livre — exigirá aprovação.
                 </p>
-                <p v-if="descontoPixPercentual > 0" class="cond-badge badge-ok cond-pix-impacto">
+                <p
+                  v-if="descontoPixPercentual > 0 && !authStore.ehFilho"
+                  class="cond-badge badge-ok cond-pix-impacto"
+                >
                   Com desconto: seu lucro será R$
                   {{ pixImpacto.lucro.toFixed(2).replace('.', ',') }} ({{
                     pixImpacto.margem.toFixed(2).replace('.', ',')
@@ -3340,13 +3382,16 @@ async function enviarWhatsApp() {
                       — {{ cartaoSelecionadoInfo.provedor }}</template
                     >
                   </strong>
-                  <span>
+                  <span v-if="!authStore.ehFilho">
                     {{ repassarTaxasCartao ? 'Seu lucro preservado' : 'Seu lucro real' }}: R$
                     {{ lucroCartao.toFixed(2).replace('.', ',') }} ({{
                       margemRealCartao.toFixed(2).replace('.', ',')
                     }}%)
                   </span>
-                  <span v-if="!repassarTaxasCartao && custoDaTaxa > 0" class="cond-taxa-custo">
+                  <span
+                    v-if="!repassarTaxasCartao && custoDaTaxa > 0 && !authStore.ehFilho"
+                    class="cond-taxa-custo"
+                  >
                     Custo da taxa pago pelo vendedor: R$
                     {{ custoDaTaxa.toFixed(2).replace('.', ',') }}
                   </span>
