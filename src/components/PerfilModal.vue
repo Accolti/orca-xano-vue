@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue'
-import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import { useAuthStore } from '@/stores/auth'
 import { regimeMap } from '@/data/mappings'
+import { salvarPerfil, listarRegimes, listarOrganizacoes } from '@/services/userApi'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -164,10 +164,9 @@ function preencherForm() {
 
 async function carregarRegimes() {
   try {
-    const resp = await xano.get('/api:-qqRIakp/regime')
-    const lista = resp.getBody() as any[]
+    const lista = await listarRegimes()
     if (Array.isArray(lista) && lista.length) {
-      regimes.value = lista
+      regimes.value = lista as Array<{ id: number; descricao: string; slug: string }>
       return
     }
   } catch {
@@ -205,8 +204,7 @@ watch(
 
 async function carregarOrganizacoes() {
   try {
-    const resp = await xano.get('/api:-qqRIakp/organizacao')
-    const lista = resp.getBody() as any
+    const lista = await listarOrganizacoes()
     if (Array.isArray(lista)) {
       organizacoes.value = lista
         .map((o: any) => ({
@@ -285,36 +283,35 @@ function submit(ignoraConfirmacaoRegime = false) {
     return
   }
 
-  xano
-    .post(`/api:-qqRIakp/user/${userId}`, {
-      name:
-        [form.name_first, form.name_last].filter(Boolean).join(' ').trim() ||
-        authStore.user?.name ||
-        '',
-      name_first: form.name_first,
-      name_last: form.name_last,
-      email: form.email,
-      razao: form.razao,
-      fantasia: form.fantasia,
-      cnpj: form.cnpj,
-      ie: form.ie,
-      cpf: form.cpf,
-      isPJ: form.isPJ,
-      uf: form.uf,
-      regime_id: form.regime_id || undefined,
-      organizacao_id: form.organizacao_id || undefined,
-      frtB2B: form.frtB2B,
-      margem: form.margem,
-      desconto_livre_perc:
-        form.desconto_livre_perc == null || String(form.desconto_livre_perc).trim() === ''
-          ? undefined
-          : Number(form.desconto_livre_perc),
-      desconto_max_perc:
-        form.desconto_max_perc == null || String(form.desconto_max_perc).trim() === ''
-          ? undefined
-          : Number(form.desconto_max_perc),
-      DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
-    })
+  salvarPerfil(userId, {
+    name:
+      [form.name_first, form.name_last].filter(Boolean).join(' ').trim() ||
+      authStore.user?.name ||
+      '',
+    name_first: form.name_first,
+    name_last: form.name_last,
+    email: form.email,
+    razao: form.razao,
+    fantasia: form.fantasia,
+    cnpj: form.cnpj,
+    ie: form.ie,
+    cpf: form.cpf,
+    isPJ: form.isPJ,
+    uf: form.uf,
+    regime_id: form.regime_id || undefined,
+    organizacao_id: form.organizacao_id || undefined,
+    frtB2B: form.frtB2B,
+    margem: form.margem,
+    desconto_livre_perc:
+      form.desconto_livre_perc == null || String(form.desconto_livre_perc).trim() === ''
+        ? undefined
+        : Number(form.desconto_livre_perc),
+    desconto_max_perc:
+      form.desconto_max_perc == null || String(form.desconto_max_perc).trim() === ''
+        ? undefined
+        : Number(form.desconto_max_perc),
+    DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
+  })
     .then(async () => {
       regimeAntigo.value = form.regime_id
       try {

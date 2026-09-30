@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import { useAuthStore } from '@/stores/auth'
 
@@ -83,10 +82,7 @@ async function salvar() {
   erro.value = null
   okMsg.value = null
   try {
-    await xano.post('/api:-qqRIakp/auth/change_password', {
-      current_password: atual.value,
-      new_password: nova.value,
-    })
+    await authStore.changePassword(atual.value, nova.value)
     okMsg.value = 'Senha alterada com sucesso! Faça login novamente.'
     setTimeout(() => {
       emit('update:modelValue', false)

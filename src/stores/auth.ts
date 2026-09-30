@@ -205,6 +205,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Troca a senha do usuário logado (verifica a atual via login antes de atualizar).
+  async function changePassword(currentPassword: string, newPassword: string) {
+    if (!supabase) throw new Error('Supabase não configurado')
+    const email = user.value?.email
+    if (!email) throw new Error('Usuário não identificado.')
+    const { error: errAtual } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    })
+    if (errAtual) throw new Error('Senha atual incorreta.')
+    const { error: errNova } = await supabase.auth.updateUser({ password: newPassword })
+    if (errNova) throw new Error(errNova.message)
+  }
+
   async function fetchMe() {
     if (!supabase) throw new Error('Supabase não configurado')
     try {
@@ -264,6 +278,7 @@ export const useAuthStore = defineStore('auth', () => {
     googleLogin,
     resetPassword,
     updatePassword,
+    changePassword,
     logout,
   }
 })

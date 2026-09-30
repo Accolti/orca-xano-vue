@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { xano } from '@/services/xano'
 import { XanoRequestError } from '@xano/js-sdk'
 import { useAuthStore } from '@/stores/auth'
 import { regimeMap } from '@/data/mappings'
+import { salvarPerfil, listarRegimes, listarOrganizacoes, capturarCnpj } from '@/services/userApi'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -61,10 +61,9 @@ function preencherForm() {
 
 async function carregarRegimes() {
   try {
-    const resp = await xano.get('/api:-qqRIakp/regime')
-    const lista = resp.getBody() as any[]
+    const lista = await listarRegimes()
     if (Array.isArray(lista) && lista.length) {
-      regimes.value = lista
+      regimes.value = lista as Array<{ id: number; descricao: string; slug: string }>
       return
     }
   } catch {
@@ -91,15 +90,14 @@ async function buscarCNPJ() {
   buscandoCNPJ.value = true
   erroCNPJ.value = null
   try {
-    const resp = await xano.get('/api:-qqRIakp/capturarDados_CNPJ_IE', { cnpj: raw })
-    const data = resp.getBody() as any
+    const data = await capturarCnpj(raw)
     if (data?.razaoSocial) form.razao = data.razaoSocial
     if (data?.nomeFantasia) form.fantasia = data.nomeFantasia
     if (data?.IE) form.ie = data.IE
     if (data?.enderecoCompleto?.estado) form.uf = data.enderecoCompleto.estado
     form.isPJ = true
-  } catch (err: any) {
-    erroCNPJ.value = err?.getResponse?.()?.getBody?.()?.message || 'CNPJ não encontrado.'
+  } catch (err: unknown) {
+    erroCNPJ.value = (err as Error)?.message || 'CNPJ não encontrado.'
   } finally {
     buscandoCNPJ.value = false
   }
@@ -107,8 +105,7 @@ async function buscarCNPJ() {
 
 async function carregarOrganizacoes() {
   try {
-    const resp = await xano.get('/api:-qqRIakp/organizacao')
-    const lista = resp.getBody() as any
+    const lista = await listarOrganizacoes()
     if (Array.isArray(lista)) {
       organizacoes.value = lista
         .map((o: any) => ({
@@ -191,7 +188,7 @@ async function salvar() {
   salvando.value = true
   erro.value = null
   try {
-    await xano.post(`/api:-qqRIakp/user/${userId}`, {
+    await salvarPerfil(userId, {
       name: authStore.user?.name || form.razao || '',
       name_first: authStore.user?.name_first || '',
       name_last: authStore.user?.name_last || '',
