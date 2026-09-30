@@ -342,6 +342,16 @@ A garantia exibida no **PDF do orçamento**, **WhatsApp** e **PDF do Pedido de V
   - `montarLinhasGarantia(itens, produtos, materiais)`: resolve `item.produto_id → allProdutos[].material_id → Material.garantia`, **dedupe por material** (1 linha por material) e **dedupe por duração** (materiais com a mesma garantia viram 1 linha com nomes agrupados: `Vinil, EVA e Fibra de Coco 1 ano de garantia contra defeito de fábrica`).
 - `pdf.ts`: `linhasGarantia(itens)` (usa `useCatalogoStore()`) alimenta o **bloco "Garantia"** no orçamento PDF (seção após Condições), o bloco **`🛡️ *Garantia*`** no WhatsApp e a linha **`Garantia:`** na tabela Condições e Entrega do Pedido de Venda. Bloco/linha **omitidos** quando não há linhas (catálogo vazio ou nenhum material com garantia).
 
+### Previsão de entrega (por classificação + UF)
+
+A **"Previsão de entrega"** (PDF Pedido de Venda) e o **"Prazo de Entrega"** (PDF Orçamento) agora são calculados pela **classificação do produto** (`item.produto_id → allProdutos[].classificacao`) + **UF do cliente**, com a **regra do maior prazo** (pedido com itens de classificações diferentes prevalece o maior).
+
+- `src/utils/prazosEntrega.ts` — `prazoEntregaDosItens(itens, produtos, uf)`:
+  - Mapa keyed por **UF** (pronto p/ multi-região: adicionar chaves `RJ`/`MG`/`PR`) → `classificacao` → `{ label, ordem }`.
+  - **SP**: `Personalizado` → `12 a 15 dias úteis` (ordem 2); `Personalizado Simples` / `Acabado` / `Acabado Personalizado` → `7 a 12 dias úteis` (ordem 1).
+  - **Fallback** (UF/classificação desconhecida, catálogo vazio ou item sem classificação): **maior prazo** (`12 a 15 dias úteis`).
+- `pdf.ts`: Orçamento usa `end?.estado` (do `header._cliente._enderecos`); Pedido usa `endCliente.uf`. A classificação vem do banco (`classificacao` — renomeada para **`Personalizado Simples`**); requer **bump de `versao_produtos`** para o cache antigo refletir o novo nome (até lá cai no fallback conservador).
+
 ### Pendências
 
 - A função antiga **`Orcamento_Orquestrador`** (sem prefixo `f_`, ID 333301 — a "lowercase/duplicada") **foi excluída em 2026-09**; não reutilizar esse nome. O motor vigente é **`f_Orcamento_Orquestrador`** (único chamado por `orcamento_calcular` e `recalcula_dados_em_orcamento_e_item`).
@@ -402,6 +412,16 @@ Parcelas financeiras na tabela **`Boleto`** com `orca_id` (vínculo no Orçament
 
 Botão **"＋ Novo cliente"** (sempre visível no cabeçalho da seção Cliente, na visão de edição) abre o `ClienteModal` em **modo criação**. O `ClienteModal` agora emite `saved` **com o cliente salvo** (`Partial<Cliente>`; `id` vem do `Cliente_2` no response do POST de criação, ou do `editandoId` no PATCH). `aoSalvarCliente` (`OrcamentosView`) monta o `Cliente` completo e seta `clienteSelecionado` — o novo cliente já fica **vinculado ao orçamento aberto** (próximo Inserir/Calcular/Salvar usa `cliente.id`). Ver dados continua em modo somente leitura (`clienteModalSomenteLeitura`).
 
+## RLS / Security definer (Supabase)
+
+Aplicado em produção (migrations `20260928090000`–`90300` + `90700`): **RLS habilitado em todas as tabelas `public`** (sem políticas → acesso direto via PostgREST/anon negado) e **todos os RPCs convertidos para `security definer`** com validação de identidade `auth_user_id()` (= `select id from usuarios where auth_id = auth.uid()`).
+
+- **Pré-requisitos (todos atendidos)**: `usuarios.auth_id` populado (vincula ao Supabase Auth); front usa **Supabase Auth** (`signInWithPassword`/OAuth/`getSession`) e **só RPC + edge functions** (nenhum `supabase.from(...)` direto); edge functions (`relatorio`, `orcamento-calcular`) usam **service role** (bypass RLS).
+- **`auth_user_id()`** e **`f_pode_ver_orca()`** em `90000_rls_enable.sql`. Helpers (`f_ativo_efetivo`, `f_empresa_id`, `f_tem_comissoes`, `f_retorna_fc`) continuam **SECURITY INVOKER** → rodam como `postgres` quando chamados dentro de um definer; bloqueados se chamados diretamente via RPC. (`perfil_efetivo` é `security definer`.)
+- **`pagamento_baixa`** (90700) reescrita com **variáveis escalares** + `security definer` + `auth_user_id()` (ver Lições: `record := null`).
+- Cada função valida `auth_user_id() = p_user_id` (anti-spoof) e reforça `f_ativo_efetivo(p_user_id)`.
+- Aplicação: as RLS ficaram "antes da última migration" (90600), então o push foi `supabase db push --include-all`; a `90500` (redundante) foi marcada `reverted` via `supabase migration repair`.
+
 ## What's NOT set up
 
 - **No test runner** — Vitest, Cypress, Playwright configs do not exist. If adding tests, create the config files.
@@ -429,6 +449,7 @@ Botão **"＋ Novo cliente"** (sempre visível no cabeçalho da seção Cliente,
 - **Frete B2B duplicado ao editar item (preview "Calcular" ≠ valor salvo)**: `f_Orcamento_Orquestrador` montava a base do frete como `SumarizaItensOrcamento(orca_id)` (soma de **todos** os itens já gravados) **+ o item atual**. Ao **editar** um item existente ele entrava **duas vezes** (valor antigo + novo) → num orçamento de **1 item** a base dobrava e cruzava R$ 1.000 → `fCalculaFrete` devolvia **0** (frete zerado no preview). O `Orcamento_Recalcular_Totais` (chamado por `OrcamentoItem_Atualizar`/`Inserir`) recalculava pela soma **limpa** e aplicava o frete → os números não batiam e o salvo "subia". Correção: `SumarizaItensOrcamento` ganhou `exclude_item_id?` (`where = $db.item.orca_id == $input.orca_id && ($input.exclude_item_id == null || $db.item.id != $input.exclude_item_id)`), `f_Orcamento_Orquestrador` ganhou `item_id?` (repassa `exclude_item_id`), o endpoint `orcamento_calcular` ganhou `item_id?` e o front envia `item_id` (`calcularOrquestrador(modoEntrada, itemId)`; a view passa `editandoItemId.value`). **Regra**: a base do frete é sempre `demais itens + item atual` — nunca incluir o próprio item em edição.
 - **DIFAL indevido no recálculo (Lucro Real/Presumido)**: `Orcamento_Recalcular_Totais` usava `vlr_custo_fiscal_unit = cst_nota + difal − credito + st` (fórmula híbrida que soma DIFAL **e** abate crédito). O `Precificar` (fonte correta) tem ramos **mutuamente exclusivos**: MEI/Simples → `custo_nota + difal + st` (sem crédito); Lucro Real/Presumido → `custo_nota − credito + st` (**sem DIFAL**). Resultado: no Lucro Real o custo salvo ficava inflado pelo DIFAL (e a venda, por consequência, × markup). Correção: `credito_unit > 0 ? cst_nota + st − credito : cst_nota + st + difal` (o crédito só é calculado fora de MEI/Simples, então `credito > 0` reproduz o ramo do `Precificar`). O **relatório** usava `impostos = difal_tot − credito_tot` (ignorava o ST e o regime): agora `impostos = vlr_st_tot + (credito > 0 ? 0 : difal) − credito`, fechando a identidade `Venda − Custo Kapazi + Desconto − Frete − Impostos = Lucro Real` nos dois regimes.
 - **Coluna nullable adicionada a tabela com registros é backfillada com `0`/`""`, não `null`**: ao adicionar `user_id?` (int) e `canal?` (text) em `Taxa_Banco`, as 12 linhas existentes ficaram `user_id = 0` e `canal = ""`. Um `where ... user_id == null` **não** casa com `0` e o `!= null` do front trata `0` como "empresa". **Regra**: ao introduzir colunas nullable em tabelas populadas, tratar `null`/`0`/`""` como "vazio" no filtro (ex.: `taxas_banco` usa `user_id == null || user_id == 0`; `filtrarPorCanal` usa `ehGlobal = user_id == null || Number(user_id) === 0` e `canalDe = canal ? String(canal) : null`).
+- **`record := null` (PL/pgSQL) NÃO permite acessar campo**: acessar `v_master.id` após `v_master := null` ainda lança `record "v_master" is not assigned yet` (o record nulo não tem "tuple structure"). As "correções" que só adicionaram `v_master := null` (migrations 90400/90500) **não** resolveram — o erro persistiu. **Solução**: usar **variáveis escalares** (`select id, role, ... into v_master_id, v_master_role, ...`), pois escalar com `SELECT INTO` de 0 linhas vira `NULL` e o acesso devolve `NULL` (sem erro). **Regra (PL/pgSQL)**: nunca acessar campo de um `record` que possa estar nulo — prefira escalares ou `IF FOUND`; e `CREATE OR REPLACE FUNCTION` não substitui função de assinatura diferente (cria overload) — para substituir de fato, `DROP` de todos os overloads antes.
 
 ## Conventions
 
