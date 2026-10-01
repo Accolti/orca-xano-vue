@@ -5,6 +5,7 @@ import { deletarCliente } from '@/services/clienteApi'
 import { useAuthStore } from '@/stores/auth'
 import type { Cliente } from '@/types/cliente'
 import ClienteModal from '@/components/ClienteModal.vue'
+import KebabMenu from '@/components/KebabMenu.vue'
 
 const clienteStore = useClienteStore()
 
@@ -132,35 +133,36 @@ function limparBusca() {
               <td>{{ cliente.contato || '-' }}</td>
               <td>{{ cliente['e-mail'] || '-' }}</td>
               <td class="td-acoes">
-                <button class="btn-icon" title="Editar" @click="abrirEdicao(cliente)">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  >
-                    <path d="M17 3l4 4L7 21H3v-4L17 3z" />
-                  </svg>
-                </button>
-                <button
-                  class="btn-icon btn-icon-danger"
-                  title="Excluir"
-                  @click="excluirCliente(cliente)"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path
-                      d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
-                    />
-                  </svg>
-                </button>
+                <div class="acoes-row">
+                  <button class="btn-icon" title="Editar" @click="abrirEdicao(cliente)">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    >
+                      <path d="M17 3l4 4L7 21H3v-4L17 3z" />
+                    </svg>
+                  </button>
+                  <KebabMenu>
+                    <button class="kebab-item kebab-danger" @click="excluirCliente(cliente)">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path
+                          d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
+                        />
+                      </svg>
+                      <span>Excluir</span>
+                    </button>
+                  </KebabMenu>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -395,16 +397,17 @@ function limparBusca() {
 
 .tabela-clientes {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-family: var(--font-body, sans-serif);
   box-shadow: var(--shadow-card);
   border-radius: 10px;
-  overflow: hidden;
+  font-size: 0.8rem;
 }
 
 .tabela-clientes th,
 .tabela-clientes td {
-  padding: 12px 12px;
+  padding: 0.4rem 0.5rem;
   text-align: left;
   border-bottom: 1px solid var(--border-light);
   white-space: nowrap;
@@ -414,16 +417,37 @@ function limparBusca() {
   background-color: var(--primary);
   color: white;
   font-weight: 600;
+  font-size: 0.7rem;
 }
 
 .th-acoes {
-  width: 100px;
+  width: 70px;
   text-align: center;
+}
+
+/* Coluna Ações fixa à direita */
+.tabela-clientes .th-acoes,
+.tabela-clientes .td-acoes {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--card-bg);
+  border-left: 1px solid var(--border-light);
+}
+
+.tabela-clientes .th-acoes {
+  z-index: 2;
+  background: var(--primary);
+  border-left: 1px solid var(--primary);
+}
+
+.tabela-clientes tbody tr:hover .td-acoes {
+  background: var(--table-hover);
 }
 
 .th-nome,
 .td-nome {
-  max-width: 260px;
+  max-width: 240px;
 }
 
 .td-nome .nome-fantasia,
@@ -438,6 +462,22 @@ function limparBusca() {
 .td-acoes {
   text-align: center;
   white-space: nowrap;
+}
+
+.acoes-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .td-nome .nome-fantasia,
+  .td-nome .razao-social {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
 }
 
 .tabela-clientes tr:hover {
@@ -458,8 +498,8 @@ function limparBusca() {
   background: none;
   border: none;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
