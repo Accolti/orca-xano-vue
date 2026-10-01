@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
+import { listarConfiguracoesDev, bumpConfiguracoesVersao } from '@/services/catalogoAdminApi'
 import DevNav from '@/components/DevNav.vue'
 
 interface ConfiguracaoDev {
@@ -24,10 +24,9 @@ async function carregar() {
   loading.value = true
   erroMsg.value = ''
   try {
-    const resp = await xano.get('/api:-qqRIakp/configuracoes_dev')
-    configuracoes.value = (resp.getBody() as ConfiguracaoDev[]) ?? []
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao listar configurações'
+    configuracoes.value = (await listarConfiguracoesDev()) ?? []
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao listar configurações'
   } finally {
     loading.value = false
   }
@@ -43,11 +42,7 @@ async function incrementar(
   erroMsg.value = ''
   sucessoMsg.value = ''
   try {
-    await xano.post('/api:-qqRIakp/configuracoes_versao', {
-      configuracoes_id: cfg.id,
-      campo,
-      delta,
-    })
+    await bumpConfiguracoesVersao(cfg.id, campo, delta)
     // Invalida o cache correspondente para o app rebaixar na próxima carga
     const cacheKey =
       campo === 'versao_materiais'
@@ -64,8 +59,8 @@ async function incrementar(
         : campo === 'versao_produtos'
           ? `Versão de produtos atualizada (+${delta}).`
           : `Versão de taxas bancárias atualizada (+${delta}).`
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao atualizar versão'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao atualizar versão'
   } finally {
     salvando.value = null
   }

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
+import {
+  listarMateriaisDev,
+  listarFatoresCorteDev,
+  salvarFatorCorte,
+  excluirFatorCorte,
+  salvarTipoFator,
+} from '@/services/catalogoAdminApi'
 import DevNav from '@/components/DevNav.vue'
 
 interface FatorDev {
@@ -73,8 +79,8 @@ const bordasDoMaterial = computed(() =>
 async function carregarMateriais() {
   if (materiais.value.length) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/materiais_dev_lista')
-    materiais.value = ((resp.getBody() as any[]) ?? []).map((m) => ({
+    const lista = await listarMateriaisDev()
+    materiais.value = lista.map((m) => ({
       id: m.id,
       nome: m.nome || `#${m.id}`,
       ativo: m.ativo !== false,
@@ -92,12 +98,11 @@ async function carregar() {
   loading.value = true
   erroMsg.value = ''
   try {
-    const resp = await xano.get('/api:-qqRIakp/fatores_corte_dev')
-    const body = resp.getBody() as any
+    const body = await listarFatoresCorteDev()
     fatores.value = (body?.fatores ?? []) as FatorDev[]
     associacoes.value = (body?.associacoes ?? []) as AssociacaoDev[]
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao listar fatores de corte'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao listar fatores de corte'
   } finally {
     loading.value = false
   }
@@ -155,11 +160,11 @@ async function salvarFator() {
       modo_corte: formFator.value.modo_corte,
       obs: formFator.value.obs || null,
     }
-    await xano.post('/api:-qqRIakp/fator_corte_cadastrar', payload)
+    await salvarFatorCorte(payload)
     formFatorOpen.value = false
     await carregar()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar fator'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao salvar fator'
   } finally {
     salvando.value = false
   }
@@ -169,12 +174,10 @@ async function excluirFator(f: FatorDev) {
   if (!confirm(`Excluir o fator "${f.nome}"?`)) return
   erroMsg.value = ''
   try {
-    await xano.delete('/api:-qqRIakp/fator_corte_excluir', {
-      fator_de_corte_id: f.id,
-    })
+    await excluirFatorCorte(f.id)
     await carregar()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao excluir fator'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao excluir fator'
   }
 }
 
@@ -200,7 +203,7 @@ async function salvarAssoc() {
   salvando.value = true
   erroMsg.value = ''
   try {
-    await xano.post('/api:-qqRIakp/tipo_fator_cadastrar', {
+    await salvarTipoFator({
       tipo_fator_id: editandoAssocId.value ?? null,
       material_id: formAssoc.value.material_id,
       linha_id: formAssoc.value.linha_id ?? null,
@@ -210,8 +213,8 @@ async function salvarAssoc() {
     })
     formAssocOpen.value = false
     await carregar()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar associação'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao salvar associação'
   } finally {
     salvando.value = false
   }
@@ -221,13 +224,13 @@ async function excluirAssoc(a: AssociacaoDev) {
   if (!confirm('Remover esta associação Tipo_Fator?')) return
   erroMsg.value = ''
   try {
-    await xano.post('/api:-qqRIakp/tipo_fator_cadastrar', {
+    await salvarTipoFator({
       tipo_fator_id: a.id,
       excluir: true,
     })
     await carregar()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao remover associação'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao remover associação'
   }
 }
 

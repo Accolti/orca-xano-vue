@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { xano } from '@/services/xano'
+import { listarMateriaisDev, listarOrganizacoesDev, salvarMaterial } from '@/services/catalogoAdminApi'
 import DevNav from '@/components/DevNav.vue'
 
 interface MaterialDev {
@@ -99,10 +99,9 @@ async function carregarLista() {
   loading.value = true
   erroMsg.value = ''
   try {
-    const resp = await xano.get('/api:-qqRIakp/materiais_dev_lista')
-    materiais.value = (resp.getBody() as MaterialDev[]) ?? []
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao listar materiais'
+    materiais.value = (await listarMateriaisDev()) ?? []
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao listar materiais'
   } finally {
     loading.value = false
   }
@@ -113,8 +112,8 @@ async function carregarOrganizacoes() {
   if (dropdownsCarregados) return
   dropdownsCarregados = true
   try {
-    const o = await xano.get('/api:-qqRIakp/organizacao')
-    organizacoes.value = (o.getBody() as any[]) ?? []
+    const o = await listarOrganizacoesDev()
+    organizacoes.value = o ?? []
   } catch {
     dropdownsCarregados = false
   }
@@ -180,13 +179,13 @@ async function salvar() {
       material_id: editandoId.value ?? null,
       ...form.value,
     }
-    await xano.post('/api:-qqRIakp/material_cadastrar', payload)
+    await salvarMaterial(payload)
     // Limpa o cache do catálogo para o app rebaixar materiais na próxima carga
     localStorage.removeItem('orca_catalogo_materiais_cache')
     formOpen.value = false
     await carregarLista()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar material'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao salvar material'
   } finally {
     salvando.value = false
   }
@@ -194,7 +193,7 @@ async function salvar() {
 
 async function alternarAtivo(m: MaterialDev) {
   try {
-    await xano.post('/api:-qqRIakp/material_cadastrar', {
+    await salvarMaterial({
       material_id: m.id,
       nome: m.nome,
       Ordenacao: m.Ordenacao ?? null,
@@ -217,8 +216,8 @@ async function alternarAtivo(m: MaterialDev) {
     })
     localStorage.removeItem('orca_catalogo_materiais_cache')
     await carregarLista()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao alterar material'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao alterar material'
   }
 }
 

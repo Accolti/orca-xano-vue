@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { xano } from '@/services/xano'
 import { useCatalogoStore } from '@/stores/catalogo'
 import type { Linha, Tipo, Nivel } from '@/types/orcamento'
+import {
+  listarProdutosDev,
+  listarMateriaisDev,
+  salvarProduto,
+  listarClassificacoes,
+  listarTiposVariacao,
+  listarCores,
+  listarModelos,
+  listarFatoresCorte,
+} from '@/services/catalogoAdminApi'
 import DevNav from '@/components/DevNav.vue'
 
 interface VariacaoDev {
@@ -129,10 +138,9 @@ async function carregarLista() {
   loading.value = true
   erroMsg.value = ''
   try {
-    const resp = await xano.get('/api:-qqRIakp/produtos_dev_lista')
-    produtos.value = (resp.getBody() as ProdutoDev[]) ?? []
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao listar produtos'
+    produtos.value = (await listarProdutosDev()) ?? []
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao listar produtos'
   } finally {
     loading.value = false
   }
@@ -141,8 +149,8 @@ async function carregarLista() {
 async function carregarMateriaisCompletos() {
   if (materiaisCompletos.value.length) return
   try {
-    const resp = await xano.get('/api:-qqRIakp/materiais_dev_lista')
-    materiaisCompletos.value = ((resp.getBody() as any[]) ?? []).map((m) => ({
+    const lista = await listarMateriaisDev()
+    materiaisCompletos.value = lista.map((m) => ({
       id: m.id,
       nome: m.nome || `#${m.id}`,
       Ordenacao: m.Ordenacao ?? 0,
@@ -159,17 +167,17 @@ async function carregarDropdowns() {
   dropdownsCarregados = true
   try {
     const [c, tv, cor, mod, fc] = await Promise.all([
-      xano.get('/api:-qqRIakp/classificacao'),
-      xano.get('/api:-qqRIakp/tipo_variacao'),
-      xano.get('/api:-qqRIakp/cor'),
-      xano.get('/api:-qqRIakp/modelo'),
-      xano.get('/api:-qqRIakp/fatordecorte'),
+      listarClassificacoes(),
+      listarTiposVariacao(),
+      listarCores(),
+      listarModelos(),
+      listarFatoresCorte(),
     ])
-    classificacoes.value = (c.getBody() as any[]) ?? []
-    tiposVariacao.value = (tv.getBody() as any[]) ?? []
-    cores.value = (cor.getBody() as any[]) ?? []
-    modelos.value = (mod.getBody() as any[]) ?? []
-    fatoresCorte.value = (fc.getBody() as any[]) ?? []
+    classificacoes.value = c
+    tiposVariacao.value = tv
+    cores.value = cor
+    modelos.value = mod
+    fatoresCorte.value = fc
   } catch {
     dropdownsCarregados = false
   }
@@ -242,13 +250,13 @@ async function salvar() {
       produto_id: editandoId.value ?? null,
       ...form.value,
     }
-    await xano.post('/api:-qqRIakp/produto_cadastrar', payload)
+    await salvarProduto(payload)
     // Limpa o cache do catálogo para o app rebaixar produtos na próxima carga
     localStorage.removeItem('orca_catalogo_produtos_cache')
     formOpen.value = false
     await carregarLista()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao salvar produto'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao salvar produto'
   } finally {
     salvando.value = false
   }
@@ -256,7 +264,7 @@ async function salvar() {
 
 async function alternarAtivo(p: ProdutoDev) {
   try {
-    await xano.post('/api:-qqRIakp/produto_cadastrar', {
+    await salvarProduto({
       produto_id: p.id,
       material_id: p.material_id,
       classificacao_id: p.classificacao_id ?? null,
@@ -275,8 +283,8 @@ async function alternarAtivo(p: ProdutoDev) {
     })
     localStorage.removeItem('orca_catalogo_produtos_cache')
     await carregarLista()
-  } catch (err: any) {
-    erroMsg.value = err?.getResponse?.()?.getBody?.()?.message || 'Erro ao alterar produto'
+  } catch (err) {
+    erroMsg.value = (err as Error)?.message || 'Erro ao alterar produto'
   }
 }
 
