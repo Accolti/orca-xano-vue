@@ -21,6 +21,7 @@ interface MenuItem {
   adminOnly?: boolean
   manager?: boolean
   comissoes?: boolean
+  devOnly?: boolean
   secao?: string
 }
 
@@ -28,6 +29,7 @@ function visivel(item: MenuItem) {
   if (item.comissoes && !authStore.temComissoes && !authStore.isAdminGeral) return false
   if (item.adminOnly) return authStore.isAdmin
   if (item.manager) return authStore.isAdmin || authStore.isVendedorMaster
+  if (item.devOnly) return authStore.isAdminGeral || !!authStore.user?.super_admin
   return true
 }
 
@@ -50,9 +52,19 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F3E6}', label: 'Minhas taxas', path: '/taxas', adminOnly: true, secao: 'Financeiro' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios', secao: 'Análise' },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true, secao: 'Conta' },
+  { icon: '\u{1F4E6}', label: 'Produtos (Dev)', path: '/dev/produtos', devOnly: true, secao: 'Dev' },
+  { icon: '\u{1F333}', label: 'Materiais (Dev)', path: '/dev/materiais', devOnly: true, secao: 'Dev' },
+  { icon: '\u{2702}\u{FE0F}', label: 'Fatores (Dev)', path: '/dev/fatores', devOnly: true, secao: 'Dev' },
+  {
+    icon: '\u{2699}\u{FE0F}',
+    label: 'Configurações (Dev)',
+    path: '/dev/configuracoes',
+    devOnly: true,
+    secao: 'Dev',
+  },
 ]
 
-const SECOES = ['Principal', 'Gestão', 'Financeiro', 'Análise', 'Conta']
+const SECOES = ['Principal', 'Gestão', 'Financeiro', 'Análise', 'Conta', 'Dev']
 
 const itensPorSecao = computed(() => {
   const visiveis = menuItems.filter((i) => visivel(i))

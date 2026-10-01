@@ -125,13 +125,13 @@ router.beforeEach((to) => {
     return { name: 'login' }
   }
 
-  // Ferramentas dev: acessíveis apenas em desenvolvimento
+  // Ferramentas dev: restritas a super_admin / admin_geral.
   if (
     (to.name === 'dev-produtos' ||
       to.name === 'dev-fatores' ||
       to.name === 'dev-materiais' ||
       to.name === 'dev-configuracoes') &&
-    !import.meta.env.DEV
+    !(auth.isAdminGeral || auth.user?.super_admin)
   ) {
     return { name: 'home' }
   }
