@@ -223,6 +223,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     const linhaId = linhaSelecionada.value?.id ?? 0
     const tipoId = tipoSelecionado.value?.id ?? 0
     const nivelId = nivelSelecionado.value?.id ?? 0
+    // FK 0 (não selecionado) ou produto sem a FK (null) casam como "qualquer".
+    const matchFk = (produtoVal: number | undefined, selecionado: number) =>
+      selecionado === 0 || (produtoVal ?? 0) === 0 || produtoVal === selecionado
 
     const vistos = new Set<number>()
     const lista: Variacao[] = []
@@ -230,9 +233,9 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
     for (const p of catalogo.allProdutos) {
       if (
         p.material_id === m.id &&
-        p.linha_id === linhaId &&
-        p.tipo_id === tipoId &&
-        p.nivel_id === nivelId
+        matchFk(p.linha_id, linhaId) &&
+        matchFk(p.tipo_id, tipoId) &&
+        matchFk(p.nivel_id, nivelId)
       ) {
         for (const v of p._variacao ?? []) {
           if (!vistos.has(v.id)) {
