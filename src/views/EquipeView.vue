@@ -298,6 +298,22 @@ function roleLabel(role?: string | null): string {
   return 'Vendedor'
 }
 
+// Ordem de papel: Master primeiro, depois Vendedor.
+function roleOrder(role?: string | null): number {
+  if (role === 'vendedor_master') return 0
+  return 1
+}
+
+// Lista ordenada por Papel (Master → Vendedor) e depois Nome.
+const membrosOrdenados = computed(() =>
+  [...membros.value].sort((a, b) => {
+    const ra = roleOrder(a.role)
+    const rb = roleOrder(b.role)
+    if (ra !== rb) return ra - rb
+    return nomeMembro(a).localeCompare(nomeMembro(b), 'pt-BR', { sensitivity: 'base' })
+  }),
+)
+
 function fmtPct(n: number | null | undefined): string {
   const v = Number(n) || 0
   return v > 0 ? `${v}%` : '—'
@@ -425,7 +441,7 @@ onMounted(carregar)
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in membros" :key="m.id">
+              <tr v-for="m in membrosOrdenados" :key="m.id">
                 <td>{{ nomeMembro(m) }}</td>
                 <td>{{ roleLabel(m.role) }}</td>
                 <td>{{ m.email }}</td>
