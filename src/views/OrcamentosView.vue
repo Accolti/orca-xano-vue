@@ -1163,7 +1163,9 @@ const cartaoSelecionadoInfo = computed(() =>
 const condicoesPendentes = computed(
   () =>
     condicoesPagamento.value.trim() !==
-    (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim(),
+      (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim() ||
+    observacaoOrcamento.value.trim() !==
+      (orcamentoStore.orcamentoHeader?.observacao || '').trim(),
 )
 const condicoesSalvas = computed(() =>
   Boolean((orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim()),
@@ -3210,6 +3212,14 @@ async function enviarWhatsApp() {
                   />
                   Cartão
                 </label>
+                <label class="cond-check">
+                  <input
+                    type="checkbox"
+                    v-model="faturarCliente"
+                    @change="selecionarPagamento(abaPagamento, cartaoSelecionado)"
+                  />
+                  Faturar
+                </label>
               </div>
 
               <div class="cond-tabs">
@@ -3707,13 +3717,6 @@ async function enviarWhatsApp() {
 
         <div class="btn-row resumo-actions resumo-toolbar">
           <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
-          <div class="switch-wrap">
-            <label class="switch">
-              <input type="checkbox" v-model="faturarCliente" />
-              <span class="slider"></span>
-            </label>
-            <span class="switch-label">Faturar para cliente</span>
-          </div>
           <span
             v-if="condicoesPendentes"
             class="cond-pendente-indicator"
@@ -5262,60 +5265,6 @@ async function enviarWhatsApp() {
 }
 .cond-pix {
   min-height: 2.5rem;
-}
-
-.switch-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.switch-label {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 42px;
-  height: 24px;
-  flex-shrink: 0;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background-color: var(--border-light);
-  transition: 0.2s;
-  border-radius: 24px;
-}
-
-.slider:before {
-  position: absolute;
-  content: '';
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  top: 3px;
-  background-color: #fff;
-  transition: 0.2s;
-  border-radius: 50%;
-}
-
-.switch input:checked + .slider {
-  background-color: var(--primary, #16a34a);
-}
-
-.switch input:checked + .slider:before {
-  transform: translateX(18px);
 }
 
 .preview-total {
