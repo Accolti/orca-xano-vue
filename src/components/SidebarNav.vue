@@ -54,6 +54,7 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true, secao: 'Conta' },
   { icon: '\u{1F4E6}', label: 'Produtos (Dev)', path: '/dev/produtos', devOnly: true, secao: 'Dev' },
   { icon: '\u{1F333}', label: 'Materiais (Dev)', path: '/dev/materiais', devOnly: true, secao: 'Dev' },
+  { icon: '\u{1F5C2}\u{FE0F}', label: 'Estrutura (Dev)', path: '/dev/estrutura', devOnly: true, secao: 'Dev' },
   { icon: '\u{2702}\u{FE0F}', label: 'Fatores (Dev)', path: '/dev/fatores', devOnly: true, secao: 'Dev' },
   {
     icon: '\u{2699}\u{FE0F}',

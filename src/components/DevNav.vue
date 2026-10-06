@@ -8,6 +8,7 @@ interface DevLink {
 const links: DevLink[] = [
   { label: 'Produtos', path: '/dev/produtos', icon: '\u{1F4E6}' },
   { label: 'Materiais', path: '/dev/materiais', icon: '\u{1F333}' },
+  { label: 'Estrutura', path: '/dev/estrutura', icon: '\u{1F5C2}\u{FE0F}' },
   { label: 'Fatores', path: '/dev/fatores', icon: '\u{2702}\u{FE0F}' },
   { label: 'Configurações', path: '/dev/configuracoes', icon: '\u{2699}\u{FE0F}' },
 ]

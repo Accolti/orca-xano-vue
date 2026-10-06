@@ -110,6 +110,11 @@ const router = createRouter({
       name: 'dev-configuracoes',
       component: () => import('../views/DevConfiguracoesView.vue'),
     },
+    {
+      path: '/dev/estrutura',
+      name: 'dev-estrutura',
+      component: () => import('../views/DevEstruturaView.vue'),
+    },
   ],
 })
 
@@ -130,7 +135,8 @@ router.beforeEach((to) => {
     (to.name === 'dev-produtos' ||
       to.name === 'dev-fatores' ||
       to.name === 'dev-materiais' ||
-      to.name === 'dev-configuracoes') &&
+      to.name === 'dev-configuracoes' ||
+      to.name === 'dev-estrutura') &&
     !(auth.isAdminGeral || auth.user?.super_admin)
   ) {
     return { name: 'home' }

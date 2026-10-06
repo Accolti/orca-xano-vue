@@ -71,6 +71,26 @@ export async function listarOrganizacoesDev(): Promise<any[]> {
   return Array.isArray(r) ? r : []
 }
 
+export async function listarLinhasDev(): Promise<any[]> {
+  const r = await rpc<any>('rpc_linhas_dev')
+  return Array.isArray(r) ? r : []
+}
+
+export async function listarTiposDev(): Promise<any[]> {
+  const r = await rpc<any>('rpc_tipos_dev')
+  return Array.isArray(r) ? r : []
+}
+
+export async function listarNiveisDev(): Promise<any[]> {
+  const r = await rpc<any>('rpc_niveis_dev')
+  return Array.isArray(r) ? r : []
+}
+
+export async function listarBordasDev(): Promise<any[]> {
+  const r = await rpc<any>('rpc_bordas_dev')
+  return Array.isArray(r) ? r : []
+}
+
 // Escritas (CRUD)
 export async function salvarMaterial(payload: Record<string, unknown>): Promise<void> {
   await rpc('material_salvar', { p_user_id: userIdAtual(), p_payload: payload })
@@ -78,6 +98,22 @@ export async function salvarMaterial(payload: Record<string, unknown>): Promise<
 
 export async function salvarProduto(payload: Record<string, unknown>): Promise<void> {
   await rpc('produto_salvar', { p_user_id: userIdAtual(), p_payload: payload })
+}
+
+export async function salvarLinha(payload: Record<string, unknown>): Promise<void> {
+  await rpc('linha_salvar', { p_user_id: userIdAtual(), p_payload: payload })
+}
+
+export async function salvarTipo(payload: Record<string, unknown>): Promise<void> {
+  await rpc('tipo_salvar', { p_user_id: userIdAtual(), p_payload: payload })
+}
+
+export async function salvarNivel(payload: Record<string, unknown>): Promise<void> {
+  await rpc('nivel_salvar', { p_user_id: userIdAtual(), p_payload: payload })
+}
+
+export async function salvarBorda(payload: Record<string, unknown>): Promise<void> {
+  await rpc('borda_salvar', { p_user_id: userIdAtual(), p_payload: payload })
 }
 
 export async function salvarFatorCorte(payload: Record<string, unknown>): Promise<void> {
