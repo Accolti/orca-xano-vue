@@ -357,6 +357,10 @@ A **"Previsão de entrega"** (PDF Pedido de Venda) e o **"Prazo de Entrega"** (P
 - A função antiga **`Orcamento_Orquestrador`** (sem prefixo `f_`, ID 333301 — a "lowercase/duplicada") **foi excluída em 2026-09**; não reutilizar esse nome. O motor vigente é **`f_Orcamento_Orquestrador`** (único chamado por `orcamento_calcular` e `recalcula_dados_em_orcamento_e_item`).
 - O orquestrador aceita `produto_id` opcional (busca direta pelo id); sem ele, faz fallback pelas FKs (material/classificacao/linha/tipo/nivel). Para M2 com `variacao_id`, usa `Variacao.valor_custo` como custo base.
 - Migração futura: `f_CalculoValorVenda_IDs` e `Orcamento_Detalhes_Function` passam a usar o orquestrador.
+- **FUTURO — Desconto Kapazi (base + modo R$ + por item)** (adiado 2026-10, não implementar ainda):
+  - **Base errada hoje**: o `desconto_kapazi` é calculado sobre `Σ item.vlr_cst_nota_unit × qtd` (que **inclui IPI + IMP + frete B2B**). O correto é sobre o **custo do produto na nota** = `Σ (item.vlr_custo + item.vlr_cst_borda) × qtd` (ex.: Cleankap 382 + 0 de borda = 382; o sistema hoje mostra 497,96). Essa base errada aparece em: `custoKapaziTotal`/`descontoKapazi`/`custoKapaziEfetivo`/`lucroRealKapazi` (OrcamentosView), no relatório (`custo_kapazi`) e nas comissões (Fase A usa `lucro_real`).
+  - **Modo R$**: adicionar toggle **% / R$** no campo "Desconto Kapazi" — em R$ o usuário digita o **preço promocional** (valor final) e o sistema calcula `perc = (1 − promocional / normal) × 100` (normal = Σ `vlr_custo + vlr_cst_borda`). (Já foi prototipado e revertido.)
+  - **Desconto por item**: a Kapazi às vezes dá % sobre o total, às vezes desconto em itens específicos (ex.: "Vinil Pintado" e "Cleankap"). O modelo atual é um único `desconto_kapazi_perc` total. Opções discutidas: **A** manter % único (soma manual); **B** campo `desconto_kapazi` (R$) por item (total = Σ itens; mexe em item + resumo + relatório + comissões); **C** híbrida (% total + ajuste por item).
 
 ### Performance (precificação / escrita)
 
