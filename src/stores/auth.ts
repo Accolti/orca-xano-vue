@@ -109,7 +109,8 @@ export const useAuthStore = defineStore('auth', () => {
         p_user_id: user.value.id,
       })
       if (err) throw err
-      empresaEfetiva.value = (data ?? null) as Partial<User> | null
+      const perfil = typeof data === 'string' ? JSON.parse(data) : data
+      empresaEfetiva.value = (perfil ?? null) as Partial<User> | null
     } catch {
       empresaEfetiva.value = null
     }
@@ -229,7 +230,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (rpcErr) throw new Error(rpcErr.message)
       if (!me) throw new Error('Usuário não cadastrado.')
 
-      user.value = me as User
+      user.value = (typeof me === 'string' ? JSON.parse(me) : me) as User
     } catch (err) {
       console.error('[auth/me]', err)
       logout()

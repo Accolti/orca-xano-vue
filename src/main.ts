@@ -11,7 +11,6 @@ import { useAuthStore } from './stores/auth'
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
-app.use(router)
 
 const GUEST_ROUTES = ['login', 'signup', 'auth-callback', 'reset-password']
 
@@ -26,8 +25,10 @@ supabase?.auth.onAuthStateChange((event) => {
 
 async function bootstrap() {
   // Restaura a sessão (Supabase Auth) antes da primeira navegação, para o router
-  // guard já enxergar o usuário logado.
+  // guard já enxergar o usuário logado. O router é instalado SÓ depois do init()
+  // para a navegação inicial (e o guard) não rodar com sessão/usuário nulos.
   await useAuthStore().init()
+  app.use(router)
   app.mount('#app')
 }
 
