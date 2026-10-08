@@ -462,12 +462,6 @@ function hojeMaisDias(): string {
 // Validade editável do orçamento (yyyy-mm-dd). Sempre começa em hoje + dias.
 const validadeOrcamento = ref(hojeMaisDias())
 
-function formatarValidadeVisao(): string {
-  const m = validadeOrcamento.value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return validadeOrcamento.value
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('pt-BR')
-}
-
 async function handleInserir() {
   if (!clienteSelecionado.value) {
     mostrarToast('Selecione um cliente para adicionar o item.', 'alerta')
@@ -2635,15 +2629,6 @@ async function enviarWhatsApp() {
                 Desconto acima do limite livre — aguarda aprovação do pai.
               </p>
             </div>
-            <div class="totais-validade">
-              <label for="validade-edicao">Validade:</label>
-              <input
-                id="validade-edicao"
-                v-model="validadeOrcamento"
-                type="date"
-                class="input-date"
-              />
-            </div>
 
             <div v-if="!isVinculado && mostrarCustosHeader" class="recalc-card">
               <h4 class="recalc-title">Ajustar Orçamento</h4>
@@ -3028,10 +3013,6 @@ async function enviarWhatsApp() {
             <span class="resumo-preco resumo-b2b">{{
               formatarMoeda(orcamentoStore.orcamentoHeader?.vnd_B2B_B2C_tot ?? 0)
             }}</span>
-          </div>
-          <div class="resumo-total-item">
-            <span class="resumo-label">Validade</span>
-            <span>{{ formatarValidadeVisao() }}</span>
           </div>
         </div>
 
@@ -3647,7 +3628,7 @@ async function enviarWhatsApp() {
         </div>
 
         <div v-if="isVinculado || statusAtual === 'APROVADO'" class="kapazi-card">
-          <h3 class="kapazi-title">Dados para Kapazi (Fábrica)</h3>
+          <h3 class="kapazi-title">Acompanhamento do Pedido</h3>
           <div class="kapazi-grid">
             <div class="field">
               <label>Data envio p/ fábrica</label>
@@ -3734,7 +3715,7 @@ async function enviarWhatsApp() {
               :disabled="salvandoKapazi"
               @click="salvarDadosKapazi"
             >
-              {{ salvandoKapazi ? 'Salvando…' : 'Salvar Dados da Fábrica' }}
+              {{ salvandoKapazi ? 'Salvando…' : 'Salvar Acompanhamento' }}
             </button>
           </div>
         </div>
@@ -4731,19 +4712,6 @@ async function enviarWhatsApp() {
 
 .totais-b2b {
   color: var(--danger);
-}
-
-.totais-validade {
-  font-size: 0.75rem;
-  color: var(--secondary);
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.totais-validade label {
-  font-weight: 600;
 }
 
 .input-date {
