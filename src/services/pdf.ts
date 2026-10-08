@@ -183,7 +183,7 @@ function totalGeralDerivado(itens: any[], header: any): number {
 // Condição de pagamento com o método em negrito: "• *Pix* (2x de R$ ...): ..."
 function formatarCondicaoWhatsApp(linha: string): string {
   const l = linha.trim()
-  const m = l.match(/^(Pix|Boleto|Faturamos)\b/i)
+  const m = l.match(/^(Pix|Boleto|Faturamos|Cartão de Crédito|Cartão)\b/i)
   if (m && m[1]) {
     return `• *${m[1]}*${l.slice(m[1].length)}`
   }
