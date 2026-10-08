@@ -1,6 +1,8 @@
 # Orca Xano Vue — Agent Guide
 
-> **Regra do usuário (2026-08)**: **NÃO fazer `git commit` nem `git push`** — essas ações ficam sempre com o usuário. Implementar/corrigir e deixar as mudanças prontas no working tree, com resumo claro, para o usuário decidir quando commitar/pushar.
+> **XANO DESCONTINUADO (2026-10)**: o backend Xano **não é mais usado**. NÃO fazer nenhuma atualização em `xano/` (nem pull/push via `@xano/cli`). Todo o backend agora é **Supabase** (migrations + edge functions). O diretório `xano/` permanece apenas como referência histórica — não editar.
+
+> **Regra do usuário (2026-08)**: **NÃO fazer `git commit` nem `git push`** — essas ações ficam sempre com o usuário. Implementar/corrigir e deixar as mudanças prontas no working tree, com resumo claro, para o usuário decidir quando commitar/pushar. (Exceção: quando o usuário pedir explicitamente.)
 
 ## Dev commands
 
@@ -26,7 +28,7 @@
 
 - `src/main.ts` — bootstrap: global CSS, Pinia, router, mount
 - `src/router/index.ts` — routes: `/` (HomeView, eager), `/clientes`, `/orcamentos` (lista), `/pedidos`, `/orcamentos/novo` e `/orcamentos/:codOrca` (OrcamentosView), `/login`, `/signup`, `/oauth/callback`, `/taxas` (MinhasTaxasView) e dev tools `/dev/produtos|/dev/fatores|/dev/materiais|/dev/configuracoes` (lazy, só em DEV)
-- `xano/` — workspace Xano **versionado** (pull do `OrcaKap` ID 36888, branch `v1`). Editar/push via `@xano/cli` (`xano workspace pull -d xano` / `xano workspace push -d xano --dry-run -i "<arquivo>"`). **Nunca** usar `--sync` (o round-trip normaliza docs e geraria churn); push sempre por arquivo com `-i`.
+- `xano/` — workspace Xano **descontinuado** (2026-10); mantido apenas como referência histórica. **Não editar nem fazer push.**
 - `src/services/xano.ts` — singleton `XanoClient` do `@xano/js-sdk`, configurado via `VITE_XANO_BASE_URL`. Expõe um **wrapper** (`get/post/put/patch/delete/setAuthToken`) que detecta `XanoRequestError` com status **401** e dispara o handler global `onUnauthorized` (registrado em `main.ts`). O handler faz `logout()` + redireciona para `/login?expired=1` (ignora rotas guest). `unauthorizedFired` guarda múltiplos 401 em paralelo e é resetado quando um novo token é definido.
 - `src/stores/catalogo.ts` — `useCatalogoStore`: árvore completa Material/Linha/Tipo/Nivel/Borda + **taxas de banco** (`taxasBanco`, cache por versão), cache localStorage por versão via `/configuracoes`, loaded flag de sessão
 - `src/stores/counter.ts` — scaffold example store (not used by any view)
@@ -315,7 +317,7 @@ As taxas **não são mais globais**: cada **empresa (admin)** tem as suas, e `ve
 - **Front**: `CANAIS_CARTAO`/`filtrarPorCanal`/`labelCanalCurto` em `utils/taxasBanco.ts`; seletor de **canal** na aba Cartão do `OrcamentosView` (`canalCartao`, persistido em `condicoes_pagamento_params`); o texto passa a `Cartão de Crédito — Link (3x de ...)`; `condicoesPagamento.ts` aceita `canalCartao`. Cache `orca_taxas_banco_cache_{userId}` (`catalogo.taxasPorCanal(canal)` + `recarregarTaxas()`).
 - **Canal padrão automático**: ao abrir sem canal salvo (`canalRestaurado = false`), `aplicarCanalPadrao()` escolhe o **primeiro canal de `CANAIS_CARTAO` que tenha taxas** (fallback `cartao_link`); orçamentos salvos restauram o canal gravado. As **12 taxas globais** (Nubank, `user_id=0`) são `canal = cartao_celular` (não valem p/ Link/POS).
 - **Tela `/taxas`** (`MinhasTaxasView.vue`, menu "Minhas taxas", admin): abas dos 3 canais + **"Genérico (todos)"** (esta só aparece se existir alguma taxa genérica, empresa ou global); CRUD provedor × parcelas × taxa; cadastro de provedores; `admin_geral` escolhe a empresa. `GET /taxas_banco_gerenciar` também devolve as **taxas globais** (`taxas_globais`), exibidas em modo **somente leitura** com selo "padrão" (fallback do canal) e botão **"Importar taxas padrão"** (copia as globais do canal para a empresa via `taxa_banco_salvar`, tornando-as editáveis e com precedência). Após salvar/importar, limpa o cache e `recarregarTaxas()`.
-- **Workspace Xano versionado** em `xano/` (pull do workspace `OrcaKap` ID 36888, branch `v1` live). Push sempre **por arquivo** (`-i`), nunca `--sync` — o round-trip do CLI normaliza vários docs e o `--sync` geraria churn/risco.
+- **Workspace Xano** em `xano/` está **descontinuado** (2026-10) — mantido apenas como referência histórica. **Não editar nem fazer push.**
 
 ### Coleta automática de taxas (cron)
 

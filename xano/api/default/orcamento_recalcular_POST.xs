@@ -27,6 +27,9 @@ query orcamento_recalcular verb=POST {
   
     // Estado do seletor de condições (JSON) — metodos, desconto Pix %, provedor/parcelas
     text condicoesPagamentoParams? filters=trim
+
+    // Validade da proposta (yyyy-mm-dd) — sobrescreve a atual apenas quando informada
+    date? validade?
   }
 
   stack {
@@ -305,6 +308,20 @@ query orcamento_recalcular verb=POST {
       error = "Orçamento convertido em pedido. Edição bloqueada."
     }
   
+    // Validade: preserva a atual quando o input não a informa (outros callers de
+    // recálculo não enviam validade; gravar null a zeraria).
+    var $validadeUsar {
+      value = $Orca_0.validade
+    }
+  
+    conditional {
+      if ($input.validade != null) {
+        var.update $validadeUsar {
+          value = $input.validade
+        }
+      }
+    }
+  
     // Grava frtB2C / desconto / mao_de_obra / observacao sempre (o frontend envia
     // todos, inclusive 0). Não usar first_notempty/first_notnull nem checagem
     // != null: o Xano trata 0 como vazio nesses casos e não gravaria.
@@ -322,6 +339,7 @@ query orcamento_recalcular verb=POST {
         observacao                : $input.observacao
         condicoes_pagamento       : $input.condicoesPagamento
         condicoes_pagamento_params: $input.condicoesPagamentoParams
+        validade                  : $validadeUsar
       }
     } as $Orca_editada
   

@@ -27,6 +27,7 @@ interface PdfOrcamentoInput {
   user?: User | null
   faturar?: boolean
   condicoesPagamento?: string
+  validade?: string
 }
 
 // Garantia vinda da tabela Material (meses), agrupada por material e deduplicada.
@@ -57,14 +58,30 @@ function formatarDataHoraAgora(): string {
   return `${data} às ${hora}`
 }
 
-// Data de validade da proposta (pt-BR, dd/mm/aaaa) — header.validade ou hoje + DiasVencimentoOrcamento
-function formatarValidade(header: any, user?: User | null): string {
+// Data de validade da proposta (pt-BR, dd/mm/aaaa). Prioridade: validade editada (yyyy-mm-dd)
+// → header.validade → hoje + DiasVencimentoOrcamento.
+function formatarDataIso(val: string): string {
+  const m = String(val || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
+  }
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
+  return ''
+}
+
+function formatarValidade(header: any, user?: User | null, validade?: string): string {
+  if (validade) {
+    const fmt = formatarDataIso(validade)
+    if (fmt) return fmt
+  }
   const val = header?.validade
   if (val) {
     const d = new Date(val)
     if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
   }
-  const dias = Number(user?.DiasVencimentoOrcamento) || 10
+  const dias = Number(user?.DiasVencimentoOrcamento) || 15
   const v = new Date(Date.now() + dias * 86400000)
   return v.toLocaleDateString('pt-BR')
 }
@@ -206,6 +223,7 @@ export function montarTextoWhatsApp({
   cliente,
   faturar,
   condicoesPagamento,
+  validade,
 }: PdfOrcamentoInput): string {
   const codOrca = header?.cod_orca || 'ORC'
   const contato = cliente?.contato || cliente?.nome_fantasia || cliente?.razao_social || ''
@@ -249,6 +267,11 @@ export function montarTextoWhatsApp({
   if (maoDeObra) linhas.push(`Mão de Obra: ${formatarMoeda(maoDeObra)}`)
   linhas.push(`*Total Geral: ${formatarMoeda(totalGeral)}*`)
   linhas.push('')
+  const validadeFmt = formatarValidade(header, useAuthStore().user, validade)
+  if (validadeFmt) {
+    linhas.push(`⏳ *Validade da Proposta: ${validadeFmt}*`)
+    linhas.push('')
+  }
   linhas.push('📝 *Condições de Pagamento*')
   linhas.push(...condicoes.split('\n').filter(Boolean).map(formatarCondicaoWhatsApp))
   const garantias = linhasGarantia(itens)
@@ -394,6 +417,7 @@ export async function gerarPdfOrcamento({
   user,
   faturar,
   condicoesPagamento,
+  validade,
 }: PdfOrcamentoInput) {
   const codOrca = header?.cod_orca || 'ORC'
   const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
@@ -464,7 +488,7 @@ export async function gerarPdfOrcamento({
               { text: codOrca, style: 'headerCardNum' },
               { text: `Data de Emissão: ${formatarDataHoraAgora()}`, style: 'headerCardLine' },
               {
-                text: `Validade da Proposta: ${formatarValidade(header, user)}`,
+                text: `Validade da Proposta: ${formatarValidade(header, user, validade)}`,
                 style: 'headerCardLine',
               },
             ],

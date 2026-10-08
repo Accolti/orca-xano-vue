@@ -450,11 +450,23 @@ const finalizando = ref(false)
 const resumoAberto = ref(true)
 const editandoItemId = ref<number | null>(null)
 
-const validadeCalculada = computed(() => {
-  const dias = (authStore.userEfetivo ?? authStore.user)?.DiasVencimentoOrcamento ?? 15
-  const venc = new Date(Date.now() + dias * 86400000)
-  return venc.toLocaleDateString('en-US')
-})
+const diasValidade = computed(
+  () => Number((authStore.userEfetivo ?? authStore.user)?.DiasVencimentoOrcamento) || 15,
+)
+
+function hojeMaisDias(): string {
+  const d = new Date(Date.now() + diasValidade.value * 86400000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Validade editável do orçamento (yyyy-mm-dd). Sempre começa em hoje + dias.
+const validadeOrcamento = ref(hojeMaisDias())
+
+function formatarValidadeVisao(): string {
+  const m = validadeOrcamento.value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return validadeOrcamento.value
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('pt-BR')
+}
 
 async function handleInserir() {
   if (!clienteSelecionado.value) {
@@ -509,6 +521,7 @@ function novoOrcamento() {
   mostrarResumo.value = false
   finalizando.value = false
   modoEntradaML.value = 'area'
+  validadeOrcamento.value = hojeMaisDias()
   resetarCondicoesUi()
   router.push('/orcamentos/novo')
 }
@@ -1051,6 +1064,7 @@ async function persistirCondicoesPagamento(): Promise<boolean> {
       observacao: observacaoOrcamento.value,
       condicoesPagamento: condicoesPagamento.value,
       condicoesPagamentoParams: serializarCondicoesParams(),
+      validade: validadeOrcamento.value,
     })
     return true
   } catch (err: any) {
@@ -1362,6 +1376,7 @@ async function gerarPdf() {
     user: authStore.userEfetivo ?? authStore.user,
     faturar: faturarCliente.value,
     condicoesPagamento: cond,
+    validade: validadeOrcamento.value,
   })
 }
 
@@ -1623,6 +1638,7 @@ async function enviarWhatsApp() {
       cliente: h?._cliente ?? null,
       faturar: faturarCliente.value,
       condicoesPagamento: cond,
+      validade: validadeOrcamento.value,
     })
     const status = await copiarEabrirWhatsApp(telefone, mensagem)
     if (status === 'shared') {
@@ -2620,12 +2636,13 @@ async function enviarWhatsApp() {
               </p>
             </div>
             <div class="totais-validade">
-              Validade:
-              {{
-                orcamentoStore.orcamentoHeader?.validade
-                  ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US')
-                  : validadeCalculada
-              }}
+              <label for="validade-edicao">Validade:</label>
+              <input
+                id="validade-edicao"
+                v-model="validadeOrcamento"
+                type="date"
+                class="input-date"
+              />
             </div>
 
             <div v-if="!isVinculado && mostrarCustosHeader" class="recalc-card">
@@ -3014,11 +3031,7 @@ async function enviarWhatsApp() {
           </div>
           <div class="resumo-total-item">
             <span class="resumo-label">Validade</span>
-            <span>{{
-              orcamentoStore.orcamentoHeader?.validade
-                ? new Date(orcamentoStore.orcamentoHeader.validade).toLocaleDateString('en-US')
-                : validadeCalculada
-            }}</span>
+            <span>{{ formatarValidadeVisao() }}</span>
           </div>
         </div>
 
@@ -3183,6 +3196,17 @@ async function enviarWhatsApp() {
                 💳 Financeiro
               </button>
             </div>
+          </div>
+
+          <div class="condicoes-validade">
+            <label for="validade-condicoes">Validade da proposta</label>
+            <input
+              id="validade-condicoes"
+              v-model="validadeOrcamento"
+              type="date"
+              class="input-date"
+            />
+            <span class="condicoes-validade-hint">Salva junto com as condições de pagamento.</span>
           </div>
 
           <template v-if="!modoCondicoesAvancado">
@@ -4713,6 +4737,42 @@ async function enviarWhatsApp() {
   font-size: 0.75rem;
   color: var(--secondary);
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.totais-validade label {
+  font-weight: 600;
+}
+
+.input-date {
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  background: var(--bg-card, #fff);
+  font-family: inherit;
+}
+
+.condicoes-validade {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.condicoes-validade label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.condicoes-validade-hint {
+  font-size: 0.72rem;
+  color: var(--secondary);
 }
 
 .itens-tabela {
