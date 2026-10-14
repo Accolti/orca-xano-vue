@@ -28,6 +28,14 @@ const form = reactive({
   DiasVencimentoOrcamento: 0,
   desconto_livre_perc: null as number | null,
   desconto_max_perc: null as number | null,
+  endereco: '',
+  numero: '',
+  complemento: '',
+  cep: '',
+  bairro: '',
+  cidade: '',
+  estado: '',
+  endereco_user_id: null as number | null,
 })
 
 const carregando = ref(false)
@@ -39,6 +47,7 @@ const regimes = ref<Array<{ id: number; descricao: string; slug: string }>>([])
 const organizacoes = ref<Array<{ id: number; nome: string; uf: string }>>([])
 const regimeAntigo = ref<number | null>(null)
 const confirmandoRegime = ref(false)
+const buscandoCEP = ref(false)
 
 // Arraste do modal (reposiciona via transform — mantém o centralizado como base)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -160,6 +169,16 @@ function preencherForm() {
     if (!form.fantasia && ef?.fantasia) form.fantasia = ef.fantasia
     if (!form.ie && ef?.ie) form.ie = ef.ie
   }
+
+  const e = u._endereco_user
+  form.endereco = e?.endereco ?? ''
+  form.numero = e?.numero ?? ''
+  form.complemento = e?.complemento ?? ''
+  form.cep = e?.cep ?? ''
+  form.bairro = e?.bairro ?? ''
+  form.cidade = e?.cidade ?? ''
+  form.estado = e?.estado ?? ''
+  form.endereco_user_id = e?.id ?? null
 }
 
 async function carregarRegimes() {
@@ -216,6 +235,25 @@ async function carregarOrganizacoes() {
     }
   } catch {
     organizacoes.value = []
+  }
+}
+
+async function buscarCEP() {
+  const raw = form.cep.replace(/\D/g, '')
+  if (raw.length !== 8) return
+  buscandoCEP.value = true
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${raw}/json/`)
+    const data = await resp.json()
+    if (data?.erro) return
+    if (data.logradouro) form.endereco = data.logradouro
+    if (data.bairro) form.bairro = data.bairro
+    if (data.localidade) form.cidade = data.localidade
+    if (data.uf) form.estado = data.uf.toUpperCase()
+  } catch (err) {
+    console.error('Erro ao buscar CEP:', err)
+  } finally {
+    buscandoCEP.value = false
   }
 }
 
@@ -311,6 +349,14 @@ function submit(ignoraConfirmacaoRegime = false) {
         ? undefined
         : Number(form.desconto_max_perc),
     DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
+    endereco: form.endereco,
+    numero: form.numero,
+    complemento: form.complemento,
+    cep: form.cep,
+    bairro: form.bairro,
+    cidade: form.cidade,
+    estado: form.estado,
+    endereco_user_id: form.endereco_user_id ?? undefined,
   })
     .then(async () => {
       regimeAntigo.value = form.regime_id
@@ -415,6 +461,57 @@ function descricaoRegime(id: number): string {
                     <select id="pf-pj" v-model="form.isPJ">
                       <option :value="true">Pessoa Jurídica</option>
                       <option :value="false">Pessoa Física</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section v-if="!authStore.ehFilho" class="form-section">
+                <h3>Endereço da empresa</h3>
+                <div class="row-2">
+                  <div class="field">
+                    <label for="pf-cep">CEP</label>
+                    <div class="cep-row">
+                      <input id="pf-cep" v-model="form.cep" placeholder="00000-000" maxlength="9" />
+                      <button
+                        type="button"
+                        class="btn-cep"
+                        :disabled="buscandoCEP || form.cep.replace(/\D/g, '').length !== 8"
+                        @click="buscarCEP"
+                      >
+                        {{ buscandoCEP ? 'Buscando…' : 'Buscar' }}
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="pf-numero">Número</label>
+                    <input id="pf-numero" v-model="form.numero" placeholder="Número" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="pf-endereco">Endereço</label>
+                  <input id="pf-endereco" v-model="form.endereco" placeholder="Logradouro" />
+                </div>
+                <div class="row-2">
+                  <div class="field">
+                    <label for="pf-complemento">Complemento</label>
+                    <input id="pf-complemento" v-model="form.complemento" placeholder="Complemento" />
+                  </div>
+                  <div class="field">
+                    <label for="pf-bairro">Bairro</label>
+                    <input id="pf-bairro" v-model="form.bairro" placeholder="Bairro" />
+                  </div>
+                </div>
+                <div class="row-2">
+                  <div class="field">
+                    <label for="pf-cidade">Cidade</label>
+                    <input id="pf-cidade" v-model="form.cidade" placeholder="Cidade" />
+                  </div>
+                  <div class="field">
+                    <label for="pf-estado">UF</label>
+                    <select id="pf-estado" v-model="form.estado">
+                      <option value="" disabled>Selecione a UF</option>
+                      <option v-for="uf in UFS" :key="uf" :value="uf">{{ uf }}</option>
                     </select>
                   </div>
                 </div>
@@ -699,6 +796,41 @@ function descricaoRegime(id: number): string {
 .field-hint {
   font-size: 0.72rem;
   color: #9ca3af;
+}
+
+.cep-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.cep-row input {
+  flex: 1;
+}
+
+.btn-cep {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.btn-cep:hover:not(:disabled) {
+  background: var(--border-light);
+  color: var(--text-primary);
+}
+
+.btn-cep:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .error-msg {

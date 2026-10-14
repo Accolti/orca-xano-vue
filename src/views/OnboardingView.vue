@@ -27,6 +27,14 @@ const form = reactive({
   frtB2B: 0,
   margem: 0,
   DiasVencimentoOrcamento: 15,
+  endereco: '',
+  numero: '',
+  complemento: '',
+  cep: '',
+  bairro: '',
+  cidade: '',
+  estado: '',
+  endereco_user_id: null as number | null,
 })
 
 const regimes = ref<Array<{ id: number; descricao: string; slug: string }>>([])
@@ -38,6 +46,7 @@ const UFS = [
 
 const buscandoCNPJ = ref(false)
 const erroCNPJ = ref<string | null>(null)
+const buscandoCEP = ref(false)
 
 const totalPassos = 3
 const isUltimo = computed(() => passo.value === totalPassos)
@@ -57,6 +66,16 @@ function preencherForm() {
   form.frtB2B = u.frtB2B ?? 0
   form.margem = u.margem ?? 0
   form.DiasVencimentoOrcamento = u.DiasVencimentoOrcamento ?? 15
+
+  const e = u._endereco_user
+  form.endereco = e?.endereco ?? ''
+  form.numero = e?.numero ?? ''
+  form.complemento = e?.complemento ?? ''
+  form.cep = e?.cep ?? ''
+  form.bairro = e?.bairro ?? ''
+  form.cidade = e?.cidade ?? ''
+  form.estado = e?.estado ?? ''
+  form.endereco_user_id = e?.id ?? null
 }
 
 async function carregarRegimes() {
@@ -100,6 +119,25 @@ async function buscarCNPJ() {
     erroCNPJ.value = (err as Error)?.message || 'CNPJ não encontrado.'
   } finally {
     buscandoCNPJ.value = false
+  }
+}
+
+async function buscarCEP() {
+  const raw = form.cep.replace(/\D/g, '')
+  if (raw.length !== 8) return
+  buscandoCEP.value = true
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${raw}/json/`)
+    const data = await resp.json()
+    if (data?.erro) return
+    if (data.logradouro) form.endereco = data.logradouro
+    if (data.bairro) form.bairro = data.bairro
+    if (data.localidade) form.cidade = data.localidade
+    if (data.uf) form.estado = data.uf.toUpperCase()
+  } catch (err) {
+    console.error('Erro ao buscar CEP:', err)
+  } finally {
+    buscandoCEP.value = false
   }
 }
 
@@ -205,6 +243,14 @@ async function salvar() {
       frtB2B: form.frtB2B,
       margem: form.margem,
       DiasVencimentoOrcamento: form.DiasVencimentoOrcamento,
+      endereco: form.endereco,
+      numero: form.numero,
+      complemento: form.complemento,
+      cep: form.cep,
+      bairro: form.bairro,
+      cidade: form.cidade,
+      estado: form.estado,
+      endereco_user_id: form.endereco_user_id ?? undefined,
     })
     await authStore.fetchMe()
     sucesso.value = true
@@ -317,6 +363,55 @@ onMounted(async () => {
               <input id="onb-cpf" v-model="form.cpf" placeholder="000.000.000-00" />
             </div>
           </template>
+
+          <div class="onb-endereco">
+            <h3>Endereço da empresa</h3>
+            <div class="field">
+              <label for="onb-cep">CEP</label>
+              <div class="cep-row">
+                <input id="onb-cep" v-model="form.cep" placeholder="00000-000" maxlength="9" />
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline"
+                  :disabled="buscandoCEP || form.cep.replace(/\D/g, '').length !== 8"
+                  @click="buscarCEP"
+                >
+                  {{ buscandoCEP ? 'Buscando…' : 'Buscar' }}
+                </button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="onb-endereco">Endereço</label>
+              <input id="onb-endereco" v-model="form.endereco" placeholder="Logradouro" />
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="onb-numero">Número</label>
+                <input id="onb-numero" v-model="form.numero" placeholder="Número" />
+              </div>
+              <div class="field">
+                <label for="onb-complemento">Complemento</label>
+                <input id="onb-complemento" v-model="form.complemento" placeholder="Complemento" />
+              </div>
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="onb-bairro">Bairro</label>
+                <input id="onb-bairro" v-model="form.bairro" placeholder="Bairro" />
+              </div>
+              <div class="field">
+                <label for="onb-cidade">Cidade</label>
+                <input id="onb-cidade" v-model="form.cidade" placeholder="Cidade" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="onb-estado">UF</label>
+              <select id="onb-estado" v-model="form.estado">
+                <option value="">Selecione a UF</option>
+                <option v-for="uf in UFS" :key="uf" :value="uf">{{ uf }}</option>
+              </select>
+            </div>
+          </div>
         </section>
 
         <section v-if="passo === 2" class="onb-bloco">
@@ -535,6 +630,37 @@ onMounted(async () => {
   flex: 1;
 }
 
+.onb-endereco {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.onb-endereco h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.cep-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cep-row input {
+  flex: 1;
+}
+
 .erro-campo {
   color: var(--danger);
   font-size: 0.8rem;
@@ -567,6 +693,10 @@ onMounted(async () => {
 
   .onb-head {
     flex-direction: column;
+  }
+
+  .row-2 {
+    grid-template-columns: 1fr;
   }
 }
 </style>
