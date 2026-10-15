@@ -233,3 +233,43 @@ Status: **ciclo de otimização entregue (2026-09)** — insert/update de item f
 - [ ] Adiar requisições não-críticas no mount do front (ex.: `faixas_comissao`) para zerar o tempo de fila (blocked/queueing) do navegador.
 - [x] Passar `frt_b2b` nos fluxos de update/delete (remover o fallback do `fCalculaFrete`) — feito 2026-09, com o recalc também movido para fora da transação.
 
+## 🤖 Frente 12 — Assistente de IA para orçamento (chat guiado)
+
+Status: **ideia registrada** (implementação futura) — levantamento concluído em 2026-10.
+
+Área de conversa com IA para o usuário (vendedores) montar orçamento de forma fácil. Decisões alinhadas:
+- **Escopo: guiado** — a IA conversa, sugere produtos e **preenche o formulário existente**; o vendedor confirma cada passo (não grava no banco sozinha).
+- **Provider agnóstico** — interface `LLMProvider` com adapters (OpenAI/Anthropic) atrás de flag/`env`; decidir provider na implementação.
+- **Público: vendedores internos** (não cliente final).
+
+Princípio central: **a IA nunca calcula preço** — qualquer valor vem da tool `calcular_preco`, que chama o motor existente `orcamento-calcular` (edge function). O catálogo é fornecido por **tools de leitura** (não RAG/embeddings).
+
+### Componentes previstos
+
+- **`supabase/functions/assistente/`** — Edge Function de chat: API key em secret (nunca no front), autentica via Supabase Auth, resolve `perfil_efetivo` para injetar role/limites no system prompt, streaming + function calling. System prompt reforça: preço só via tool; filho não vê custo/lucro; desconto respeita `desconto_livre_perc`/`desconto_max_perc`.
+- **Tools**: `buscar_produto`, `buscar_cliente`, `calcular_preco` (leitura) e, na fase de preenchimento, `selecionar_produto`/`definir_dimensoes`/`definir_quantidade` (retornam IDs aplicados no form via store).
+- **`src/stores/assistente.ts`** — histórico, streaming, erro; `aplicarSugestao()` só escreve no `orcamentoStore` (form), nunca no banco.
+- **`src/components/AssistenteChat.vue`** — drawer lateral (~420px, right) em vez de modal (o vendedor precisa ver o form sendo preenchido); montado na raiz de `OrcamentosView` (fora dos blocos `v-if`/`v-else`, mesma lição do `PagamentoModal`); renderiza tool results, cards de sugestão "Aplicar no formulário" e guardrails (`v-if="!auth.ehFilho"` para custo/lucro).
+- **`src/types/assistente.ts`** — `Mensagem`/`ToolCall`/`SugestaoForm`.
+- **`src/services/assistenteApi.ts`** — invoke via `supabase.functions.invoke('assistente', ...)`.
+
+### Fases
+
+1. Fundação: chat + tools de leitura + `calcular_preco` (perguntar preço e responder com preço real).
+2. Preenchimento assistido: IA preenche o `orcamentoStore`; vendedor clica Calcular/Adicionar como hoje.
+3. (Opcional) Escrita com confirmação: card de diff antes de chamar os RPCs de escrita.
+
+### Pontos em aberto (decidir na implementação)
+
+- Drawer lateral (recomendado) vs modal.
+- Streaming token a token (SSE) vs mensagem completa (MVP sugere mensagem completa).
+- Botão de disparo: `GlobalHeader` (global) vs só na `OrcamentosView`.
+- Provedor de LLM + custo por token (mitigar com cache do catálogo no system prompt e modelo barato no MVP).
+
+### Riscos / mitigações
+
+- Alucinação de preço → tool `calcular_preco` obrigatória.
+- Vazamento de custo para filho → system prompt montado com base em `role`/`ehFilho` + `v-if` no front.
+- Custo de tokens → cache de catálogo, modelo barato.
+- Consistência → mesma RPCs do fluxo manual (mesmo resultado, auditoria e `Orca_Status_Log`).
+
