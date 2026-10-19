@@ -1062,12 +1062,15 @@ function formatarMargemRealKapazi(): string {
 async function persistirCondicoesPagamento(): Promise<boolean> {
   const orcaId = orcaIdAtual.value
   if (!orcaId) return false
+  const header = orcamentoStore.orcamentoHeader
   try {
     await orcamentoStore.recalcularTotais(orcaId, {
-      newMargem: novaMargemResumo.value,
-      frtB2C: Number(freteB2CResumo.value) || 0,
-      desconto: Number(descontoResumo.value) || 0,
-      maoDeObra: Number(maoDeObraResumo.value) || 0,
+      // NÃO envia newMargem: a margem só muda pelo botão "Aplicar" (Ajustar Orçamento).
+      // desconto/frete/mão de obra vêm do HEADER (valores já aplicados), não do preview,
+      // para "Finalizar" não aplicar alterações de negociação não confirmadas.
+      frtB2C: Number(header?.frtB2C) || 0,
+      desconto: Number(header?.desconto) || 0,
+      maoDeObra: Number(header?.mao_de_obra) || 0,
       observacao: observacaoOrcamento.value,
       condicoesPagamento: condicoesPagamento.value,
       condicoesPagamentoParams: serializarCondicoesParams(),
