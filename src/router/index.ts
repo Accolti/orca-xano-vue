@@ -121,8 +121,12 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   const guestRoutes = ['login', 'signup', 'auth-callback', 'reset-password']
+  // Rotas que redirecionam para Home quando já autenticado. `reset-password` fica de
+  // fora: na recuperação de senha o usuário tem uma sessão (recovery) e precisa
+  // continuar na tela para definir a nova senha.
+  const redirectWhenAuthed = ['login', 'signup', 'auth-callback']
 
-  if (guestRoutes.includes(to.name as string) && auth.isAuthenticated) {
+  if (redirectWhenAuthed.includes(to.name as string) && auth.isAuthenticated) {
     return { name: 'home' }
   }
 

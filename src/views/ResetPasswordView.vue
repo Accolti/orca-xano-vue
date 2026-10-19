@@ -11,10 +11,30 @@ const senha = ref('')
 const confirmacao = ref('')
 const pronto = ref(false)
 const erro = ref<string | null>(null)
+const erroLink = ref<string | null>(null)
+
+function voltarLogin() {
+  router.replace('/login')
+}
+
+// Erro de link (hash #error=...&error_code=...&error_description=...) — ex.: token
+// expirado ou já utilizado. O detectSessionInUrl não remove o hash nesse caso.
+function mensagemErroLink(code: string | null, descricao: string | null): string {
+  if (code === 'otp_expired') {
+    return 'Este link de redefinição expirou ou já foi utilizado. Solicite um novo link para redefinir sua senha.'
+  }
+  return descricao || 'Link inválido. Solicite um novo link para redefinir sua senha.'
+}
 
 onMounted(async () => {
-  // Detecta a sessão de recuperação trazida no link (#access_token=...&type=recovery)
   if (!supabase) return
+  // Detecta erro vindo no hash antes de tentar a sessão de recuperação.
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  if (params.get('error') || params.get('error_code') || params.get('error_description')) {
+    erroLink.value = mensagemErroLink(params.get('error_code'), params.get('error_description'))
+    return
+  }
+  // Detecta a sessão de recuperação trazida no link (#access_token=...&type=recovery)
   await supabase.auth.getSession()
 })
 
@@ -43,7 +63,12 @@ async function salvar() {
     <div class="auth-card">
       <h1>Definir nova senha</h1>
 
-      <template v-if="!pronto">
+      <template v-if="erroLink">
+        <p class="error-msg">{{ erroLink }}</p>
+        <button class="btn" @click="voltarLogin">Voltar para o login</button>
+      </template>
+
+      <template v-else-if="!pronto">
         <form @submit.prevent="salvar">
           <div class="field">
             <label for="senha">Nova senha</label>
