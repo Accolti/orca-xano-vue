@@ -22,7 +22,7 @@ import PagamentoModal from '@/components/PagamentoModal.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
-import { montarItemDisplay } from '@/utils/itemDisplay'
+import { montarItemDisplay, numBR, ehItemML } from '@/utils/itemDisplay'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 import type { TaxaBanco } from '@/types/orcamento'
@@ -1019,6 +1019,19 @@ async function removerItem(item: any, idx: number) {
 
 function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Sufixo do fator de corte exibido APENAS na tela (não vai para PDF/WhatsApp).
+function fcDimensoes(item: any): string {
+  if (ehItemML(item)) return ''
+  const larg = Number(item?.larg) || 0
+  const comp = Number(item?.comp) || 0
+  if (larg <= 0 || comp <= 0) return ''
+  const largFc = Number(item?.larg_fc) || 0
+  const compFc = Number(item?.comp_fc) || 0
+  if (largFc <= 0 || compFc <= 0) return ''
+  if (largFc === larg && compFc === comp) return ''
+  return ` ${numBR(largFc)}x${numBR(compFc)}m fc`
 }
 
 function formatarDataHora(ts: number | string | null | undefined): string {
@@ -2839,7 +2852,7 @@ async function enviarWhatsApp() {
                     montarItemDisplay(item).titulo
                   }}</span>
                   <span class="itens-col-dim" data-label="Dimensões">{{
-                    montarItemDisplay(item).dimensoes
+                    montarItemDisplay(item).dimensoes + fcDimensoes(item)
                   }}</span>
                   <span class="itens-col-qtd" data-label="Qtd">{{
                     montarItemDisplay(item).quantidade
@@ -3106,7 +3119,7 @@ async function enviarWhatsApp() {
                 </span>
               </span>
               <span class="itens-col-dim" data-label="Dimensões">{{
-                montarItemDisplay(item).dimensoes
+                montarItemDisplay(item).dimensoes + fcDimensoes(item)
               }}</span>
               <span class="itens-col-qtd" data-label="Qtd">{{
                 montarItemDisplay(item).quantidade
