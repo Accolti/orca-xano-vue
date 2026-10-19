@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/services/supabase'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -72,10 +73,9 @@ async function salvar() {
         <form @submit.prevent="salvar">
           <div class="field">
             <label for="senha">Nova senha</label>
-            <input
+            <PasswordInput
               id="senha"
               v-model="senha"
-              type="password"
               placeholder="••••••••"
               required
               autocomplete="new-password"
@@ -84,10 +84,9 @@ async function salvar() {
 
           <div class="field">
             <label for="confirmacao">Confirmar senha</label>
-            <input
+            <PasswordInput
               id="confirmacao"
               v-model="confirmacao"
-              type="password"
               placeholder="••••••••"
               required
               autocomplete="new-password"

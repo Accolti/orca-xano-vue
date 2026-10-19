@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -57,10 +58,9 @@ async function enviarReset() {
 
         <div class="field">
           <label for="password">Senha</label>
-          <input
+          <PasswordInput
             id="password"
             v-model="password"
-            type="password"
             placeholder="••••••••"
             required
             autocomplete="current-password"

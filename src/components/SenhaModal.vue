@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { XanoRequestError } from '@xano/js-sdk'
 import { useAuthStore } from '@/stores/auth'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -59,7 +60,10 @@ function extrairMensagem(err: unknown): string | null {
 }
 
 function getErrorMessage(err: unknown): string {
-  return extrairMensagem(err) || 'Não foi possível trocar a senha. Verifique a senha atual e tente novamente.'
+  return (
+    extrairMensagem(err) ||
+    'Não foi possível trocar a senha. Verifique a senha atual e tente novamente.'
+  )
 }
 
 function validar(): string | null {
@@ -112,30 +116,30 @@ async function salvar() {
           <form v-else @submit.prevent="salvar">
             <div class="field">
               <label for="sm-atual">Senha atual</label>
-              <input
+              <PasswordInput
                 id="sm-atual"
                 v-model="atual"
-                type="password"
+                size="sm"
                 autocomplete="current-password"
                 placeholder="Senha atual"
               />
             </div>
             <div class="field">
               <label for="sm-nova">Nova senha</label>
-              <input
+              <PasswordInput
                 id="sm-nova"
                 v-model="nova"
-                type="password"
+                size="sm"
                 autocomplete="new-password"
                 placeholder="Mín. 8 caracteres, com letra e número"
               />
             </div>
             <div class="field">
               <label for="sm-confirmar">Confirmar nova senha</label>
-              <input
+              <PasswordInput
                 id="sm-confirmar"
                 v-model="confirmar"
-                type="password"
+                size="sm"
                 autocomplete="new-password"
                 placeholder="Repita a nova senha"
               />

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -26,9 +27,7 @@ async function handleSubmit() {
     <div class="auth-card">
       <h1>Criar Conta</h1>
 
-      <p class="convite-aviso">
-        Cadastro por convite. Entre em contato para liberar seu acesso.
-      </p>
+      <p class="convite-aviso">Cadastro por convite. Entre em contato para liberar seu acesso.</p>
 
       <form @submit.prevent="handleSubmit">
         <div class="field-row">
@@ -71,10 +70,9 @@ async function handleSubmit() {
 
         <div class="field">
           <label for="password">Senha</label>
-          <input
+          <PasswordInput
             id="password"
             v-model="password"
-            type="password"
             placeholder="••••••••"
             required
             autocomplete="new-password"

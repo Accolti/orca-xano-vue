@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCatalogoStore } from '@/stores/catalogo'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 interface DevConta {
   nome: string
@@ -118,7 +119,7 @@ const nomeAtivo = computed(
     <form class="dus-form" @submit.prevent="adicionarConta">
       <input v-model="novoNome" placeholder="Nome (opcional)" />
       <input v-model="novoEmail" type="email" placeholder="E-mail" required />
-      <input v-model="novaSenha" type="password" placeholder="Senha" required />
+      <PasswordInput v-model="novaSenha" size="sm" placeholder="Senha" required />
       <button type="submit" class="dus-add">Adicionar conta</button>
     </form>
 
