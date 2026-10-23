@@ -1165,6 +1165,7 @@ const pagamentoModalCartao = computed(() =>
     parcelas: o.parcelas,
     valorParcela: o.parcela,
     total: o.total,
+    liquido: o.voceRecebeLiquido,
   })),
 )
 const pagamentoModalParcelasCartao = computed(() =>

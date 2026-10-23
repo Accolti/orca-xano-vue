@@ -23,6 +23,8 @@ export interface CartaoOpcaoParcela {
   parcelas: number
   valorParcela: number
   total: number
+  // Líquido que a empresa recebe (valorParcela/total são o bruto que o cliente paga).
+  liquido?: number
 }
 
 export interface GerarParcelasInput {
@@ -112,9 +114,13 @@ export function gerarParcelasFinanceiras({
   if (metodos.cartao && parcelasCartao && valorVenda > 0) {
     const opcao = cartaoParcelas.find((o) => o.parcelas === parcelasCartao)
     if (opcao) {
+      // Grava o LÍQUIDO que a empresa recebe (não o bruto que o cliente paga):
+      // a taxa do cartão fica com o banco e não é "a receber".
+      const liquido = Number(opcao.liquido) || Number(opcao.total) || 0
+      const valorLiquidoParcela = liquido / opcao.parcelas
       vencimentos(base, opcao.parcelas).forEach((vencimento) => {
         parcelas.push({
-          valor: parseFloat(opcao.valorParcela.toFixed(2)),
+          valor: parseFloat(valorLiquidoParcela.toFixed(2)),
           vencimento,
           forma_pagamento_id: 4,
         })
