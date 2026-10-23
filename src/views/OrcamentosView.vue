@@ -896,6 +896,7 @@ async function aplicarNegociacao() {
       observacao: observacaoOrcamento.value,
       condicoesPagamento: condicoesPagamento.value,
       condicoesPagamentoParams: serializarCondicoesParams(),
+      taxaCartao: taxaCartaoRepasse.value,
     })
     sincronizarSimulacao()
   } catch (err: any) {
@@ -1075,6 +1076,7 @@ async function persistirCondicoesPagamento(): Promise<boolean> {
       condicoesPagamento: condicoesPagamento.value,
       condicoesPagamentoParams: serializarCondicoesParams(),
       validade: validadeOrcamento.value,
+      taxaCartao: taxaCartaoRepasse.value,
     })
     return true
   } catch (err: any) {
@@ -1165,6 +1167,7 @@ const pagamentoModalCartao = computed(() =>
     parcelas: o.parcelas,
     valorParcela: o.parcela,
     total: o.total,
+    custoTaxa: o.custoTaxa,
     liquido: o.voceRecebeLiquido,
   })),
 )
@@ -1183,6 +1186,13 @@ function chaveCartao(o: { provedor_id?: number | null; parcelas: number }): stri
 const cartaoSelecionadoInfo = computed(() =>
   condicoesCalculadas.value.cartao.find((o) => chaveCartao(o) === cartaoSelecionado.value),
 )
+
+// Taxa do cartão repassada ao cliente (venda bruta = vnd_tot + taxa_cartao).
+// Só existe quando o cliente assume a taxa (repassarTaxasCartao); senão é 0.
+const taxaCartaoRepasse = computed(() => {
+  if (!repassarTaxasCartao.value) return 0
+  return Number(cartaoSelecionadoInfo.value?.custoTaxa) || 0
+})
 
 // Estado das condições de pagamento em relação ao que está salvo na ORCA
 const condicoesPendentes = computed(

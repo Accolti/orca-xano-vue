@@ -18,6 +18,8 @@ interface LinhaFinanceiro {
   frete_efetivo: number
   impostos: number
   venda: number
+  venda_bruta: number
+  taxa_cartao: number
   lucro_real: number
   margem_real: number
 }
@@ -28,6 +30,8 @@ interface TotaisFinanceiro {
   frete_efetivo: number
   impostos: number
   venda: number
+  venda_bruta: number
+  taxa_cartao: number
   lucro_real: number
   margem_real: number
 }
@@ -37,6 +41,7 @@ interface LinhaParcela {
   cod_orca: string
   cliente: string
   venda: number
+  venda_bruta: number
   total_parcelas: number
   pagas: number
   valor_total: number
@@ -194,6 +199,14 @@ onMounted(carregar)
             <span class="tot-valor">{{ fmtMoeda(financeiroTotais.venda) }}</span>
           </div>
           <div class="tot-item">
+            <span class="tot-label">Venda Bruta (NF)</span>
+            <span class="tot-valor">{{ fmtMoeda(financeiroTotais.venda_bruta) }}</span>
+          </div>
+          <div class="tot-item">
+            <span class="tot-label">Taxa Cartão</span>
+            <span class="tot-valor">{{ fmtMoeda(financeiroTotais.taxa_cartao) }}</span>
+          </div>
+          <div class="tot-item">
             <span class="tot-label">Lucro Real</span>
             <span class="tot-valor tot-ok">{{ fmtMoeda(financeiroTotais.lucro_real) }}</span>
           </div>
@@ -215,6 +228,8 @@ onMounted(carregar)
                 <th class="td-dir">Frete efetivo</th>
                 <th class="td-dir">Impostos</th>
                 <th class="td-dir">Venda</th>
+                <th class="td-dir">Venda Bruta</th>
+                <th class="td-dir">Taxa Cartão</th>
                 <th class="td-dir">Lucro Real</th>
                 <th class="td-dir">Margem</th>
               </tr>
@@ -232,6 +247,8 @@ onMounted(carregar)
                 <td class="td-dir">{{ fmtMoeda(p.frete_efetivo) }}</td>
                 <td class="td-dir">{{ fmtMoeda(p.impostos) }}</td>
                 <td class="td-dir">{{ fmtMoeda(p.venda) }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.venda_bruta) }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.taxa_cartao) }}</td>
                 <td class="td-dir td-valor">{{ fmtMoeda(p.lucro_real) }}</td>
                 <td class="td-dir">{{ fmtPct(p.margem_real) }}</td>
               </tr>
@@ -305,6 +322,7 @@ onMounted(carregar)
                 <th>Orçamento</th>
                 <th>Cliente</th>
                 <th class="td-dir">Venda</th>
+                <th class="td-dir">Venda Bruta</th>
                 <th class="td-dir">Parcelas</th>
                 <th class="td-dir">Recebido</th>
                 <th class="td-dir">A receber</th>
@@ -315,6 +333,7 @@ onMounted(carregar)
                 <td>{{ p.cod_orca }}</td>
                 <td>{{ p.cliente || '—' }}</td>
                 <td class="td-dir">{{ fmtMoeda(p.venda) }}</td>
+                <td class="td-dir">{{ fmtMoeda(p.venda_bruta) }}</td>
                 <td class="td-dir">{{ p.pagas }} de {{ p.total_parcelas }}</td>
                 <td class="td-dir">{{ fmtMoeda(p.valor_pago) }}</td>
                 <td class="td-dir" :class="{ 'td-alerta': p.a_receber > 0 }">

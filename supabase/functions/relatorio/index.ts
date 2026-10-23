@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       sb
         .from('orca')
         .select(
-          'id,cod_orca,cliente_id,eh_pedido,status,created_at,vnd_tot,luc_tot,frt_b2b,valor_difal_tot,vlr_credito_icms_tot,vlr_st_tot',
+          'id,cod_orca,cliente_id,eh_pedido,status,created_at,vnd_tot,luc_tot,frt_b2b,valor_difal_tot,vlr_credito_icms_tot,vlr_st_tot,taxa_cartao',
         )
         .eq('user_id', userId),
       sb.from('cliente').select('id,razao_social,nome_fantasia').eq('user_id', userId),
@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
       const freteEfetivo = freteRealRaw > 0 ? freteRealRaw : frtB2B
       const lucT = Number(o.luc_tot) || 0
       const vnd = Number(o.vnd_tot) || 0
+      const taxaCartao = Number(o.taxa_cartao) || 0
       const stTot = Number(o.vlr_st_tot) || 0
       const difal = Number(o.valor_difal_tot) || 0
       const credito = Number(o.vlr_credito_icms_tot) || 0
@@ -159,6 +160,8 @@ Deno.serve(async (req) => {
         frete_efetivo: Number(freteEfetivo.toFixed(2)),
         impostos: Number(impostos.toFixed(2)),
         venda: Number(vnd.toFixed(2)),
+        venda_bruta: Number((vnd + taxaCartao).toFixed(2)),
+        taxa_cartao: Number(taxaCartao.toFixed(2)),
         lucro_real: Number(lucroReal.toFixed(2)),
         margem_real: Number(margemReal.toFixed(2)),
       }
@@ -169,6 +172,8 @@ Deno.serve(async (req) => {
       frete_efetivo: 0,
       impostos: 0,
       venda: 0,
+      venda_bruta: 0,
+      taxa_cartao: 0,
       lucro_real: 0,
     }
     financeiroLinhas.forEach((r: any) => {
@@ -177,6 +182,8 @@ Deno.serve(async (req) => {
       fin.frete_efetivo += r.frete_efetivo
       fin.impostos += r.impostos
       fin.venda += r.venda
+      fin.venda_bruta += r.venda_bruta
+      fin.taxa_cartao += r.taxa_cartao
       fin.lucro_real += r.lucro_real
     })
     Object.keys(fin).forEach((k) => {
@@ -227,6 +234,9 @@ Deno.serve(async (req) => {
         cod_orca: o.cod_orca || '#' + o.id,
         cliente: clienteFantasia[o.cliente_id] || clienteNome[o.cliente_id] || '',
         venda: Number((Number(o.vnd_tot) || 0).toFixed(2)),
+        venda_bruta: Number(
+          ((Number(o.vnd_tot) || 0) + (Number(o.taxa_cartao) || 0)).toFixed(2),
+        ),
         total_parcelas: total,
         pagas,
         valor_total: Number(valorTotal.toFixed(2)),

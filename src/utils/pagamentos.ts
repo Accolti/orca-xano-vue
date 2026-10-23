@@ -17,14 +17,15 @@ export interface ParcelaFinanceira {
   valor: number
   vencimento: string // yyyy-mm-dd
   forma_pagamento_id: number
+  taxa?: number // despesa financeira (cartão) — líquido = valor − taxa
 }
 
 export interface CartaoOpcaoParcela {
   parcelas: number
-  valorParcela: number
-  total: number
-  // Líquido que a empresa recebe (valorParcela/total são o bruto que o cliente paga).
-  liquido?: number
+  valorParcela: number // bruto por parcela (o cliente paga) — rótulo
+  total: number // bruto total (o cliente paga / NF)
+  custoTaxa?: number // taxa/despesa do cartão
+  liquido?: number // líquido que a empresa recebe
 }
 
 export interface GerarParcelasInput {
@@ -114,16 +115,13 @@ export function gerarParcelasFinanceiras({
   if (metodos.cartao && parcelasCartao && valorVenda > 0) {
     const opcao = cartaoParcelas.find((o) => o.parcelas === parcelasCartao)
     if (opcao) {
-      // Grava o LÍQUIDO que a empresa recebe (não o bruto que o cliente paga):
-      // a taxa do cartão fica com o banco e não é "a receber".
-      const liquido = Number(opcao.liquido) || Number(opcao.total) || 0
-      const valorLiquidoParcela = liquido / opcao.parcelas
-      vencimentos(base, opcao.parcelas).forEach((vencimento) => {
-        parcelas.push({
-          valor: parseFloat(valorLiquidoParcela.toFixed(2)),
-          vencimento,
-          forma_pagamento_id: 4,
-        })
+      // Cartão: o parcelamento é do CLIENTE com o banco. A empresa recebe UM título
+      // (bruto, igual à NF) da adquirente, com a taxa registrada à parte.
+      parcelas.push({
+        valor: parseFloat(Number(opcao.total).toFixed(2)),
+        taxa: parseFloat(Number(opcao.custoTaxa).toFixed(2)),
+        vencimento: somaDias(base, 30),
+        forma_pagamento_id: 4,
       })
     }
   }

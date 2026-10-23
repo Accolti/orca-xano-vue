@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: 'user_id é obrigatório' }, 400)
 
     const [orcaRes, boletoRes] = await Promise.all([
-      sb.from('orca').select('id,status,eh_pedido,created_at,vnd_tot').eq('user_id', userId),
+      sb.from('orca').select('id,status,eh_pedido,created_at,vnd_tot,taxa_cartao').eq('user_id', userId),
       sb.from('boleto').select('id,vencimento,pagamento,valor').eq('user_id', userId),
     ])
     if (orcaRes.error) return json({ error: orcaRes.error.message }, 500)
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
         if (!ehPedido(o)) return
         const ts = new Date(o.created_at).getTime()
         if (isNaN(ts) || ts < st || ts >= en) return
-        vendas += Number(o.vnd_tot) || 0
+        vendas += (Number(o.vnd_tot) || 0) + (Number(o.taxa_cartao) || 0)
       })
 
       parcelas.forEach((b: any) => {

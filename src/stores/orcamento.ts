@@ -1082,6 +1082,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       condicoesPagamento?: string
       condicoesPagamentoParams?: string
       validade?: string
+      taxaCartao?: number
     },
   ) {
     carregandoOrcamento.value = true
@@ -1098,6 +1099,7 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           condicoesPagamento: opts?.condicoesPagamento,
           condicoesPagamentoParams: opts?.condicoesPagamentoParams,
           validade: opts?.validade,
+          taxa_cartao: opts?.taxaCartao,
         },
         useAuthStore().user?.id,
       )

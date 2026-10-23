@@ -89,6 +89,10 @@ const totalGeral = computed(() =>
   visiveis.value.reduce((s, p) => s + (Number(p.valor) || 0), 0),
 )
 
+const totalTaxasGeral = computed(() =>
+  visiveis.value.reduce((s, p) => s + (Number(p.taxa) || 0), 0),
+)
+
 function formatarMoeda(valor: number | string | null | undefined): string {
   return `R$ ${(Number(valor) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -206,7 +210,9 @@ onMounted(() => {
             <tr>
               <th>Orçamento</th>
               <th>Método</th>
-              <th>Valor</th>
+              <th>Valor (bruto)</th>
+              <th>Taxa</th>
+              <th>Líquido</th>
               <th>Vencimento</th>
               <th>Pagamento</th>
               <th>Status</th>
@@ -222,6 +228,14 @@ onMounted(() => {
               </td>
               <td>{{ p.forma || nomeForma(p.forma_pagamento_id) }}</td>
               <td class="td-valor">{{ formatarMoeda(p.valor) }}</td>
+              <td class="td-dir">{{ p.taxa ? formatarMoeda(p.taxa) : '—' }}</td>
+              <td class="td-dir td-valor">
+                {{
+                  p.taxa
+                    ? formatarMoeda((Number(p.valor) || 0) - (Number(p.taxa) || 0))
+                    : '—'
+                }}
+              </td>
               <td>{{ formatarData(p.vencimento) }}</td>
               <td>{{ formatarData(p.pagamento) }}</td>
               <td>
@@ -252,7 +266,11 @@ onMounted(() => {
       </div>
 
       <p class="total-geral">
-        Total no filtro: <strong>{{ formatarMoeda(totalGeral) }}</strong>
+        Total no filtro (bruto): <strong>{{ formatarMoeda(totalGeral) }}</strong>
+        <template v-if="totalTaxasGeral > 0">
+          · Taxa: <strong>{{ formatarMoeda(totalTaxasGeral) }}</strong>
+          · Líquido: <strong>{{ formatarMoeda(totalGeral - totalTaxasGeral) }}</strong>
+        </template>
       </p>
     </template>
   </main>
@@ -418,6 +436,10 @@ onMounted(() => {
 .td-valor {
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.td-dir {
+  text-align: right;
 }
 
 .th-acoes {

@@ -43,6 +43,7 @@ export async function salvarParcelas(
     valor: p.valor,
     vencimento: p.vencimento,
     forma_pagamento_id: p.forma_pagamento_id,
+    taxa: p.taxa ?? 0,
   }))
   if (isSupabase) {
     await rpc('pagamento_salvar', {

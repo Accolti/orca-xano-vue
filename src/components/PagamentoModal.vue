@@ -39,6 +39,7 @@ const erro = ref<string | null>(null)
 
 interface Row {
   valor: number | null
+  taxa: number | null
   vencimento: string
   forma_pagamento_id: number
 }
@@ -153,6 +154,7 @@ function gerarPara(tipo: AceiteTipo): ParcelaFinanceira[] {
 function rowsDe(parcelas: ParcelaFinanceira[]): Row[] {
   return parcelas.map((p) => ({
     valor: p.valor,
+    taxa: p.taxa ?? 0,
     vencimento: p.vencimento,
     forma_pagamento_id: p.forma_pagamento_id,
   }))
@@ -173,6 +175,12 @@ const totalParcelas = computed(() =>
     })),
   ),
 )
+
+const totalTaxas = computed(() =>
+  rows.value.reduce((s, r) => s + (Number(r.taxa) || 0), 0),
+)
+
+const totalLiquido = computed(() => totalParcelas.value - totalTaxas.value)
 
 function hojeISO(): string {
   const d = new Date()
@@ -204,6 +212,7 @@ async function abrir() {
     const existentes = await pagamentoStore.carregarPorOrca(props.orcaId)
     rows.value = existentes.map((e) => ({
       valor: Number(e.valor) ?? null,
+      taxa: Number(e.taxa) ?? 0,
       vencimento: (e.vencimento || hojeISO()).slice(0, 10),
       forma_pagamento_id: e.forma_pagamento_id ?? 1,
     }))
@@ -228,7 +237,7 @@ function gerarDasCondicoes() {
 }
 
 function adicionar() {
-  rows.value.push({ valor: null, vencimento: hojeISO(), forma_pagamento_id: 1 })
+  rows.value.push({ valor: null, taxa: null, vencimento: hojeISO(), forma_pagamento_id: 1 })
 }
 
 function remover(idx: number) {
@@ -240,6 +249,7 @@ function toPayload(): ParcelaFinanceira[] {
     .filter((r) => Number(r.valor) > 0 && r.vencimento)
     .map((r) => ({
       valor: Number(r.valor) || 0,
+      taxa: Number(r.taxa) || 0,
       vencimento: r.vencimento,
       forma_pagamento_id: r.forma_pagamento_id,
     }))
@@ -402,6 +412,14 @@ function formatarMoeda(valor: number | null): string {
                   step="0.01"
                   placeholder="Valor"
                 />
+                <input
+                  v-if="row.forma_pagamento_id === 4"
+                  v-model.number="row.taxa"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Taxa"
+                />
                 <input v-model="row.vencimento" type="date" />
                 <button class="btn-remove" title="Remover" @click="remover(idx)">&times;</button>
               </div>
@@ -409,8 +427,16 @@ function formatarMoeda(valor: number | null): string {
               <button class="btn-add" @click="adicionar">+ Adicionar parcela</button>
 
               <div class="parc-total">
-                <span>Total planejado</span>
+                <span>Total (bruto)</span>
                 <strong>R$ {{ formatarMoeda(totalParcelas) }}</strong>
+              </div>
+              <div v-if="totalTaxas > 0" class="parc-total">
+                <span>Taxa do cartão</span>
+                <strong>R$ {{ formatarMoeda(totalTaxas) }}</strong>
+              </div>
+              <div class="parc-total">
+                <span>Líquido a receber</span>
+                <strong>R$ {{ formatarMoeda(totalLiquido) }}</strong>
               </div>
 
               <p v-if="modoFaturamento" class="parc-aviso">

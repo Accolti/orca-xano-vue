@@ -16,6 +16,7 @@ export interface PagamentoRow {
   vencimento?: string
   pagamento?: string | null
   valor?: number
+  taxa?: number
   forma_pagamento_id?: number
   user_id?: number
   cod_orca?: string
