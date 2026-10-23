@@ -2963,8 +2963,18 @@ async function enviarWhatsApp() {
     <template v-else>
       <section class="card resumo-card">
         <div class="resumo-top">
-          <h2>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</h2>
+          <h2>
+            <template v-if="isVinculado">Pedido {{ orcamentoStore.numeroOrcamento }}</template>
+            <template v-else>Orçamento {{ orcamentoStore.numeroOrcamento }} finalizado!</template>
+          </h2>
           <button class="btn btn-sm btn-outline" @click="voltarLista">← Voltar</button>
+        </div>
+
+        <div v-if="clienteSelecionado" class="resumo-cliente">
+          <span class="resumo-cliente-label">Cliente</span>
+          <strong class="resumo-cliente-nome">
+            {{ clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social }}
+          </strong>
         </div>
 
         <div class="resumo-totais-header">
@@ -4939,6 +4949,28 @@ async function enviarWhatsApp() {
   max-width: 600px;
   margin: 0 auto 0.5rem;
   text-align: left;
+}
+
+.resumo-cliente {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 600px;
+  margin: 0 auto 1rem;
+}
+
+.resumo-cliente-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--secondary);
+}
+
+.resumo-cliente-nome {
+  font-size: 1rem;
+  color: var(--text-primary);
 }
 
 .resumo-card h2 {
