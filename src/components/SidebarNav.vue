@@ -19,6 +19,7 @@ interface MenuItem {
   disabled?: boolean
   modal?: boolean
   adminOnly?: boolean
+  adminGeralOnly?: boolean
   manager?: boolean
   comissoes?: boolean
   devOnly?: boolean
@@ -28,6 +29,7 @@ interface MenuItem {
 function visivel(item: MenuItem) {
   if (item.comissoes && !authStore.temComissoes && !authStore.isAdminGeral) return false
   if (item.adminOnly) return authStore.isAdmin
+  if (item.adminGeralOnly) return authStore.isAdminGeral
   if (item.manager) return authStore.isAdmin || authStore.isVendedorMaster
   if (item.devOnly) return authStore.isAdminGeral || !!authStore.user?.super_admin
   return true
@@ -49,6 +51,7 @@ const menuItems: MenuItem[] = [
     secao: 'Gestão',
   },
   { icon: '\u{1F4B3}', label: 'Financeiro', path: '/pagamentos', secao: 'Financeiro' },
+  { icon: '\u{1F3C6}', label: 'Promoções', path: '/promocoes', adminGeralOnly: true, secao: 'Financeiro' },
   { icon: '\u{1F3E6}', label: 'Minhas taxas', path: '/taxas', adminOnly: true, secao: 'Financeiro' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios', secao: 'Análise' },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true, secao: 'Conta' },

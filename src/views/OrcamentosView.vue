@@ -2186,6 +2186,12 @@ async function enviarWhatsApp() {
 
         <!-- Resultados -->
         <template v-if="orcamentoStore.resultado || orcamentoStore.resultadoNovo">
+          <p
+            v-if="orcamentoStore.resultadoNovo?.promo?.aplicada"
+            class="promo-banner"
+          >
+            🏷 Promoção aplicada — custo promocional em vigor
+          </p>
           <!-- D. FC e Dimensões Faturadas -->
           <section class="card">
             <h3 class="section-title">Fator de Corte</h3>
@@ -2862,9 +2868,10 @@ async function enviarWhatsApp() {
               >
                 <div class="itens-row">
                   <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
-                  <span class="itens-col-desc" data-label="Descrição">{{
-                    montarItemDisplay(item).titulo
-                  }}</span>
+                  <span class="itens-col-desc" data-label="Descrição"
+                    >{{ montarItemDisplay(item).titulo
+                    }}<span v-if="montarItemDisplay(item).promo" class="promo-tag">Promo</span></span
+                  >
                   <span class="itens-col-dim" data-label="Dimensões">{{
                     montarItemDisplay(item).dimensoes + fcDimensoes(item)
                   }}</span>
@@ -3135,6 +3142,7 @@ async function enviarWhatsApp() {
               <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
               <span class="itens-col-desc" data-label="Descrição">
                 {{ montarItemDisplay(item).titulo }}
+                <span v-if="montarItemDisplay(item).promo" class="promo-tag">Promo</span>
                 <span
                   v-if="montarItemDisplay(item).subtitulo"
                   class="itens-obs itens-obs-composicao"
@@ -4816,6 +4824,29 @@ async function enviarWhatsApp() {
   font-style: normal;
   font-weight: 600;
   color: var(--primary, #1e40af);
+}
+
+.promo-banner {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--success-soft, #dcfce7);
+  border: 1px solid var(--success, #16a34a);
+  color: var(--success, #16a34a);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.promo-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--success-soft, #dcfce7);
+  color: var(--success, #16a34a);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
 }
 
 .itens-col-num {

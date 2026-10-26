@@ -262,6 +262,7 @@ export interface OrcamentoNovoResult {
   porcentagem_acrescimo?: number
   fc: number[]
   detalhes_calculo?: DetalhesCalculoItem
+  promo?: { aplicada: boolean; tipo: string | null; valor: number } | null
 }
 
 // Detalhes de cálculo ML persistidos no item (detalhes_calculo.ml) — rolos, metros,

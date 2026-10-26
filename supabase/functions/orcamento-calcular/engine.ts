@@ -69,6 +69,8 @@ export interface ProdutoCtx {
   variacao_fc_id: number | null
   variacao: any | null
   fator_de_corte_variacao: any | null
+  // promoção ativa aplicada no custo (produto/variação/borda)
+  promo?: { aplicada: boolean; tipo: string | null; valor: number } | null
 }
 
 export interface PerfilEfetivo {
@@ -232,6 +234,36 @@ export async function buscarProduto(
     }
   }
 
+  // Custo promocional temporário (produto / variação / borda)
+  let valorProduto = Number(produto.valor) || 0
+  let valorVariacao = variacao ? Number(variacao.valor_custo) || 0 : null
+  let valorBorda = Number(borda?.valor) || 0
+  let promo: { aplicada: boolean; tipo: string | null; valor: number } | null = null
+
+  const { data: promosData } = await sb.rpc('promocoes_ativas', {
+    p_produto_id: input.produto_id || null,
+    p_variacao_id: input.variacao_id || null,
+    p_borda_id: input.borda_id || null,
+  })
+  const promos: any[] = Array.isArray(promosData) ? promosData : []
+  for (const p of promos) {
+    const tipo = p.tipo
+    const valor = Number(p.valor) || 0
+    const aplicar = (custo: number) => (tipo === 'VALOR_FIXO' ? valor : custo * (1 - valor / 100))
+    if (p.produto_id != null && Number(p.produto_id) === produto.id) {
+      valorProduto = aplicar(valorProduto)
+      promo = { aplicada: true, tipo, valor }
+    }
+    if (p.variacao_id != null && variacao && Number(p.variacao_id) === variacao.id) {
+      valorVariacao = aplicar(valorVariacao ?? 0)
+      promo = { aplicada: true, tipo, valor }
+    }
+    if (p.borda_id != null && borda && Number(p.borda_id) === borda.id) {
+      valorBorda = aplicar(valorBorda)
+      promo = { aplicada: true, tipo, valor }
+    }
+  }
+
   return {
     id: produto.id,
     material_id: produto.material_id,
@@ -239,7 +271,7 @@ export async function buscarProduto(
     linha_id: produto.linha_id ?? null,
     tipo_id: produto.tipo_id ?? null,
     nivel_id: produto.nivel_id ?? null,
-    valor: produto.valor ?? 0,
+    valor: valorProduto,
     com_medida_exata: produto.com_medida_exata ?? false,
     porcentagem_acrescimo: produto.porcentagem_acrescimo ?? 0,
     Unidade: produto.unidade ?? 'M2',
@@ -250,7 +282,7 @@ export async function buscarProduto(
     ativo: produto.ativo ?? true,
     borda_id: borda?.id ?? null,
     borda_nome: borda?.nome ?? null,
-    borda_valor: borda?.valor ?? 0,
+    borda_valor: valorBorda,
     borda_unidade: borda?.unidade ?? null,
     material_nome: material?.nome ?? null,
     linha_nome: linhaNome,
@@ -264,10 +296,11 @@ export async function buscarProduto(
     mva_padrao: regra?.mva_padrao ?? 0,
     aliq_st_interna: regra?.aliq_st_interna ?? 0,
     variacao_id: variacao?.id ?? null,
-    variacao_custo: variacao?.valor_custo ?? null,
+    variacao_custo: valorVariacao,
     variacao_fc_id: variacao?.fator_de_corte_id ?? null,
     variacao,
     fator_de_corte_variacao: fatorDeCorteVariacao,
+    promo,
   }
 }
 
@@ -484,7 +517,7 @@ export async function custoML(sb: SbClient, produto: ProdutoCtx, input: Calcular
   const fc = produto.fator_de_corte_variacao || {}
   const larg_fixa = Number(fc.larg_base) || 0
   const tam_rolo = Number(fc.tam_total) || 0
-  const valor_custo = Number(variacao.valor_custo) || 0
+  const valor_custo = Number(produto.variacao_custo) || 0
   const tipo_preco = (produto.Unidade || '').toLowerCase()
   const fator_corte = Number(fc.comp_corte) || 0
   const aliquota_ipi = Number(produto.ipi) || 0
@@ -587,7 +620,7 @@ export async function custoML(sb: SbClient, produto: ProdutoCtx, input: Calcular
 // ---------------------------------------------------------------------------
 export function custoUND(produto: ProdutoCtx, input: CalcularInput): Mod1 {
   const qtd = Number(input.quantidade) || 0
-  const cst_materia_prima = Number(produto.variacao?.valor_custo) || 0
+  const cst_materia_prima = Number(produto.variacao_custo) || 0
   const cst_borda = Number(produto.borda_valor) || 0
   const aliquota_ipi = Number(produto.ipi) || 0
 
@@ -629,7 +662,7 @@ export function custoKIT(produto: ProdutoCtx, input: CalcularInput): Mod1 {
   const compOuArea = Number(input.comprimento_ou_area) || 0
   const largInput = Number(input.largura) || 0
   const variacao = produto.variacao || {}
-  const custoKit = Number(variacao.valor_custo) || 0
+  const custoKit = Number(produto.variacao_custo) || 0
   const largKit = Number(variacao.larg) || 0.3
   const compKit = Number(variacao.comp) || 0.3
   const qtdPecasKit = Number(variacao.qtd_kit) || 1
@@ -829,6 +862,26 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
     throw new Error(`Não foi possível calcular o custo do produto (base ${tipo_calculo}).`)
   }
 
+  // Promoção percentual em produto COMPOSTO (custo montado a partir de componentes):
+  // aplica o % sobre o custo base e recomputa IPI/custo de nota.
+  if (tipo_calculo === 'COMPOSTO' && produto.promo?.aplicada && produto.promo.tipo === 'PERCENTUAL') {
+    const pct = Number(produto.promo.valor) || 0
+    if (pct > 0) {
+      const qtdBase = Number(mod1.quantidade) || 1
+      const custoBase = Number(mod1.valores.custo_total) || 0
+      const novoCustoBase = custoBase * (1 - pct / 100)
+      const aliquotaIpi = Number(mod1.valores.aliquota_ipi) || 0
+      const novoIpi = novoCustoBase * (aliquotaIpi / 100)
+      const novoCustoNota = novoCustoBase + novoIpi
+      mod1.valores.custo_materia_prima = novoCustoBase
+      mod1.valores.custo_total = round2(novoCustoBase)
+      mod1.valores.valor_ipi_tot = round2(novoIpi)
+      mod1.valores.valor_ipi_unit = round2(novoIpi / qtdBase)
+      mod1.valores.custo_nota_tot = round2(novoCustoNota)
+      mod1.valores.custo_nota_unit = round2(novoCustoNota / qtdBase)
+    }
+  }
+
   const qtd = mod1.quantidade
   const custo_nota_tot = mod1.valores.custo_nota_tot
 
@@ -911,6 +964,9 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
     tipo_fator_id: mod1.tipo_fator_id,
     com_medida_exata: mod1.com_medida_exata,
     porcentagem_acrescimo: mod1.acrescimo_medida_exata,
-    detalhes_calculo: mod1.detalhes_calculo,
+    detalhes_calculo: produto.promo?.aplicada
+      ? { ...(mod1.detalhes_calculo ?? {}), promo: produto.promo }
+      : mod1.detalhes_calculo,
+    promo: produto.promo ?? null,
   }
 }

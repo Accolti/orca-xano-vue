@@ -18,6 +18,7 @@ export interface ItemDisplay {
   quantidade: string
   valorUnit: number
   valorTotal: number
+  promo: boolean
 }
 
 // Número pt-BR com casas fixas (default 2). Ex.: 7.37 → "7,37".
@@ -141,5 +142,7 @@ export function montarItemDisplay(item: any): ItemDisplay {
   const valorUnit = Number(item?.vlr_vnd_unit_b2b ?? item?.vlr_vnd_unit) || 0
   const valorTotal = valorUnit * qtdBase
 
-  return { isML, titulo, subtitulo, dimensoes, quantidade, valorUnit, valorTotal }
+  const promo = Boolean(item?.detalhes_calculo?.promo?.aplicada)
+
+  return { isML, titulo, subtitulo, dimensoes, quantidade, valorUnit, valorTotal, promo }
 }
