@@ -187,52 +187,24 @@ export async function buscarProduto(
   sb: SbClient,
   input: Pick<CalcularInput, 'produto_id' | 'borda_id' | 'variacao_id'>,
 ): Promise<ProdutoCtx | null> {
-  const { data: produto } = await sb.from('produto').select('*').eq('id', input.produto_id).single()
+  const { data: ctx, error } = await sb.rpc('produto_ctx', {
+    p_produto_id: input.produto_id || null,
+    p_variacao_id: input.variacao_id || null,
+    p_borda_id: input.borda_id || null,
+  })
+  if (error) throw new Error((error as any).message || 'Erro ao buscar produto')
+  if (!ctx) return null
+
+  const produto = ctx.produto || null
   if (!produto) return null
-
-  const materialId = produto.material_id
-  const { data: material } = await sb.from('material').select('*').eq('id', materialId).single()
-
-  const regraId = material?.regra_fiscal_id ?? 0
-  const { data: regra } =
-    regraId > 0 ? await sb.from('regra_fiscal').select('*').eq('id', regraId).single() : { data: null }
-
-  let linhaNome: string | null = null
-  let tipoNome: string | null = null
-  let nivelNome: string | null = null
-  if (produto.linha_id) {
-    const { data: l } = await sb.from('linha').select('nome').eq('id', produto.linha_id).single()
-    linhaNome = l?.nome ?? null
-  }
-  if (produto.tipo_id) {
-    const { data: t } = await sb.from('tipo').select('nome').eq('id', produto.tipo_id).single()
-    tipoNome = t?.nome ?? null
-  }
-  if (produto.nivel_id) {
-    const { data: n } = await sb.from('nivel').select('nome').eq('id', produto.nivel_id).single()
-    nivelNome = n?.nome ?? null
-  }
-
-  let borda: any = null
-  if (input.borda_id && input.borda_id > 0) {
-    const { data: b } = await sb.from('borda').select('*').eq('id', input.borda_id).single()
-    borda = b
-  }
-
-  let variacao: any = null
-  let fatorDeCorteVariacao: any = null
-  if (input.variacao_id && input.variacao_id > 0) {
-    const { data: v } = await sb.from('variacao').select('*').eq('id', input.variacao_id).single()
-    variacao = v
-    if (v?.fator_de_corte_id) {
-      const { data: fc } = await sb
-        .from('fator_de_corte')
-        .select('*')
-        .eq('id', v.fator_de_corte_id)
-        .single()
-      fatorDeCorteVariacao = fc
-    }
-  }
+  const material = ctx.material || null
+  const regra = ctx.regra_fiscal || null
+  const linhaNome: string | null = ctx.linha_nome ?? null
+  const tipoNome: string | null = ctx.tipo_nome ?? null
+  const nivelNome: string | null = ctx.nivel_nome ?? null
+  const borda: any = ctx.borda || null
+  const variacao: any = ctx.variacao || null
+  const fatorDeCorteVariacao: any = ctx.fator_de_corte_variacao || null
 
   // Custo promocional temporário (produto / variação / borda)
   let valorProduto = Number(produto.valor) || 0
@@ -240,12 +212,7 @@ export async function buscarProduto(
   let valorBorda = Number(borda?.valor) || 0
   let promo: { aplicada: boolean; tipo: string | null; valor: number } | null = null
 
-  const { data: promosData } = await sb.rpc('promocoes_ativas', {
-    p_produto_id: input.produto_id || null,
-    p_variacao_id: input.variacao_id || null,
-    p_borda_id: input.borda_id || null,
-  })
-  const promos: any[] = Array.isArray(promosData) ? promosData : []
+  const promos: any[] = Array.isArray(ctx.promos) ? ctx.promos : []
   for (const p of promos) {
     const tipo = p.tipo
     const valor = Number(p.valor) || 0
