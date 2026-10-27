@@ -252,6 +252,7 @@ export async function buscarProduto(
     const aplicar = (custo: number) => (tipo === 'VALOR_FIXO' ? valor : custo * (1 - valor / 100))
     if (p.produto_id != null && Number(p.produto_id) === produto.id) {
       valorProduto = aplicar(valorProduto)
+      if (variacao) valorVariacao = aplicar(valorVariacao ?? 0)
       promo = { aplicada: true, tipo, valor }
     }
     if (p.variacao_id != null && variacao && Number(p.variacao_id) === variacao.id) {
@@ -862,24 +863,24 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
     throw new Error(`Não foi possível calcular o custo do produto (base ${tipo_calculo}).`)
   }
 
-  // Promoção percentual em produto COMPOSTO (custo montado a partir de componentes):
-  // aplica o % sobre o custo base e recomputa IPI/custo de nota.
-  if (tipo_calculo === 'COMPOSTO' && produto.promo?.aplicada && produto.promo.tipo === 'PERCENTUAL') {
-    const pct = Number(produto.promo.valor) || 0
-    if (pct > 0) {
-      const qtdBase = Number(mod1.quantidade) || 1
-      const custoBase = Number(mod1.valores.custo_total) || 0
-      const novoCustoBase = custoBase * (1 - pct / 100)
-      const aliquotaIpi = Number(mod1.valores.aliquota_ipi) || 0
-      const novoIpi = novoCustoBase * (aliquotaIpi / 100)
-      const novoCustoNota = novoCustoBase + novoIpi
-      mod1.valores.custo_materia_prima = novoCustoBase
-      mod1.valores.custo_total = round2(novoCustoBase)
-      mod1.valores.valor_ipi_tot = round2(novoIpi)
-      mod1.valores.valor_ipi_unit = round2(novoIpi / qtdBase)
-      mod1.valores.custo_nota_tot = round2(novoCustoNota)
-      mod1.valores.custo_nota_unit = round2(novoCustoNota / qtdBase)
-    }
+  // Promoção em produto COMPOSTO (custo montado a partir de componentes):
+  // aceita percentual ou valor fixo, aplica sobre o custo base e recomputa IPI/custo de nota.
+  if (tipo_calculo === 'COMPOSTO' && produto.promo?.aplicada) {
+    const valor = Number(produto.promo.valor) || 0
+    const custoBase = Number(mod1.valores.custo_total) || 0
+    const novoCustoBase = round2(
+      produto.promo.tipo === 'VALOR_FIXO' ? valor : custoBase * (1 - valor / 100),
+    )
+    const qtdBase = Number(mod1.quantidade) || 1
+    const aliquotaIpi = Number(mod1.valores.aliquota_ipi) || 0
+    const novoIpi = round2(novoCustoBase * (aliquotaIpi / 100))
+    const novoCustoNota = round2(novoCustoBase + novoIpi)
+    mod1.valores.custo_materia_prima = novoCustoBase
+    mod1.valores.custo_total = novoCustoBase
+    mod1.valores.valor_ipi_tot = novoIpi
+    mod1.valores.valor_ipi_unit = round2(novoIpi / qtdBase)
+    mod1.valores.custo_nota_tot = novoCustoNota
+    mod1.valores.custo_nota_unit = round2(novoCustoNota / qtdBase)
   }
 
   const qtd = mod1.quantidade

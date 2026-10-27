@@ -127,14 +127,6 @@ function aoEscolherProduto(item: PromocaoItem) {
   if (!form.nome.trim()) form.nome = nomeDoProduto(item.produto_id)
   item.variacao_id = null
   item.borda_id = null
-  // Produto COMPOSTO (Playkap) só aceita percentual: o custo é montado dos componentes.
-  if (ehCompostoProduto(item.produto_id)) item.tipo = 'PERCENTUAL'
-}
-
-function ehCompostoProduto(produtoId: number | null): boolean {
-  if (!produtoId) return false
-  const p = catalogo.allProdutos.find((x) => x.produto_id === produtoId)
-  return (p?.Base_de_Calculo || '').toUpperCase() === 'COMPOSTO'
 }
 
 function adicionarItem() {
