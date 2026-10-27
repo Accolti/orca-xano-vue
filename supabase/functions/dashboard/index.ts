@@ -28,16 +28,6 @@ Deno.serve(async (req) => {
 
     if (!userId) return json({ error: 'user_id é obrigatório' }, 400)
 
-    const [orcaRes, boletoRes] = await Promise.all([
-      sb.from('orca').select('id,status,eh_pedido,created_at,vnd_tot,taxa_cartao').eq('user_id', userId),
-      sb.from('boleto').select('id,vencimento,pagamento,valor').eq('user_id', userId),
-    ])
-    if (orcaRes.error) return json({ error: orcaRes.error.message }, 500)
-    if (boletoRes.error) return json({ error: boletoRes.error.message }, 500)
-
-    const orcamentos = orcaRes.data || []
-    const parcelas = boletoRes.data || []
-
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
     const hojeMs = hoje.getTime()
@@ -56,6 +46,27 @@ Deno.serve(async (req) => {
       iniMs = base.getTime()
       fimMs = new Date(baseAno, baseMes - 1 + N, 1).getTime()
     }
+
+    // Pushdown da janela de created_at no orçamento (N > 0); "todos" segue sem limite.
+    let orcaQuery = sb
+      .from('orca')
+      .select('id,status,eh_pedido,created_at,vnd_tot,taxa_cartao')
+      .eq('user_id', userId)
+    if (N > 0) {
+      orcaQuery = orcaQuery
+        .gte('created_at', new Date(iniMs).toISOString())
+        .lt('created_at', new Date(fimMs).toISOString())
+    }
+
+    const [orcaRes, boletoRes] = await Promise.all([
+      orcaQuery,
+      sb.from('boleto').select('id,vencimento,pagamento,valor').eq('user_id', userId),
+    ])
+    if (orcaRes.error) return json({ error: orcaRes.error.message }, 500)
+    if (boletoRes.error) return json({ error: boletoRes.error.message }, 500)
+
+    const orcamentos = orcaRes.data || []
+    const parcelas = boletoRes.data || []
 
     const ehPedido = (o: any) =>
       o.eh_pedido === true || o.eh_pedido === 'true' || o.eh_pedido === 1 || o.eh_pedido === '1'

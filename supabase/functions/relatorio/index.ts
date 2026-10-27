@@ -55,35 +55,6 @@ Deno.serve(async (req) => {
     const controles = ctrlRes.data || []
     const boletos = boletoRes.data || []
 
-    const orcaIds = orcas.map((o: any) => o.id)
-    let itens: any[] = []
-    let logsDesc: any[] = []
-    let logsStatus: any[] = []
-    if (orcaIds.length) {
-      const [itemRes, logRes, statusRes] = await Promise.all([
-        sb.from('item').select('orca_id,qtd,vlr_cst_nota_unit').in('orca_id', orcaIds),
-        sb
-          .from('desconto_kapazi_log')
-          .select('orca_id,desconto_anterior,desconto_novo,created_at')
-          .in('orca_id', orcaIds)
-          .order('created_at', { ascending: true }),
-        sb.from('orca_status_log').select('orca_id,status,status_anterior,created_at').in('orca_id', orcaIds),
-      ])
-      if (itemRes.error) return json({ error: itemRes.error.message }, 500)
-      if (logRes.error) return json({ error: logRes.error.message }, 500)
-      if (statusRes.error) return json({ error: statusRes.error.message }, 500)
-      itens = itemRes.data || []
-      logsDesc = logRes.data || []
-      logsStatus = statusRes.data || []
-    }
-
-    const clienteNome: Record<number, string> = {}
-    const clienteFantasia: Record<number, string> = {}
-    clientes.forEach((c: any) => {
-      clienteNome[c.id] = c.razao_social || ''
-      clienteFantasia[c.id] = c.nome_fantasia || ''
-    })
-
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
 
@@ -102,6 +73,44 @@ Deno.serve(async (req) => {
     }
 
     const inWin = (ts: number) => !isNaN(ts) && ts >= iniMs && ts < fimMs
+
+    const orcaIds = orcas.map((o: any) => o.id)
+    // Itens/log de desconto são usados só no financeiro (janelado por created_at), então
+    // restringimos a janela; o status log precisa da visão completa (média de aprovação global).
+    const orcaIdsJanela =
+      N > 0 ? orcas.filter((o: any) => inWin(new Date(o.created_at).getTime())).map((o: any) => o.id) : orcaIds
+
+    let itens: any[] = []
+    let logsDesc: any[] = []
+    let logsStatus: any[] = []
+    if (orcaIds.length) {
+      const [itemRes, logRes, statusRes] = await Promise.all([
+        orcaIdsJanela.length
+          ? sb.from('item').select('orca_id,qtd,vlr_cst_nota_unit').in('orca_id', orcaIdsJanela)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        orcaIdsJanela.length
+          ? sb
+              .from('desconto_kapazi_log')
+              .select('orca_id,desconto_anterior,desconto_novo,created_at')
+              .in('orca_id', orcaIdsJanela)
+              .order('created_at', { ascending: true })
+          : Promise.resolve({ data: [] as any[], error: null }),
+        sb.from('orca_status_log').select('orca_id,status,status_anterior,created_at').in('orca_id', orcaIds),
+      ])
+      if (itemRes.error) return json({ error: itemRes.error.message }, 500)
+      if (logRes.error) return json({ error: logRes.error.message }, 500)
+      if (statusRes.error) return json({ error: statusRes.error.message }, 500)
+      itens = itemRes.data || []
+      logsDesc = logRes.data || []
+      logsStatus = statusRes.data || []
+    }
+
+    const clienteNome: Record<number, string> = {}
+    const clienteFantasia: Record<number, string> = {}
+    clientes.forEach((c: any) => {
+      clienteNome[c.id] = c.razao_social || ''
+      clienteFantasia[c.id] = c.nome_fantasia || ''
+    })
     const ehPedido = (o: any) =>
       o.eh_pedido === true || o.eh_pedido === 'true' || o.eh_pedido === 1 || o.eh_pedido === '1'
 
