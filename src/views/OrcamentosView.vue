@@ -371,6 +371,8 @@ onMounted(async () => {
         await orcamentoStore.carregarControlePedido(orcaId)
       }
       sincronizarSimulacao()
+      validadeEditadaManualmente.value = false
+      aplicarValidadeSugerida()
       const header = orcamentoStore.orcamentoHeader
       if (header?._cliente) {
         const c = header._cliente
@@ -462,6 +464,44 @@ function hojeMaisDias(): string {
 // Validade editável do orçamento (yyyy-mm-dd). Sempre começa em hoje + dias.
 const validadeOrcamento = ref(hojeMaisDias())
 
+// Regra da promoção aplicada ao campo de validade: quando há item em promoção, a
+// validade sugerida é limitada pela data fim da promoção (a mais cedo). O vendedor
+// pode editar manualmente — a partir daí a sugestão não sobrescreve mais.
+const validadeEditadaManualmente = ref(false)
+
+function normalizarIso(v: unknown): string | null {
+  if (!v) return null
+  const s = String(v).trim()
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function dataFimPromocaoMaisCedo(): string | null {
+  let menor: string | null = null
+  for (const it of orcamentoStore.itensInseridos) {
+    const p = (it as any)?.detalhes_calculo?.promo
+    if (!p?.aplicada || !p?.data_fim) continue
+    const iso = normalizarIso(p.data_fim)
+    if (iso && (!menor || iso < menor)) menor = iso
+  }
+  return menor
+}
+
+function validadeSugerida(): string {
+  const normal = normalizarIso(orcamentoStore.orcamentoHeader?.validade) ?? hojeMaisDias()
+  const promo = dataFimPromocaoMaisCedo()
+  return promo && promo < normal ? promo : normal
+}
+
+function aplicarValidadeSugerida() {
+  if (!validadeEditadaManualmente.value) {
+    validadeOrcamento.value = validadeSugerida()
+  }
+}
+
 async function handleInserir() {
   if (!clienteSelecionado.value) {
     mostrarToast('Selecione um cliente para adicionar o item.', 'alerta')
@@ -516,6 +556,7 @@ function novoOrcamento() {
   finalizando.value = false
   modoEntradaML.value = 'area'
   validadeOrcamento.value = hojeMaisDias()
+  validadeEditadaManualmente.value = false
   resetarCondicoesUi()
   router.push('/orcamentos/novo')
 }
@@ -683,7 +724,10 @@ function sincronizarSimulacao() {
 }
 
 watch([() => orcamentoStore.orcamentoHeader, () => orcamentoStore.itensInseridos.length], () => {
-  if (orcamentoStore.orcamentoHeader?.id) sincronizarSimulacao()
+  if (orcamentoStore.orcamentoHeader?.id) {
+    sincronizarSimulacao()
+    aplicarValidadeSugerida()
+  }
 })
 
 // Ao abrir a seção de custos (olho), reflete os valores atuais do cabeçalho
@@ -3231,6 +3275,7 @@ async function enviarWhatsApp() {
               v-model="validadeOrcamento"
               type="date"
               class="input-date"
+              @change="validadeEditadaManualmente = true"
             />
             <span class="condicoes-validade-hint">Salva junto com as condições de pagamento.</span>
           </div>

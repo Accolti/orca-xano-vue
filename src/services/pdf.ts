@@ -98,12 +98,19 @@ function dataFimPromocao(itens: any[]): Date | null {
   return menor
 }
 
-// Data de validade da proposta (pt-BR, dd/mm/aaaa). Quando há item em promoção, a
-// validade é limitada pela data fim da promoção (a mais cedo), nunca a ultrapassando.
+// Data de validade da proposta (pt-BR, dd/mm/aaaa).
+// - Com campo explícito (`validade` do seletor no editor): usa o valor do vendedor como está.
+// - Sem campo (lista): header.validade → hoje + DiasVencimentoOrcamento; se houver item em
+//   promoção, a validade é limitada pela data fim da promoção (a mais cedo).
 function formatarValidade(header: any, itens: any[], user?: User | null, validade?: string): string {
-  const normal = dataValidadeNormal(header, user, validade)
-  const promo = dataFimPromocao(itens)
-  const finalDate = promo && promo < normal ? promo : normal
+  let finalDate: Date
+  if (validade) {
+    finalDate = parseData(validade) ?? dataValidadeNormal(header, user)
+  } else {
+    const normal = dataValidadeNormal(header, user)
+    const promo = dataFimPromocao(itens)
+    finalDate = promo && promo < normal ? promo : normal
+  }
   return finalDate.toLocaleDateString('pt-BR')
 }
 
