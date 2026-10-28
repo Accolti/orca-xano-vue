@@ -58,32 +58,53 @@ function formatarDataHoraAgora(): string {
   return `${data} às ${hora}`
 }
 
-// Data de validade da proposta (pt-BR, dd/mm/aaaa). Prioridade: validade editada (yyyy-mm-dd)
-// → header.validade → hoje + DiasVencimentoOrcamento.
-function formatarDataIso(val: string): string {
+// Converte uma string de data (yyyy-mm-dd ou ISO) em Date local (ou null).
+function parseData(val: string): Date | null {
   const m = String(val || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (m) {
     const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
+    if (!isNaN(d.getTime())) return d
   }
   const d = new Date(val)
-  if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
-  return ''
+  if (!isNaN(d.getTime())) return d
+  return null
 }
 
-function formatarValidade(header: any, user?: User | null, validade?: string): string {
+// Validade normal (sem promoção): validade editada (yyyy-mm-dd) → header.validade →
+// hoje + DiasVencimentoOrcamento.
+function dataValidadeNormal(header: any, user?: User | null, validade?: string): Date {
   if (validade) {
-    const fmt = formatarDataIso(validade)
-    if (fmt) return fmt
+    const d = parseData(validade)
+    if (d) return d
   }
   const val = header?.validade
   if (val) {
     const d = new Date(val)
-    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR')
+    if (!isNaN(d.getTime())) return d
   }
   const dias = Number(user?.DiasVencimentoOrcamento) || 15
-  const v = new Date(Date.now() + dias * 86400000)
-  return v.toLocaleDateString('pt-BR')
+  return new Date(Date.now() + dias * 86400000)
+}
+
+// Data fim da promoção mais cedo entre os itens em promoção (null se não houver).
+function dataFimPromocao(itens: any[]): Date | null {
+  let menor: Date | null = null
+  for (const it of itens || []) {
+    const p = it?.detalhes_calculo?.promo
+    if (!p?.aplicada || !p?.data_fim) continue
+    const d = parseData(p.data_fim)
+    if (d && (!menor || d < menor)) menor = d
+  }
+  return menor
+}
+
+// Data de validade da proposta (pt-BR, dd/mm/aaaa). Quando há item em promoção, a
+// validade é limitada pela data fim da promoção (a mais cedo), nunca a ultrapassando.
+function formatarValidade(header: any, itens: any[], user?: User | null, validade?: string): string {
+  const normal = dataValidadeNormal(header, user, validade)
+  const promo = dataFimPromocao(itens)
+  const finalDate = promo && promo < normal ? promo : normal
+  return finalDate.toLocaleDateString('pt-BR')
 }
 
 function pad2(n: number): string {
@@ -267,7 +288,7 @@ export function montarTextoWhatsApp({
   if (maoDeObra) linhas.push(`Mão de Obra: ${formatarMoeda(maoDeObra)}`)
   linhas.push(`*Total Geral: ${formatarMoeda(totalGeral)}*`)
   linhas.push('')
-  const validadeFmt = formatarValidade(header, useAuthStore().user, validade)
+  const validadeFmt = formatarValidade(header, itens, useAuthStore().user, validade)
   if (validadeFmt) {
     linhas.push(`⏳ *Validade da Proposta: ${validadeFmt}*`)
     linhas.push('')
@@ -488,7 +509,7 @@ export async function gerarPdfOrcamento({
               { text: codOrca, style: 'headerCardNum' },
               { text: `Data de Emissão: ${formatarDataHoraAgora()}`, style: 'headerCardLine' },
               {
-                text: `Validade da Proposta: ${formatarValidade(header, user, validade)}`,
+                text: `Validade da Proposta: ${formatarValidade(header, itens, user, validade)}`,
                 style: 'headerCardLine',
               },
             ],

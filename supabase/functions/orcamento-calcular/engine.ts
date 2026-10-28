@@ -70,7 +70,7 @@ export interface ProdutoCtx {
   variacao: any | null
   fator_de_corte_variacao: any | null
   // promoção ativa aplicada no custo (produto/variação/borda)
-  promo?: { aplicada: boolean; tipo: string | null; valor: number } | null
+  promo?: { aplicada: boolean; tipo: string | null; valor: number; data_fim: string | null } | null
 }
 
 export interface PerfilEfetivo {
@@ -210,25 +210,26 @@ export async function buscarProduto(
   let valorProduto = Number(produto.valor) || 0
   let valorVariacao = variacao ? Number(variacao.valor_custo) || 0 : null
   let valorBorda = Number(borda?.valor) || 0
-  let promo: { aplicada: boolean; tipo: string | null; valor: number } | null = null
+  let promo: { aplicada: boolean; tipo: string | null; valor: number; data_fim: string | null } | null = null
 
   const promos: any[] = Array.isArray(ctx.promos) ? ctx.promos : []
   for (const p of promos) {
     const tipo = p.tipo
     const valor = Number(p.valor) || 0
+    const dataFim = p.data_fim ?? null
     const aplicar = (custo: number) => (tipo === 'VALOR_FIXO' ? valor : custo * (1 - valor / 100))
     if (p.produto_id != null && Number(p.produto_id) === produto.id) {
       valorProduto = aplicar(valorProduto)
       if (variacao) valorVariacao = aplicar(valorVariacao ?? 0)
-      promo = { aplicada: true, tipo, valor }
+      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
     }
     if (p.variacao_id != null && variacao && Number(p.variacao_id) === variacao.id) {
       valorVariacao = aplicar(valorVariacao ?? 0)
-      promo = { aplicada: true, tipo, valor }
+      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
     }
     if (p.borda_id != null && borda && Number(p.borda_id) === borda.id) {
       valorBorda = aplicar(valorBorda)
-      promo = { aplicada: true, tipo, valor }
+      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
     }
   }
 
