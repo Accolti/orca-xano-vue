@@ -96,6 +96,11 @@ const router = createRouter({
       component: () => import('../views/ResetPasswordView.vue'),
     },
     {
+      path: '/definir-senha',
+      name: 'definir-senha',
+      component: () => import('../views/DefinirSenhaView.vue'),
+    },
+    {
       path: '/dev/produtos',
       name: 'dev-produtos',
       component: () => import('../views/DevProdutosView.vue'),
@@ -125,7 +130,7 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  const guestRoutes = ['login', 'signup', 'auth-callback', 'reset-password']
+  const guestRoutes = ['login', 'signup', 'auth-callback', 'reset-password', 'definir-senha']
   // Rotas que redirecionam para Home quando já autenticado. `reset-password` fica de
   // fora: na recuperação de senha o usuário tem uma sessão (recovery) e precisa
   // continuar na tela para definir a nova senha.

@@ -8,9 +8,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const appUrl = Deno.env.get('APP_URL') || 'http://localhost:5173/login'
 
 const sb = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } })
+
+// Base do app (sem sufixo /login) — o convite redireciona para a página de definir senha.
+const appBase = (Deno.env.get('APP_URL') || 'http://localhost:5173').replace(/\/login\/?$/, '')
+const redirectTo = `${appBase}/definir-senha`
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -85,7 +88,7 @@ Deno.serve(async (req) => {
 
     // 2. cria a identidade auth + envia convite (o trigger liga auth_id por e-mail)
     const { error: inviteErr } = await sb.auth.admin.inviteUserByEmail(email, {
-      redirectTo: appUrl,
+      redirectTo,
     })
     if (inviteErr) {
       // limpa a linha órfã

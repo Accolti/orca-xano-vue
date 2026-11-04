@@ -1,0 +1,198 @@
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { supabase } from '@/services/supabase'
+import PasswordInput from '@/components/PasswordInput.vue'
+
+const authStore = useAuthStore()
+const router = useRouter()
+
+const senha = ref('')
+const confirmacao = ref('')
+const pronto = ref(false)
+const erro = ref<string | null>(null)
+const erroLink = ref<string | null>(null)
+
+function voltarLogin() {
+  router.replace('/login')
+}
+
+// Erro de link (hash #error=...&error_code=...&error_description=...) — ex.: token
+// expirado ou já utilizado. O detectSessionInUrl não remove o hash nesse caso.
+function mensagemErroLink(code: string | null, descricao: string | null): string {
+  if (code === 'otp_expired') {
+    return 'Este link de convite expirou ou já foi utilizado. Solicite um novo convite ao administrador.'
+  }
+  return descricao || 'Link inválido. Solicite um novo convite ao administrador.'
+}
+
+onMounted(async () => {
+  if (!supabase) return
+  // Detecta erro vindo no hash antes de tentar a sessão do convite.
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  if (params.get('error') || params.get('error_code') || params.get('error_description')) {
+    erroLink.value = mensagemErroLink(params.get('error_code'), params.get('error_description'))
+    return
+  }
+  // Detecta a sessão do convite trazida no link (#access_token=...&type=invite)
+  await supabase.auth.getSession()
+})
+
+async function salvar() {
+  erro.value = null
+  if (!senha.value || senha.value.length < 8) {
+    erro.value = 'A senha deve ter pelo menos 8 caracteres.'
+    return
+  }
+  if (senha.value !== confirmacao.value) {
+    erro.value = 'As senhas não conferem.'
+    return
+  }
+  try {
+    await authStore.updatePassword(senha.value)
+    pronto.value = true
+    setTimeout(() => router.replace('/'), 1500)
+  } catch (err: any) {
+    erro.value = err?.message || 'Erro ao definir a senha.'
+  }
+}
+</script>
+
+<template>
+  <div class="auth-page">
+    <div class="auth-card">
+      <h1>Defina sua senha</h1>
+
+      <template v-if="erroLink">
+        <p class="error-msg">{{ erroLink }}</p>
+        <button class="btn" @click="voltarLogin">Voltar para o login</button>
+      </template>
+
+      <template v-else-if="!pronto">
+        <form @submit.prevent="salvar">
+          <div class="field">
+            <label for="senha">Senha</label>
+            <PasswordInput
+              id="senha"
+              v-model="senha"
+              placeholder="••••••••"
+              required
+              autocomplete="new-password"
+            />
+          </div>
+
+          <div class="field">
+            <label for="confirmacao">Confirmar senha</label>
+            <PasswordInput
+              id="confirmacao"
+              v-model="confirmacao"
+              placeholder="••••••••"
+              required
+              autocomplete="new-password"
+            />
+          </div>
+
+          <p v-if="erro" class="error-msg">{{ erro }}</p>
+
+          <button type="submit" class="btn" :disabled="authStore.loading">
+            {{ authStore.loading ? 'Salvando…' : 'Salvar senha' }}
+          </button>
+        </form>
+      </template>
+
+      <p v-else class="info-msg">Senha definida! Redirecionando…</p>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.auth-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-card);
+}
+
+.auth-card h1 {
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.field input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 1rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.field input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.error-msg {
+  color: var(--danger);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.info-msg {
+  color: var(--primary);
+  font-size: 0.95rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+.btn {
+  width: 100%;
+  padding: 0.7rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: var(--primary-hover);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

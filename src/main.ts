@@ -12,7 +12,7 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-const GUEST_ROUTES = ['login', 'signup', 'auth-callback', 'reset-password']
+const GUEST_ROUTES = ['login', 'signup', 'auth-callback', 'reset-password', 'definir-senha']
 
 // Sessão expirada/deslogado (refresh token inválido) → logout + redireciona para o login.
 // Não dispara em rotas guest para não atrapalhar o fluxo de login.
