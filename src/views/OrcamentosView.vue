@@ -3002,13 +3002,6 @@ async function enviarWhatsApp() {
         :custo-total="custoTotal"
         @select="selecionarSimulacao"
       />
-
-      <ClienteModal
-        v-model="clienteModalOpen"
-        :cliente-id="clienteModalId"
-        :readonly="clienteModalSomenteLeitura"
-        @saved="aoSalvarCliente"
-      />
     </template>
 
     <template v-else>
@@ -3023,9 +3016,14 @@ async function enviarWhatsApp() {
 
         <div v-if="clienteSelecionado" class="resumo-cliente">
           <span class="resumo-cliente-label">Cliente</span>
-          <strong class="resumo-cliente-nome">
+          <button
+            type="button"
+            class="resumo-cliente-nome resumo-cliente-link"
+            @click="verCliente"
+            title="Ver dados do cliente"
+          >
             {{ clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social }}
-          </strong>
+          </button>
         </div>
 
         <div class="resumo-totais-header">
@@ -3887,6 +3885,13 @@ async function enviarWhatsApp() {
       :faturar="faturarCliente"
       :modo-faturamento="pagamentoModalModoFaturamento"
       @saved="aoSalvarFinanceiro"
+    />
+
+    <ClienteModal
+      v-model="clienteModalOpen"
+      :cliente-id="clienteModalId"
+      :readonly="clienteModalSomenteLeitura"
+      @saved="aoSalvarCliente"
     />
   </div>
 </template>
@@ -5047,6 +5052,20 @@ async function enviarWhatsApp() {
 .resumo-cliente-nome {
   font-size: 1rem;
   color: var(--text-primary);
+}
+
+.resumo-cliente-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--primary);
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+.resumo-cliente-link:hover {
+  color: var(--primary-hover);
 }
 
 .resumo-card h2 {
