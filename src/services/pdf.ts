@@ -28,6 +28,7 @@ interface PdfOrcamentoInput {
   faturar?: boolean
   condicoesPagamento?: string
   validade?: string
+  destino?: PdfDestino
 }
 
 // Garantia vinda da tabela Material (meses), agrupada por material e deduplicada.
@@ -331,26 +332,49 @@ function ehDispositivoMovel(): boolean {
 //    navega até a pasta que quiser (ex.: G:\orcamentos\) e grava lá.
 // 2º Mobile: Web Share API com o arquivo — o SO oferece salvar em Arquivos/Drive/enviar.
 // 3º Fallback (Firefox/Safari desktop, mobile sem share): download padrão do navegador.
-async function salvarPdf(doc: TDocumentDefinitions, nomeArquivo: string): Promise<void> {
+export type PdfDestino =
+  | { tipo: 'handle'; handle: any }
+  | { tipo: 'share' }
+  | { tipo: 'download' }
+  | { tipo: 'cancelado' }
+
+// Abre o seletor de destino (File System Access API) NO INÍCIO do clique — deve ser
+// chamado antes de qualquer await (RPC/rede) para preservar a transient user activation.
+// Sem suporte à API → share (mobile) ou download.
+export async function abrirDestinoPdf(nomeSugerido: string): Promise<PdfDestino> {
   const picker = (window as any).showSaveFilePicker
   if (typeof picker === 'function' && !ehDispositivoMovel()) {
     try {
       const handle = await picker({
-        suggestedName: nomeArquivo,
+        suggestedName: nomeSugerido,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
       })
-      const blob = await pdfMake.createPdf(doc).getBlob()
-      const writable = await handle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      return
-    } catch {
-      // Cancelado pelo usuário → não faz nada
-      return
+      return { tipo: 'handle', handle }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return { tipo: 'cancelado' }
+      console.error('[pdf] showSaveFilePicker falhou, usando download:', err)
+      return { tipo: 'download' }
     }
   }
+  if (ehDispositivoMovel() && navigator.canShare?.({ files: [] })) return { tipo: 'share' }
+  return { tipo: 'download' }
+}
 
-  if (ehDispositivoMovel() && navigator.canShare?.({ files: [] })) {
+// Grava o PDF no destino aberto anteriormente (ou faz share/download).
+async function gravarPdf(
+  doc: TDocumentDefinitions,
+  destino: PdfDestino,
+  nomeArquivo: string,
+): Promise<void> {
+  if (destino.tipo === 'handle') {
+    const blob = await pdfMake.createPdf(doc).getBlob()
+    const writable = await destino.handle.createWritable()
+    await writable.write(blob)
+    await writable.close()
+    return
+  }
+
+  if (destino.tipo === 'share') {
     try {
       const blob = await pdfMake.createPdf(doc).getBlob()
       const file = new File([blob], nomeArquivo, { type: 'application/pdf' })
@@ -446,6 +470,7 @@ export async function gerarPdfOrcamento({
   faturar,
   condicoesPagamento,
   validade,
+  destino,
 }: PdfOrcamentoInput) {
   const codOrca = header?.cod_orca || 'ORC'
   const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
@@ -764,7 +789,7 @@ export async function gerarPdfOrcamento({
     pageMargins: [40, 40, 40, 60],
   }
 
-  await salvarPdf(doc, nomeArquivoOrcamento(header, cliente))
+  await gravarPdf(doc, destino!, nomeArquivoOrcamento(header, cliente))
 }
 
 // ── PEDIDO DE VENDA ────────────────────────────────────────────────────────────
@@ -779,6 +804,7 @@ interface PdfPedidoVendaInput {
   cliente?: Cliente | null
   user?: User | null
   condicoesPagamento?: string
+  destino?: PdfDestino
 }
 
 export function nomeArquivoPedidoVenda(header: any, cliente?: Cliente | null): string {
@@ -818,6 +844,7 @@ export async function gerarPdfPedidoVenda({
   cliente,
   user,
   condicoesPagamento,
+  destino,
 }: PdfPedidoVendaInput) {
   const codOrca = header?.cod_orca || 'PDV'
   const nomeEmpresa = user?.fantasia || user?.razao || user?.name || ''
@@ -1125,5 +1152,5 @@ export async function gerarPdfPedidoVenda({
     pageMargins: [40, 40, 40, 40],
   }
 
-  await salvarPdf(doc, nomeArquivoPedidoVenda(header, cliente))
+  await gravarPdf(doc, destino!, nomeArquivoPedidoVenda(header, cliente))
 }

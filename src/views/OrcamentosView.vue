@@ -11,6 +11,9 @@ import {
   montarTextoWhatsApp,
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
+  abrirDestinoPdf,
+  nomeArquivoOrcamento,
+  nomeArquivoPedidoVenda,
 } from '@/services/pdf'
 import { aprovarDescontoOrcamento } from '@/services/orcamentoApi'
 import { listarFaixas } from '@/services/equipeApi'
@@ -1432,6 +1435,10 @@ async function condicoesParaEnvio(): Promise<string | null> {
 }
 
 async function gerarPdf() {
+  const destino = await abrirDestinoPdf(
+    nomeArquivoOrcamento(orcamentoStore.orcamentoHeader, clienteSelecionado.value),
+  )
+  if (destino.tipo === 'cancelado') return
   const cond = await condicoesParaEnvio()
   if (cond === null) return
   gerarPdfOrcamento({
@@ -1442,10 +1449,15 @@ async function gerarPdf() {
     faturar: faturarCliente.value,
     condicoesPagamento: cond,
     validade: validadeOrcamento.value,
+    destino,
   })
 }
 
 async function gerarPdfPedidoVendaView() {
+  const destino = await abrirDestinoPdf(
+    nomeArquivoPedidoVenda(orcamentoStore.orcamentoHeader, clienteSelecionado.value),
+  )
+  if (destino.tipo === 'cancelado') return
   const cond = await condicoesParaEnvio()
   if (cond === null) return
   gerarPdfPedidoVenda({
@@ -1454,6 +1466,7 @@ async function gerarPdfPedidoVendaView() {
     cliente: clienteSelecionado.value,
     user: authStore.userEfetivo ?? authStore.user,
     condicoesPagamento: cond,
+    destino,
   })
 }
 

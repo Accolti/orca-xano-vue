@@ -9,6 +9,9 @@ import {
   montarTextoWhatsApp,
   obterWhatsappCliente,
   copiarEabrirWhatsApp,
+  abrirDestinoPdf,
+  nomeArquivoOrcamento,
+  nomeArquivoPedidoVenda,
 } from '@/services/pdf'
 import type { Cliente } from '@/types/cliente'
 
@@ -170,6 +173,16 @@ export function useOrcamentosListActions() {
   async function gerarPdf(row: OrcamentoRow) {
     gerandoPdfDe.value = row.id
     try {
+      const clienteParcial = {
+        contato: row.contato,
+        nome_fantasia: row.nome_fantasia,
+        razao_social: row.razao_social,
+        nome_cpf: '',
+      } as Cliente
+      const destino = await abrirDestinoPdf(
+        nomeArquivoOrcamento({ cod_orca: row.cod_orca }, clienteParcial),
+      )
+      if (destino.tipo === 'cancelado') return
       await orcamentoStore.carregarOrcamento(row.cod_orca)
       const header = orcamentoStore.orcamentoHeader
       const cliente = montarClienteDoHeader(header)
@@ -178,6 +191,7 @@ export function useOrcamentosListActions() {
         itens: orcamentoStore.itensInseridos,
         cliente,
         user: authStore.userEfetivo ?? authStore.user,
+        destino,
       })
     } catch {
       /* erro silencioso: header já fica no store */
@@ -189,6 +203,16 @@ export function useOrcamentosListActions() {
   async function gerarPdfPedidoVenda(row: OrcamentoRow) {
     gerandoPdfDe.value = row.id
     try {
+      const clienteParcial = {
+        contato: row.contato,
+        nome_fantasia: row.nome_fantasia,
+        razao_social: row.razao_social,
+        nome_cpf: '',
+      } as Cliente
+      const destino = await abrirDestinoPdf(
+        nomeArquivoPedidoVenda({ cod_orca: row.cod_orca }, clienteParcial),
+      )
+      if (destino.tipo === 'cancelado') return
       await orcamentoStore.carregarOrcamento(row.cod_orca)
       const header = orcamentoStore.orcamentoHeader
       const cliente = montarClienteDoHeader(header)
@@ -197,6 +221,7 @@ export function useOrcamentosListActions() {
         itens: orcamentoStore.itensInseridos,
         cliente,
         user: authStore.userEfetivo ?? authStore.user,
+        destino,
       })
     } catch {
       /* erro silencioso: header já fica no store */
