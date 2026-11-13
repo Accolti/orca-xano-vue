@@ -37,3 +37,17 @@ export async function listarNotasFiscaisPorOrca(
   const r = await rpc<any>('nota_fiscal_por_orca', { p_user_id: userId ?? 0, p_orca_id: orcaId })
   return Array.isArray(r) ? r : []
 }
+
+// Sugere pedidos cujo "Custo Kapazi" esteja próximo do valor da NF (sem frete).
+export async function sugerirPedidosNf(
+  valor: number,
+  toleranciaPct: number,
+  userId?: number | null,
+): Promise<any[]> {
+  const r = await rpc<any>('pedidos_sugeridos_nf', {
+    p_user_id: userId ?? 0,
+    p_valor: valor,
+    p_tolerancia_pct: toleranciaPct,
+  })
+  return Array.isArray(r) ? r : []
+}

@@ -2,10 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { listarNotasFiscais, salvarNotaFiscal, excluirNotaFiscal } from '@/services/notaFiscalApi'
-import { buscarListaOrcamentos } from '@/services/orcamentoApi'
 import { parseNfeXml, type NotaFiscalParsed } from '@/utils/nfeParser'
 import type { NotaFiscal } from '@/types/notaFiscal'
 import NotaFiscalModal from '@/components/NotaFiscalModal.vue'
+import PedidoSelector from '@/components/PedidoSelector.vue'
 
 const authStore = useAuthStore()
 
@@ -18,10 +18,11 @@ const parsed = ref<NotaFiscalParsed | null>(null)
 const erroImport = ref<string | null>(null)
 const salvando = ref(false)
 
-const termoPedido = ref('')
-const pedidosBusca = ref<any[]>([])
 const pedidoSelecionado = ref<any | null>(null)
-let buscaTimer: ReturnType<typeof setTimeout> | null = null
+
+const reLinkNf = ref<any | null>(null)
+const reLinkOpen = ref(false)
+const reLinkPedido = ref<any | null>(null)
 
 const modalNotaOpen = ref(false)
 const notaVisualizada = ref<NotaFiscal | null>(null)
@@ -58,8 +59,6 @@ function abrirImport() {
   erroImport.value = null
   parsed.value = null
   pedidoSelecionado.value = null
-  termoPedido.value = ''
-  pedidosBusca.value = []
   importOpen.value = true
   fileInput.value?.click()
 }
@@ -84,45 +83,40 @@ function fecharImport() {
   parsed.value = null
   erroImport.value = null
   pedidoSelecionado.value = null
-  termoPedido.value = ''
-  pedidosBusca.value = []
 }
 
-function aoDigitarPedido() {
-  if (buscaTimer) clearTimeout(buscaTimer)
-  buscaTimer = setTimeout(buscarPedidos, 300)
-}
-
-async function buscarPedidos() {
-  const t = termoPedido.value.trim()
-  if (t.length < 3) {
-    pedidosBusca.value = []
-    return
-  }
-  try {
-    const { items } = await buscarListaOrcamentos({
-      userId: authStore.user?.id,
-      busca: t,
-      page: 1,
-      perPage: 10,
-      soPedidos: true,
-    })
-    pedidosBusca.value = items ?? []
-  } catch {
-    pedidosBusca.value = []
-  }
+function valorMatch(nf: any): number {
+  const vProd = Number(nf?.valor_produtos) || 0
+  if (vProd > 0) return vProd
+  return Number(nf?.valor_total || 0) - Number(nf?.valor_frete || 0)
 }
 
 function selecionarPedido(p: any) {
   pedidoSelecionado.value = p
-  termoPedido.value = p?.cod_orca ?? ''
-  pedidosBusca.value = []
 }
 
 function nomePedido(p: any): string {
-  const cli = p?.nome_fantasia || p?.razao_social || ''
+  const cli = p?.cliente_nome || p?.nome_fantasia || p?.razao_social || ''
   const cod = p?.cod_orca || ''
   return [cod, cli].filter(Boolean).join(' — ')
+}
+
+function abrirVincular(nota: any) {
+  reLinkNf.value = nota
+  reLinkPedido.value = null
+  reLinkOpen.value = true
+}
+
+async function vincularPedido(pedido: any) {
+  if (!reLinkNf.value) return
+  reLinkPedido.value = pedido
+  try {
+    await salvarNotaFiscal({ ...reLinkNf.value, orca_id: pedido.id }, authStore.user?.id)
+    reLinkOpen.value = false
+    await carregar()
+  } catch (err: any) {
+    erroLista.value = err?.message || 'Erro ao vincular pedido'
+  }
 }
 
 async function salvar() {
@@ -207,6 +201,7 @@ onMounted(carregar)
         </div>
         <div class="nf-item-acoes">
           <button class="btn btn-sm btn-outline" @click="verNota(nota)">Ver</button>
+          <button class="btn btn-sm btn-outline" @click="abrirVincular(nota)">Vincular</button>
           <button class="btn btn-sm btn-danger" @click="excluir(nota)">Excluir</button>
         </div>
       </div>
@@ -257,24 +252,10 @@ onMounted(carregar)
 
                 <section class="nf-section">
                   <h3>Vincular a um pedido (opcional)</h3>
-                  <input
-                    v-model="termoPedido"
-                    type="text"
-                    placeholder="Busque pelo código ou cliente do pedido…"
-                    class="nf-input"
-                    @input="aoDigitarPedido"
+                  <PedidoSelector
+                    :valor-sugestao="valorMatch(parsed)"
+                    @select="selecionarPedido"
                   />
-                  <div v-if="pedidosBusca.length" class="nf-pedidos">
-                    <button
-                      v-for="p in pedidosBusca"
-                      :key="p.id"
-                      type="button"
-                      class="nf-pedido-opt"
-                      @click="selecionarPedido(p)"
-                    >
-                      {{ nomePedido(p) }}
-                    </button>
-                  </div>
                   <p v-if="pedidoSelecionado" class="nf-natop">
                     <strong>Pedido vinculado:</strong> {{ nomePedido(pedidoSelecionado) }}
                   </p>
@@ -292,6 +273,39 @@ onMounted(carregar)
                 @click="salvar"
               >
                 {{ salvando ? 'Salvando…' : 'Salvar' }}
+              </button>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Modal de re-vínculo (editar o pedido de uma NF já importada) -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="reLinkOpen" class="nf-overlay" @click.self="reLinkOpen = false">
+          <div class="nf-card nf-card-import">
+            <header class="nf-header">
+              <h2>Vincular Nota Fiscal a um pedido</h2>
+              <button class="nf-close" @click="reLinkOpen = false" aria-label="Fechar">&times;</button>
+            </header>
+            <div class="nf-body">
+              <p v-if="reLinkNf" class="nf-natop">
+                <strong>NF {{ reLinkNf.numero || '—' }}</strong> ·
+                {{ reLinkNf.emitente_nome || '—' }} · {{ moeda(reLinkNf.valor_total) }}
+                <template v-if="reLinkNf.cod_orca"> · Pedido atual: {{ reLinkNf.cod_orca }}</template>
+              </p>
+              <PedidoSelector
+                :valor-sugestao="reLinkNf ? valorMatch(reLinkNf) : null"
+                @select="vincularPedido"
+              />
+              <p v-if="reLinkPedido" class="nf-natop">
+                <strong>Vinculado a:</strong> {{ nomePedido(reLinkPedido) }}
+              </p>
+            </div>
+            <footer class="nf-footer">
+              <button type="button" class="btn btn-cancel" @click="reLinkOpen = false">
+                Fechar
               </button>
             </footer>
           </div>
