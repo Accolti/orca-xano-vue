@@ -51,6 +51,11 @@ const router = createRouter({
       component: () => import('../views/MinhasTaxasView.vue'),
     },
     {
+      path: '/notas-fiscais',
+      name: 'notas-fiscais',
+      component: () => import('../views/NotasFiscaisView.vue'),
+    },
+    {
       path: '/promocoes',
       name: 'promocoes',
       component: () => import('../views/PromocoesView.vue'),

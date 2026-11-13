@@ -53,6 +53,7 @@ const menuItems: MenuItem[] = [
   { icon: '\u{1F4B3}', label: 'Financeiro', path: '/pagamentos', secao: 'Financeiro' },
   { icon: '\u{1F3C6}', label: 'Promoções', path: '/promocoes', adminGeralOnly: true, secao: 'Financeiro' },
   { icon: '\u{1F3E6}', label: 'Minhas taxas', path: '/taxas', adminOnly: true, secao: 'Financeiro' },
+  { icon: '\u{1F9FE}', label: 'Notas Fiscais', path: '/notas-fiscais', adminOnly: true, secao: 'Financeiro' },
   { icon: '\u{1F4CA}', label: 'Relatórios', path: '/relatorios', secao: 'Análise' },
   { icon: '\u{1F4D1}', label: 'Dados Gerais', modal: true, secao: 'Conta' },
   { icon: '\u{1F4E6}', label: 'Produtos (Dev)', path: '/dev/produtos', devOnly: true, secao: 'Dev' },

@@ -16,12 +16,14 @@ import {
   nomeArquivoPedidoVenda,
 } from '@/services/pdf'
 import { aprovarDescontoOrcamento } from '@/services/orcamentoApi'
+import { listarNotasFiscaisPorOrca } from '@/services/notaFiscalApi'
 import { listarFaixas } from '@/services/equipeApi'
 import { calcularCondicoesPagamento as calcularCondicoesUnificado } from '@/utils/condicoesPagamento'
 import { CANAIS_CARTAO, provedoresDisponiveis, labelCanalCurto } from '@/utils/taxasBanco'
 import SimulacaoModal from '@/components/SimulacaoModal.vue'
 import ClienteModal from '@/components/ClienteModal.vue'
 import PagamentoModal from '@/components/PagamentoModal.vue'
+import NotaFiscalModal from '@/components/NotaFiscalModal.vue'
 import PendenciasPerfilBanner from '@/components/PendenciasPerfilBanner.vue'
 import ConfigComissoesBanner from '@/components/ConfigComissoesBanner.vue'
 import { gerarSimulacaoFront } from '@/utils/simulacao'
@@ -29,6 +31,7 @@ import { montarItemDisplay, numBR, ehItemML } from '@/utils/itemDisplay'
 import type { SimulacaoItem } from '@/types/orcamento'
 import type { Cliente } from '@/types/cliente'
 import type { TaxaBanco } from '@/types/orcamento'
+import type { NotaFiscal } from '@/types/notaFiscal'
 
 const route = useRoute()
 const router = useRouter()
@@ -1685,6 +1688,28 @@ async function salvarDadosKapazi() {
   } finally {
     salvandoKapazi.value = false
   }
+}
+
+// ── Notas Fiscais vinculadas ao pedido ─────────────────────────────────────────
+const notasPedido = ref<any[]>([])
+const notasPedidoOpen = ref(false)
+const notaPedidoVisualizada = ref<NotaFiscal | null>(null)
+const notaPedidoModalOpen = ref(false)
+
+async function abrirNotasPedido() {
+  const orcaId = orcaIdAtual.value
+  if (!orcaId) return
+  try {
+    notasPedido.value = await listarNotasFiscaisPorOrca(orcaId, authStore.user?.id)
+  } catch {
+    notasPedido.value = []
+  }
+  notasPedidoOpen.value = true
+}
+
+function verNotaPedido(nf: any) {
+  notaPedidoVisualizada.value = nf as NotaFiscal
+  notaPedidoModalOpen.value = true
 }
 
 async function enviarWhatsApp() {
@@ -3821,6 +3846,12 @@ async function enviarWhatsApp() {
           </div>
         </div>
 
+        <div v-if="isVinculado || statusAtual === 'APROVADO'" class="nf-pedido-link-row">
+          <button type="button" class="btn btn-sm btn-outline" @click="abrirNotasPedido">
+            📄 Notas Fiscais
+          </button>
+        </div>
+
         <div class="btn-row resumo-actions resumo-toolbar">
           <button class="btn btn-primary btn-lg" @click="novoOrcamento">Novo Orçamento</button>
           <span
@@ -3906,6 +3937,40 @@ async function enviarWhatsApp() {
       :readonly="clienteModalSomenteLeitura"
       @saved="aoSalvarCliente"
     />
+
+    <!-- Lista de notas fiscais do pedido -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="notasPedidoOpen" class="nf-pedido-overlay" @click.self="notasPedidoOpen = false">
+          <div class="nf-pedido-modal">
+            <header class="nf-pedido-header">
+              <h3>Notas Fiscais do Pedido</h3>
+              <button class="nf-pedido-close" @click="notasPedidoOpen = false">&times;</button>
+            </header>
+            <div class="nf-pedido-body">
+              <p v-if="!notasPedido.length" class="nf-pedido-empty">
+                Nenhuma nota fiscal vinculada a este pedido.
+              </p>
+              <button
+                v-for="nf in notasPedido"
+                :key="nf.id"
+                type="button"
+                class="nf-pedido-item"
+                @click="verNotaPedido(nf)"
+              >
+                <span class="nf-pedido-item-titulo">
+                  NF {{ nf.numero || '—' }}
+                  <span v-if="nf.serie"> · Série {{ nf.serie }}</span>
+                </span>
+                <span class="nf-pedido-item-valor">{{ formatarMoeda(nf.valor_total) }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <NotaFiscalModal v-model="notaPedidoModalOpen" :nota="notaPedidoVisualizada" />
   </div>
 </template>
 
@@ -5594,6 +5659,108 @@ async function enviarWhatsApp() {
   margin-top: 0.75rem;
   display: flex;
   justify-content: flex-end;
+}
+
+.nf-pedido-link-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.nf-pedido-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+
+.nf-pedido-modal {
+  background: var(--card-bg);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.nf-pedido-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.nf-pedido-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.nf-pedido-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.nf-pedido-body {
+  padding: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nf-pedido-empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.nf-pedido-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.nf-pedido-item:hover {
+  background: var(--border-subtle);
+}
+
+.nf-pedido-item-titulo {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.nf-pedido-item-valor {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 @media (max-width: 520px) {
