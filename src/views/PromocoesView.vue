@@ -78,6 +78,8 @@ function editar(p: Promocao) {
     borda_id: i.borda_id ?? null,
     tipo: i.tipo ?? 'PERCENTUAL',
     valor: Number(i.valor) || 0,
+    pedido_minimo_valor: i.pedido_minimo_valor ?? null,
+    pedido_minimo_rolos: i.pedido_minimo_rolos ?? null,
   }))
 }
 
@@ -136,6 +138,8 @@ function adicionarItem() {
     borda_id: null,
     tipo: 'PERCENTUAL',
     valor: 0,
+    pedido_minimo_valor: null,
+    pedido_minimo_rolos: null,
   })
 }
 
@@ -153,7 +157,15 @@ function descricaoItem(i: PromocaoItem): string {
     .filter(Boolean)
     .join(' · ')
   const valor = valorFormatado(i.valor, i.tipo)
-  return `${alvo || 'Item sem alvo'} — ${valor}`
+  const minimo = i.pedido_minimo_valor
+    ? ` · pedido mín. R$ ${(Number(i.pedido_minimo_valor) || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : i.pedido_minimo_rolos
+      ? ` · pedido mín. ${i.pedido_minimo_rolos} rolos`
+      : ''
+  return `${alvo || 'Item sem alvo'} — ${valor}${minimo}`
 }
 
 async function salvar() {
@@ -229,7 +241,9 @@ onMounted(carregar)
   <main class="prm">
     <header class="prm-head">
       <h1>Promoções</h1>
-      <p class="subtitle">Descontos temporários de custo (fábrica) — aplicados no cálculo do orçamento.</p>
+      <p class="subtitle">
+        Descontos temporários de custo (fábrica) — aplicados no cálculo do orçamento.
+      </p>
     </header>
 
     <p v-if="!podeGerenciar" class="restrito">Acesso restrito ao administrador geral.</p>
@@ -274,7 +288,11 @@ onMounted(carregar)
               <select v-model="item.produto_id" @change="aoEscolherProduto(item)">
                 <option :value="null">— Produto —</option>
                 <option v-for="p in catalogo.allProdutos" :key="p.produto_id" :value="p.produto_id">
-                  {{ [p.material_nome, p.linha_nome, p.tipo_nome, p.nivel_nome].filter(Boolean).join(' ') }}
+                  {{
+                    [p.material_nome, p.linha_nome, p.tipo_nome, p.nivel_nome]
+                      .filter(Boolean)
+                      .join(' ')
+                  }}
                 </option>
               </select>
             </div>
@@ -292,7 +310,10 @@ onMounted(carregar)
               <select v-model="item.borda_id">
                 <option :value="null">— Nenhuma —</option>
                 <option v-for="b in bordasDoProduto(item.produto_id)" :key="b.id" :value="b.id">
-                  {{ b.nome }}<template v-if="!item.produto_id"> · {{ nomeDoMaterial(b.material_id) }}</template>
+                  {{ b.nome
+                  }}<template v-if="!item.produto_id">
+                    · {{ nomeDoMaterial(b.material_id) }}</template
+                  >
                 </option>
               </select>
             </div>
@@ -305,7 +326,33 @@ onMounted(carregar)
             </div>
             <div class="field field-valor">
               <label>{{ item.tipo === 'VALOR_FIXO' ? 'Custo (R$)' : 'Desconto (%)' }}</label>
-              <input v-model.number="item.valor" type="number" min="0" step="0.01" placeholder="0" />
+              <input
+                v-model.number="item.valor"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0"
+              />
+            </div>
+            <div class="field field-min">
+              <label>Pedido mín. (R$)</label>
+              <input
+                v-model.number="item.pedido_minimo_valor"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Sem mínimo"
+              />
+            </div>
+            <div class="field field-min">
+              <label>Pedido mín. (rolos)</label>
+              <input
+                v-model.number="item.pedido_minimo_rolos"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Sem mínimo"
+              />
             </div>
             <button class="btn-remove" title="Remover item" @click="removerItem(idx)">✕</button>
           </div>
@@ -523,6 +570,10 @@ onMounted(carregar)
   flex: 0 0 120px;
 }
 
+.item-row .field-min {
+  flex: 0 0 120px;
+}
+
 .btn-remove {
   background: none;
   border: 1px solid var(--border-light);
@@ -673,7 +724,8 @@ onMounted(carregar)
   }
   .item-row .field,
   .item-row .field-tipo,
-  .item-row .field-valor {
+  .item-row .field-valor,
+  .item-row .field-min {
     flex: 1;
     min-width: 0;
   }

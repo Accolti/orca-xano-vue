@@ -223,6 +223,10 @@ export interface OrcamentoNovoResult {
   vlr_cst_unit: number
   vlr_custo_nota_unit: number
   vlr_custo_nota_tot: number
+  qtd_rolos?: number
+  promo_min_valor?: number | null
+  promo_min_rolos?: number | null
+  promo_aplicada?: boolean
   vlr_difal_unit: number
   vlr_difal_tot: number
   vlr_st_unit: number
@@ -262,7 +266,18 @@ export interface OrcamentoNovoResult {
   porcentagem_acrescimo?: number
   fc: number[]
   detalhes_calculo?: DetalhesCalculoItem
-  promo?: { aplicada: boolean; tipo: string | null; valor: number; data_fim: string | null } | null
+  promo?: {
+    aplicada: boolean
+    tipo: string | null
+    valor: number
+    data_fim: string | null
+    min_valor?: number | null
+    min_rolos?: number | null
+    falta_valor?: number | null
+    falta_rolos?: number | null
+    snap_promo?: Record<string, number>
+    snap_base?: Record<string, number>
+  } | null
 }
 
 // Detalhes de cálculo ML persistidos no item (detalhes_calculo.ml) — rolos, metros,
@@ -339,6 +354,10 @@ export interface OrcamentoInsertPayload {
   perc_margem_real: number
   fc: number[]
   detalhes_calculo?: Record<string, any>
+  qtd_rolos?: number
+  promo_min_valor?: number | null
+  promo_min_rolos?: number | null
+  promo_aplicada?: boolean
 }
 
 // Taxas de banco por provedor (tabela Taxa_Banco) — usadas para calcular as

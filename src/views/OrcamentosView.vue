@@ -150,7 +150,7 @@ const pixLimiteStatus = computed<'acima' | 'pendente' | null>(() => {
   if (!l) return null
   const header = orcamentoStore.orcamentoHeader
   const gross =
-    Number(header?.venda_bruta_tot) || (Number(header?.vnd_tot) + Number(header?.desconto)) || 0
+    Number(header?.venda_bruta_tot) || Number(header?.vnd_tot) + Number(header?.desconto) || 0
   const descontoRs = Number(header?.desconto) || 0
   const pixPerc = Number(descontoPixPercentual.value) || 0
   if (gross <= 0 || (descontoRs <= 0 && pixPerc <= 0)) return null
@@ -670,6 +670,52 @@ const margemRealKapazi = computed(() => {
   const vnd = orcamentoStore.orcamentoHeader?.vnd_tot ?? 0
   if (vnd <= 0) return 0
   return (lucroRealKapazi.value / vnd) * 100
+})
+
+// Total de rolos fechados (grama) do pedido — base do pedido mínimo por rolos.
+const totalRolosPedido = computed(() =>
+  orcamentoStore.itensInseridos.reduce((s, it) => s + (Number((it as any).qtd_rolos) || 0), 0),
+)
+
+// Aviso de pedido mínimo não atingido (promoção de custo da fábrica).
+function promoFalta(item: any): string {
+  if (item?.promo_aplicada === true) return ''
+  const minValor = Number(item?.promo_min_valor) || 0
+  const minRolos = Number(item?.promo_min_rolos) || 0
+  if (minValor > 0) {
+    const custo = custoKapaziTotal.value
+    const falta = minValor - custo
+    if (falta > 0) {
+      return `Pedido mínimo de ${formatarMoeda(minValor)} em custo Kapazi para o desconto — faltam ${formatarMoeda(falta)}`
+    }
+    return ''
+  }
+  if (minRolos > 0) {
+    const falta = minRolos - totalRolosPedido.value
+    if (falta > 0) {
+      return `Pedido mínimo de ${minRolos} rolos para o desconto — faltam ${falta}`
+    }
+    return ''
+  }
+  return ''
+}
+
+// Aviso no preview (antes de adicionar): promo com pedido mínimo ainda não atingido.
+const promoPreviewPendente = computed(() => {
+  const promo = orcamentoStore.resultadoNovo?.promo
+  if (!promo || promo.aplicada) return ''
+  const minValor = Number(promo.min_valor) || 0
+  const minRolos = Number(promo.min_rolos) || 0
+  if (minValor > 0) {
+    const falta = Number(promo.falta_valor) || 0
+    if (falta > 0)
+      return `Pedido mínimo de ${formatarMoeda(minValor)} em custo Kapazi para o desconto — faltam ${formatarMoeda(falta)}`
+  }
+  if (minRolos > 0) {
+    const falta = Number(promo.falta_rolos) || 0
+    if (falta > 0) return `Pedido mínimo de ${minRolos} rolos para o desconto — faltam ${falta}`
+  }
+  return ''
 })
 
 // Preview ao vivo da negociação (valores simulados, não persistidos)
@@ -1249,8 +1295,7 @@ const condicoesPendentes = computed(
   () =>
     condicoesPagamento.value.trim() !==
       (orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim() ||
-    observacaoOrcamento.value.trim() !==
-      (orcamentoStore.orcamentoHeader?.observacao || '').trim(),
+    observacaoOrcamento.value.trim() !== (orcamentoStore.orcamentoHeader?.observacao || '').trim(),
 )
 const condicoesSalvas = computed(() =>
   Boolean((orcamentoStore.orcamentoHeader?.condicoes_pagamento || '').trim()),
@@ -2268,11 +2313,11 @@ async function enviarWhatsApp() {
 
         <!-- Resultados -->
         <template v-if="orcamentoStore.resultado || orcamentoStore.resultadoNovo">
-          <p
-            v-if="orcamentoStore.resultadoNovo?.promo?.aplicada"
-            class="promo-banner"
-          >
+          <p v-if="orcamentoStore.resultadoNovo?.promo?.aplicada" class="promo-banner">
             🏷 Promoção aplicada — custo promocional em vigor
+          </p>
+          <p v-if="promoPreviewPendente" class="promo-banner promo-banner-warn">
+            ⚠ {{ promoPreviewPendente }}
           </p>
           <!-- D. FC e Dimensões Faturadas -->
           <section class="card">
@@ -2952,7 +2997,10 @@ async function enviarWhatsApp() {
                   <span class="itens-col-num" data-label="#">{{ idx + 1 }}</span>
                   <span class="itens-col-desc" data-label="Descrição"
                     >{{ montarItemDisplay(item).titulo
-                    }}<span v-if="montarItemDisplay(item).promo" class="promo-tag">Promo</span></span
+                    }}<span v-if="montarItemDisplay(item).promo" class="promo-tag">Promo</span
+                    ><span v-if="promoFalta(item)" class="promo-minimo"
+                      >⚠ {{ promoFalta(item) }}</span
+                    ></span
                   >
                   <span class="itens-col-dim" data-label="Dimensões">{{
                     montarItemDisplay(item).dimensoes + fcDimensoes(item)
@@ -3177,7 +3225,13 @@ async function enviarWhatsApp() {
                     0,
                 )
               }}<template
-                v-if="freteEfetivoResumo > 0 && freteEfetivoResumo !== (orcamentoStore.totaisRecalculo?.frete_b2b_total ?? orcamentoStore.orcamentoHeader?.frtB2B ?? 0)"
+                v-if="
+                  freteEfetivoResumo > 0 &&
+                  freteEfetivoResumo !==
+                    (orcamentoStore.totaisRecalculo?.frete_b2b_total ??
+                      orcamentoStore.orcamentoHeader?.frtB2B ??
+                      0)
+                "
               >
                 &nbsp;· efetivo {{ formatarMoeda(freteEfetivoResumo) }}
               </template></span
@@ -3223,6 +3277,7 @@ async function enviarWhatsApp() {
               <span class="itens-col-desc" data-label="Descrição">
                 {{ montarItemDisplay(item).titulo }}
                 <span v-if="montarItemDisplay(item).promo" class="promo-tag">Promo</span>
+                <span v-if="promoFalta(item)" class="promo-minimo">⚠ {{ promoFalta(item) }}</span>
                 <span
                   v-if="montarItemDisplay(item).subtitulo"
                   class="itens-obs itens-obs-composicao"
@@ -3782,7 +3837,11 @@ async function enviarWhatsApp() {
             </div>
             <div class="field">
               <label>Compra Nº</label>
-              <input v-model="kapaziForm.compra_numero" type="text" placeholder="Nº do pedido de compra" />
+              <input
+                v-model="kapaziForm.compra_numero"
+                type="text"
+                placeholder="Nº do pedido de compra"
+              />
             </div>
             <div class="field">
               <label>Nº NF</label>
@@ -4965,6 +5024,12 @@ async function enviarWhatsApp() {
   font-weight: 600;
 }
 
+.promo-banner-warn {
+  background: var(--warning-soft, #fef3c7);
+  border-color: var(--warning, #b45309);
+  color: var(--warning, #b45309);
+}
+
 .promo-tag {
   display: inline-block;
   margin-left: 0.4rem;
@@ -4975,6 +5040,14 @@ async function enviarWhatsApp() {
   font-size: 0.68rem;
   font-weight: 700;
   vertical-align: middle;
+}
+
+.promo-minimo {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--warning, #b45309);
 }
 
 .itens-col-num {

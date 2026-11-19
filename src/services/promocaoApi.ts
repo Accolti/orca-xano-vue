@@ -9,6 +9,8 @@ export interface PromocaoItem {
   borda_id: number | null
   tipo: 'VALOR_FIXO' | 'PERCENTUAL'
   valor: number
+  pedido_minimo_valor?: number | null
+  pedido_minimo_rolos?: number | null
 }
 
 export interface Promocao {

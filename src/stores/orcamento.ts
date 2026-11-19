@@ -727,6 +727,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
       porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
       fc: it.fc ?? [],
       detalhes_calculo: (it as any).detalhes_calculo ?? null,
+      qtd_rolos: it.qtd_rolos ?? 0,
+      promo_min_valor: it.promo_min_valor ?? null,
+      promo_min_rolos: it.promo_min_rolos ?? null,
+      promo_aplicada: it.promo_aplicada ?? false,
     }
   }
 
@@ -832,6 +836,10 @@ export const useOrcamentoStore = defineStore('orcamento', () => {
           porcentagem_acrescimo: it.porcentagem_acrescimo ?? 0,
           fc: it.fc ?? [],
           detalhes_calculo: (it as any).detalhes_calculo ?? null,
+          qtd_rolos: it.qtd_rolos ?? 0,
+          promo_min_valor: it.promo_min_valor ?? null,
+          promo_min_rolos: it.promo_min_rolos ?? null,
+          promo_aplicada: it.promo_aplicada ?? false,
         }
       } else {
         const r = resultado.value!

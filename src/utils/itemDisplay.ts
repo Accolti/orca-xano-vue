@@ -142,7 +142,12 @@ export function montarItemDisplay(item: any): ItemDisplay {
   const valorUnit = Number(item?.vlr_vnd_unit_b2b ?? item?.vlr_vnd_unit) || 0
   const valorTotal = valorUnit * qtdBase
 
-  const promo = Boolean(item?.detalhes_calculo?.promo?.aplicada)
+  // Promo aplicada de fato (recálculo) OU legado sem pedido mínimo (promo já cozida).
+  const promo =
+    item?.promo_aplicada === true ||
+    (Boolean(item?.detalhes_calculo?.promo?.aplicada) &&
+      !(Number(item?.promo_min_valor) || 0) &&
+      !(Number(item?.promo_min_rolos) || 0))
 
   return { isML, titulo, subtitulo, dimensoes, quantidade, valorUnit, valorTotal, promo }
 }

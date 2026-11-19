@@ -69,8 +69,19 @@ export interface ProdutoCtx {
   variacao_fc_id: number | null
   variacao: any | null
   fator_de_corte_variacao: any | null
+  // custo SEM promo (para o recálculo alternar quando o pedido mínimo não é atingido)
+  valor_base: number
+  variacao_custo_base: number | null
+  borda_valor_base: number
   // promoção ativa aplicada no custo (produto/variação/borda)
-  promo?: { aplicada: boolean; tipo: string | null; valor: number; data_fim: string | null } | null
+  promo?: {
+    aplicada: boolean
+    tipo: string | null
+    valor: number
+    data_fim: string | null
+    min_valor: number | null
+    min_rolos: number | null
+  } | null
 }
 
 export interface PerfilEfetivo {
@@ -210,26 +221,59 @@ export async function buscarProduto(
   let valorProduto = Number(produto.valor) || 0
   let valorVariacao = variacao ? Number(variacao.valor_custo) || 0 : null
   let valorBorda = Number(borda?.valor) || 0
-  let promo: { aplicada: boolean; tipo: string | null; valor: number; data_fim: string | null } | null = null
+  // Base SEM promo (para o recálculo alternar quando o pedido mínimo não é atingido)
+  const valorProdutoBase = valorProduto
+  const valorVariacaoBase = valorVariacao
+  const valorBordaBase = valorBorda
+  let promo: {
+    aplicada: boolean
+    tipo: string | null
+    valor: number
+    data_fim: string | null
+    min_valor: number | null
+    min_rolos: number | null
+  } | null = null
+
+  // Mínimo (R$/rolos) de uma promoção: quando o item casa com várias promoções
+  // (ex.: produto + borda), o mínimo efetivo é o MAIS RESTRITIVO (máximo), não o
+  // último. Uma borda sem mínimo não pode "apagar" o mínimo do produto.
+  const maxOrNull = (a: number | null, b: number | null): number | null => {
+    if (a == null) return b
+    if (b == null) return a
+    return Math.max(a, b)
+  }
 
   const promos: any[] = Array.isArray(ctx.promos) ? ctx.promos : []
   for (const p of promos) {
     const tipo = p.tipo
     const valor = Number(p.valor) || 0
     const dataFim = p.data_fim ?? null
+    const minValor = p.pedido_minimo_valor != null ? Number(p.pedido_minimo_valor) || null : null
+    const minRolos = p.pedido_minimo_rolos != null ? Number(p.pedido_minimo_rolos) || null : null
     const aplicar = (custo: number) => (tipo === 'VALOR_FIXO' ? valor : custo * (1 - valor / 100))
+    let matched = false
     if (p.produto_id != null && Number(p.produto_id) === produto.id) {
       valorProduto = aplicar(valorProduto)
       if (variacao) valorVariacao = aplicar(valorVariacao ?? 0)
-      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
+      matched = true
     }
     if (p.variacao_id != null && variacao && Number(p.variacao_id) === variacao.id) {
       valorVariacao = aplicar(valorVariacao ?? 0)
-      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
+      matched = true
     }
     if (p.borda_id != null && borda && Number(p.borda_id) === borda.id) {
       valorBorda = aplicar(valorBorda)
-      promo = { aplicada: true, tipo, valor, data_fim: dataFim }
+      matched = true
+    }
+    if (matched) {
+      promo = {
+        aplicada: true,
+        tipo,
+        valor,
+        data_fim: dataFim,
+        min_valor: maxOrNull(promo?.min_valor ?? null, minValor),
+        min_rolos: maxOrNull(promo?.min_rolos ?? null, minRolos),
+      }
     }
   }
 
@@ -249,9 +293,11 @@ export async function buscarProduto(
     detalhe_id: produto.detalhe_id ?? 0,
     fator_de_corte_id: produto.fator_de_corte_id ?? 0,
     ativo: produto.ativo ?? true,
+    valor_base: valorProdutoBase,
     borda_id: borda?.id ?? null,
     borda_nome: borda?.nome ?? null,
     borda_valor: valorBorda,
+    borda_valor_base: valorBordaBase,
     borda_unidade: borda?.unidade ?? null,
     material_nome: material?.nome ?? null,
     linha_nome: linhaNome,
@@ -266,6 +312,7 @@ export async function buscarProduto(
     aliq_st_interna: regra?.aliq_st_interna ?? 0,
     variacao_id: variacao?.id ?? null,
     variacao_custo: valorVariacao,
+    variacao_custo_base: valorVariacaoBase,
     variacao_fc_id: variacao?.fator_de_corte_id ?? null,
     variacao,
     fator_de_corte_variacao: fatorDeCorteVariacao,
@@ -801,9 +848,52 @@ export async function somarItensCustoNota(sb: SbClient, orcaId: number, excludeI
   return soma
 }
 
+// Soma dos rolos fechados já gravados (excluindo o item em edição) — base do mínimo por rolos.
+export async function somarRolosItens(sb: SbClient, orcaId: number, excludeItemId: number): Promise<number> {
+  if (!orcaId || orcaId <= 0) return 0
+  let query = sb.from('item').select('qtd_rolos').eq('orca_id', orcaId)
+  if (excludeItemId && excludeItemId > 0) query = query.neq('id', excludeItemId)
+  const { data } = await query
+  return (data || []).reduce((acc: number, i: any) => acc + (Number(i.qtd_rolos) || 0), 0)
+}
+
+// Soma do custo Kapazi SEM promo dos itens já gravados (base do pedido mínimo por valor).
+// O custo base fica em detalhes_calculo.promo.snap_base.custo_nota_unit; fallback para o
+// valor efetivo (itens legados sem snapshot).
+export async function somarItensCustoNotaBase(sb: SbClient, orcaId: number, excludeItemId: number): Promise<number> {
+  if (!orcaId || orcaId <= 0) return 0
+  let query = sb.from('item').select('vlr_cst_nota_unit, qtd, detalhes_calculo').eq('orca_id', orcaId)
+  if (excludeItemId && excludeItemId > 0) query = query.neq('id', excludeItemId)
+  const { data } = await query
+  return (data || []).reduce((acc: number, i: any) => {
+    const base =
+      Number(i.detalhes_calculo?.promo?.snap_base?.custo_nota_unit) || Number(i.vlr_cst_nota_unit) || 0
+    return acc + base * (Number(i.qtd) || 1)
+  }, 0)
+}
+
 // ---------------------------------------------------------------------------
 // Orquestrador (f_Orcamento_Orquestrador)
 // ---------------------------------------------------------------------------
+// Dispatcher do cálculo de custo por base de cálculo.
+async function custoPorBase(
+  sb: SbClient,
+  produto: ProdutoCtx,
+  input: CalcularInput,
+  baseDeCalculo: string,
+): Promise<Mod1> {
+  const t = baseDeCalculo.toUpperCase()
+  if (t === 'M2') return custoM2(sb, produto, input)
+  if (t === 'ML') return custoML(sb, produto, input)
+  if (t === 'UND') return custoUND(produto, input)
+  if (t === 'KIT') return custoKIT(produto, input)
+  if (t === 'COMPOSTO') {
+    if ((produto.tipo_composto || '').toUpperCase() === 'PLAYKAP') return custoPlaykap(sb, produto, input)
+    throw new Error(`Não foi possível calcular o custo do produto (base ${t}).`)
+  }
+  throw new Error(`Não foi possível calcular o custo do produto (base ${t}).`)
+}
+
 export async function calcular(sb: SbClient, input: CalcularInput): Promise<any> {
   const produto = await buscarProduto(sb, input)
   if (!produto) throw new Error('Produto não encontrado para a seleção. Confira o catálogo.')
@@ -819,16 +909,26 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
 
   const tipo_calculo = (produto.Base_de_Calculo || 'M2').toUpperCase()
 
-  let mod1: Mod1
-  if (tipo_calculo === 'M2') mod1 = await custoM2(sb, produto, input)
-  else if (tipo_calculo === 'ML') mod1 = await custoML(sb, produto, input)
-  else if (tipo_calculo === 'UND') mod1 = custoUND(produto, input)
-  else if (tipo_calculo === 'KIT') mod1 = custoKIT(produto, input)
-  else if (tipo_calculo === 'COMPOSTO') {
-    if ((produto.tipo_composto || '').toUpperCase() === 'PLAYKAP') mod1 = await custoPlaykap(sb, produto, input)
-    else throw new Error(`Não foi possível calcular o custo do produto (base ${tipo_calculo}).`)
+  // Custo COM promo (a promo já está embutida em produto.valor/borda/variacao).
+  let mod1: Mod1 = await custoPorBase(sb, produto, input, tipo_calculo)
+
+  // Custo SEM promo (base) — para alternar quando o pedido mínimo não é atingido.
+  let mod1Base: Mod1
+  if (produto.promo?.aplicada) {
+    if (tipo_calculo === 'COMPOSTO') {
+      // O override da promo acontece logo abaixo; a base é o mod1 antes do override.
+      mod1Base = { ...mod1, valores: { ...mod1.valores } }
+    } else {
+      const base: ProdutoCtx = {
+        ...produto,
+        valor: produto.valor_base,
+        borda_valor: produto.borda_valor_base,
+        variacao_custo: produto.variacao_custo_base,
+      }
+      mod1Base = await custoPorBase(sb, base, input, tipo_calculo)
+    }
   } else {
-    throw new Error(`Não foi possível calcular o custo do produto (base ${tipo_calculo}).`)
+    mod1Base = mod1
   }
 
   // Promoção em produto COMPOSTO (custo montado a partir de componentes):
@@ -852,23 +952,53 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
   }
 
   const qtd = mod1.quantidade
-  const custo_nota_tot = mod1.valores.custo_nota_tot
+  const custo_nota_tot_promo = mod1.valores.custo_nota_tot
+  const custo_nota_tot_base = mod1Base.valores.custo_nota_tot
+  const qtd_rolos = Number(mod1.detalhes_calculo?.ml?.rolosFechados) || 0
 
-  // Soma dos itens já gravados (para o frete)
+  // Itens já gravados (frete + pedido mínimo)
   const somaItens = await somarItensCustoNota(sb, input.orca_id, input.item_id)
+  const rolosExistentes = await somarRolosItens(sb, input.orca_id, input.item_id)
+
+  // Decisão do pedido mínimo: custo Kapazi SEM promo (Σ vlr_cst_nota_unit_base × qtd)
+  // — "quanto você comprou" a preço normal. O desconto é liberado quando essa compra
+  // atinge o mínimo (não é o valor já descontado, o que causaria o efeito circular).
+  const min_valor = produto.promo?.min_valor ?? null
+  const min_rolos = produto.promo?.min_rolos ?? null
+  const total_rolos = rolosExistentes + qtd_rolos
+  const somaItensBase = await somarItensCustoNotaBase(sb, input.orca_id, input.item_id)
+  const custo_total_base = somaItensBase + custo_nota_tot_base
+
+  let aplicarPromo = produto.promo?.aplicada === true
+  if (aplicarPromo) {
+    if (min_rolos != null && min_rolos > 0 && total_rolos < min_rolos) aplicarPromo = false
+    if (min_valor != null && min_valor > 0 && custo_total_base < min_valor) aplicarPromo = false
+  }
+
+  const mod1Efetivo = aplicarPromo ? mod1 : mod1Base
+  const custo_nota_tot = mod1Efetivo.valores.custo_nota_tot
   const custo_nota_total_para_frete = somaItens + custo_nota_tot
 
-  // Precificar (fiscal)
-  const precif = await precificar(sb, {
-    custo_nota: custo_nota_tot,
+  const uf_destino = input.uf_destino || perfil?.uf || 'SP'
+  const regime_id = input.regime_id || perfil?.regime_id || 0
+  const fiscalParams = {
     uf_origem,
-    uf_destino: input.uf_destino || perfil?.uf || 'SP',
-    regime_id: input.regime_id || perfil?.regime_id || 0,
+    uf_destino,
+    regime_id,
     eh_importado: produto.eh_importado,
     tem_st: produto.st,
     mva_padrao: produto.mva_padrao,
     aliq_st_interna: produto.aliq_st_interna,
-  })
+  }
+
+  // Fiscal efetivo (para a venda) + snapshots promo/base (para o recálculo alternar).
+  const precif = await precificar(sb, { custo_nota: custo_nota_tot, ...fiscalParams })
+  let precifPromo = precif
+  let precifBase = precif
+  if (produto.promo?.aplicada) {
+    precifPromo = await precificar(sb, { custo_nota: custo_nota_tot_promo, ...fiscalParams })
+    precifBase = await precificar(sb, { custo_nota: custo_nota_tot_base, ...fiscalParams })
+  }
 
   // Frete B2B
   const frete_b2b = calcularFrete(custo_nota_total_para_frete, perfil?.frtB2B ?? 0)
@@ -884,18 +1014,51 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
 
   const div = (v: number) => (qtd > 0 ? v / qtd : 0)
 
+  // Quanto falta para o pedido mínimo (quando a promo não foi aplicada).
+  let falta_valor: number | null = null
+  let falta_rolos: number | null = null
+  if (!aplicarPromo) {
+    if (min_valor != null && min_valor > 0) falta_valor = round2(Math.max(0, min_valor - custo_total_base))
+    if (min_rolos != null && min_rolos > 0) falta_rolos = Math.max(0, min_rolos - total_rolos)
+  }
+
+  const promoObj = produto.promo
+    ? {
+        ...produto.promo,
+        aplicada: aplicarPromo,
+        falta_valor,
+        falta_rolos,
+        snap_promo: {
+          custo_nota_unit: round4(div(custo_nota_tot_promo)),
+          st_unit: round4(div(precifPromo.valor_st)),
+          difal_unit: round4(div(precifPromo.valor_difal)),
+          credito_unit: round4(div(precifPromo.credito_icms)),
+        },
+        snap_base: {
+          custo_nota_unit: round4(div(custo_nota_tot_base)),
+          st_unit: round4(div(precifBase.valor_st)),
+          difal_unit: round4(div(precifBase.valor_difal)),
+          credito_unit: round4(div(precifBase.credito_icms)),
+        },
+      }
+    : null
+
   return {
     produto_id: input.produto_id,
     borda_id: input.borda_id,
     variacao_id: input.variacao_id,
     qtd,
-    comp: mod1.comprimento ?? 0,
-    larg: mod1.largura ?? 0,
-    comp_fc: mod1.comprimento_fc ?? 0,
-    larg_fc: mod1.largura_fc ?? 0,
+    comp: mod1Efetivo.comprimento ?? 0,
+    larg: mod1Efetivo.largura ?? 0,
+    comp_fc: mod1Efetivo.comprimento_fc ?? 0,
+    larg_fc: mod1Efetivo.largura_fc ?? 0,
     vlr_cst_unit: round4(div(custo_nota_tot)),
     vlr_custo_nota_unit: round4(div(custo_nota_tot)),
     vlr_custo_nota_tot: round4(custo_nota_tot),
+    qtd_rolos,
+    promo_min_valor: min_valor,
+    promo_min_rolos: min_rolos,
+    promo_aplicada: aplicarPromo,
     vlr_difal_unit: round4(div(precif.valor_difal)),
     vlr_difal_tot: round4(precif.valor_difal),
     vlr_st_unit: round4(div(precif.valor_st)),
@@ -919,23 +1082,23 @@ export async function calcular(sb: SbClient, input: CalcularInput): Promise<any>
     base_calculo: tipo_calculo,
     und_produto: produto.Unidade,
     und_borda: produto.borda_unidade || '',
-    vlr_cst_materia_prima: mod1.valores.custo_materia_prima,
-    vlr_cst_borda: mod1.valores.custo_borda,
-    vlr_ipi_unit: mod1.valores.valor_ipi_unit,
+    vlr_cst_materia_prima: mod1Efetivo.valores.custo_materia_prima,
+    vlr_cst_borda: mod1Efetivo.valores.custo_borda,
+    vlr_ipi_unit: mod1Efetivo.valores.valor_ipi_unit,
     vlr_perc_difal: precif.perc_difal,
     vlr_aliq_inter: precif.aliq_inter,
     vlr_aliq_interna: precif.aliq_interna,
     uf_origem: precif.uf_origem,
     uf_destino: precif.uf_destino,
     regime_id: perfil?.regime_id ?? 0,
-    fc: mod1.fc,
-    fator_de_corte_id: mod1.fator_de_corte_id,
-    tipo_fator_id: mod1.tipo_fator_id,
-    com_medida_exata: mod1.com_medida_exata,
-    porcentagem_acrescimo: mod1.acrescimo_medida_exata,
-    detalhes_calculo: produto.promo?.aplicada
-      ? { ...(mod1.detalhes_calculo ?? {}), promo: produto.promo }
-      : mod1.detalhes_calculo,
-    promo: produto.promo ?? null,
+    fc: mod1Efetivo.fc,
+    fator_de_corte_id: mod1Efetivo.fator_de_corte_id,
+    tipo_fator_id: mod1Efetivo.tipo_fator_id,
+    com_medida_exata: mod1Efetivo.com_medida_exata,
+    porcentagem_acrescimo: mod1Efetivo.acrescimo_medida_exata,
+    detalhes_calculo: promoObj
+      ? { ...(mod1Efetivo.detalhes_calculo ?? {}), promo: promoObj }
+      : mod1Efetivo.detalhes_calculo,
+    promo: promoObj,
   }
 }
