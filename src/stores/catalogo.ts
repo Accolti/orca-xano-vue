@@ -127,9 +127,9 @@ export const useCatalogoStore = defineStore('catalogo', () => {
     return `M${m}P${p}T${t}`
   })
 
-  const materiais = computed(() =>
-    allMaterials.value.filter((m) => m.ativo).sort((a, b) => a.Ordenacao - b.Ordenacao),
-  )
+  // Ordem definida no backend (rpc_produtos_para_selecao: nome, ordenacao) —
+  // o front apenas filtra os ativos, preservando a ordem vinda do servidor.
+  const materiais = computed(() => allMaterials.value.filter((m) => m.ativo))
 
   const linhasFiltradas = computed(() =>
     allLinhas.value.filter((l) => l.material_id === selectedMaterialId.value),
